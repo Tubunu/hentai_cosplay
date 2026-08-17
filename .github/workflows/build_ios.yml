@@ -3,12 +3,12 @@ name: Build iOS IPA (Free No-Mac Cloud Build)
 on:
   push:
     branches: [ main, master ]
-  workflow_dispatch: # Allows manual trigger from GitHub web UI
+  workflow_dispatch:
 
 jobs:
   build-ios:
     name: Build Unsigned iOS IPA
-    runs-on: macos-14 # Uses free macOS Apple Silicon runner provided by GitHub
+    runs-on: macos-14
 
     steps:
       - name: Checkout Code
@@ -39,14 +39,15 @@ jobs:
       - name: Package Payload into IPA
         run: |
           cd hentai_cosplay_downloader/build/ios/iphoneos
-          mkdir Payload
+          mkdir -p Payload
           cp -r Runner.app Payload/
           zip -r -q hentai_cosplay_downloader.ipa Payload
-          mv hentai_cosplay_downloader.ipa ../../../
+          cp hentai_cosplay_downloader.ipa "$GITHUB_WORKSPACE/"
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
           name: hentai_cosplay_downloader-ios-ipa
           path: hentai_cosplay_downloader.ipa
+          if-no-files-found: error
           retention-days: 7
