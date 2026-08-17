@@ -39,13 +39,16 @@ jobs:
           cd hentai_cosplay_downloader
           flutter build ios --release --no-codesign
 
-      - name: Package Payload into Windows-Sideloadly Compatible IPA
+      - name: Package Clean Standard IPA
         run: |
           cd hentai_cosplay_downloader
           rm -rf ipa_staging
           mkdir -p ipa_staging/Payload
-          # Use cp -RL to dereference all framework symlinks into real files so Windows Python zipfile extracts valid Mach-O binaries
           cp -RL build/ios/iphoneos/Runner.app ipa_staging/Payload/
+          # Remove any dummy code signature or metadata that might confuse third-party resigners
+          find ipa_staging/Payload -name "_CodeSignature" -exec rm -rf {} + 2>/dev/null || true
+          find ipa_staging/Payload -name "embedded.mobileprovision" -delete 2>/dev/null || true
+          find ipa_staging/Payload -name ".DS_Store" -delete 2>/dev/null || true
           chmod -R 755 ipa_staging/Payload/Runner.app
           cd ipa_staging
           zip -r -q hentai_cosplay_downloader.ipa Payload
@@ -67,8 +70,8 @@ jobs:
           tag_name: v1.0.0-ios
           name: "Hentai Cosplay Downloader iOS Release"
           body: |
-            ### 📱 iOS 免费直装版本（已解决 Windows Sideloadly 软链接兼容问题）
-            - 直接下载下方的 `hentai_cosplay_downloader.ipa` 文件（无需解压）。
+            ### 📱 iOS 免费直装版本（包含高清 App 图标与纯净动态库）
+            - 直接下载下方的 `hentai_cosplay_downloader.ipa` 文件。
             - 打开 **Sideloadly** 拖入安装到 iPhone。
           files: hentai_cosplay_downloader.ipa
           make_latest: true
