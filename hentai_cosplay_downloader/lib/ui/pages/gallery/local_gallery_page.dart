@@ -312,6 +312,14 @@ class _LocalGalleryPageState extends State<LocalGalleryPage> {
     );
   }
 
+  static String formatBytes(int bytes) {
+    if (bytes <= 0) return '0 B';
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+  }
+
   Widget _buildLocalAlbumCard(LocalAlbumFolder album, int index, bool isDark, GalleryProvider galleryProv) {
     return BouncingButton(
       onTap: () {
@@ -365,25 +373,28 @@ class _LocalGalleryPageState extends State<LocalGalleryPage> {
                   album.coverPath != null
                       ? Image.file(
                           File(album.coverPath!),
+                          cacheWidth: 400,
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => const Icon(CupertinoIcons.photo, color: Colors.grey),
                         )
                       : const Icon(CupertinoIcons.photo, color: Colors.grey),
-                  // Count pill
+                  // Count & Size pill
                   Positioned(
                     right: 8,
                     bottom: 6,
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.65),
+                        color: Colors.black.withValues(alpha: 0.7),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        '${album.imageCount} 张',
+                        album.totalBytes > 0
+                            ? '${album.imageCount} 张 • ${formatBytes(album.totalBytes)}'
+                            : '${album.imageCount} 张',
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 10,
+                          fontSize: 9.5,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -511,7 +522,7 @@ class _LocalAlbumViewerState extends State<_LocalAlbumViewer> {
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
             Text(
-              '${album.author} • 第 ${_currentIndex + 1}/${albums.length} 套 (${album.imageCount}张)',
+              '${album.author} • 第 ${_currentIndex + 1}/${albums.length} 套 (${album.imageCount}张 • ${_LocalGalleryPageState.formatBytes(album.totalBytes)})',
               style: TextStyle(
                 fontSize: 11.5,
                 fontWeight: FontWeight.w500,
@@ -572,6 +583,7 @@ class _LocalAlbumViewerState extends State<_LocalAlbumViewer> {
                     color: isDark ? const Color(0xFF242426) : const Color(0xFFE5E5EA),
                     child: Image.file(
                       File(path),
+                      cacheWidth: 360,
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => const Icon(CupertinoIcons.photo, color: Colors.grey),
                     ),
@@ -741,7 +753,10 @@ class _LocalPhotoGalleryViewerState extends State<_LocalPhotoGalleryViewer> {
             onPageChanged: (idx) => setState(() => _currentIndex = idx),
             builder: (context, index) {
               return PhotoViewGalleryPageOptions(
-                imageProvider: FileImage(File(paths[index])),
+                imageProvider: ResizeImage(
+                  FileImage(File(paths[index])),
+                  width: 1800,
+                ),
                 minScale: PhotoViewComputedScale.contained,
                 maxScale: PhotoViewComputedScale.covered * 3.0,
               );

@@ -59,17 +59,81 @@ class _DownloadTasksPageState extends State<DownloadTasksPage> {
                     ),
                   ),
                   const Spacer(),
+
+                  // Pause All Button
+                  if (downloadProv.activeTasks.isNotEmpty || downloadProv.queuedTasks.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: BouncingButton(
+                        onTap: () => downloadProv.pauseAllTasks(),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(CupertinoIcons.pause_fill, size: 12, color: Colors.orange),
+                              SizedBox(width: 4),
+                              Text(
+                                '全部暂停',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.orange,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  // Resume All Button
+                  if (downloadProv.pausedTasks.isNotEmpty || downloadProv.failedTasks.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: BouncingButton(
+                        onTap: () => downloadProv.resumeAllTasks(),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: IosTheme.primaryPink.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(CupertinoIcons.play_fill, size: 12, color: IosTheme.primaryPink),
+                              SizedBox(width: 4),
+                              Text(
+                                '全部开始',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: IosTheme.primaryPink,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  // Clear Completed Button
                   if (downloadProv.completedTasks.isNotEmpty)
                     BouncingButton(
                       onTap: () => downloadProv.clearCompleted(),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
                         decoration: BoxDecoration(
                           color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
                           borderRadius: BorderRadius.circular(14),
                         ),
                         child: Text(
-                          '清理已完成',
+                          '清理完成',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
@@ -78,27 +142,6 @@ class _DownloadTasksPageState extends State<DownloadTasksPage> {
                         ),
                       ),
                     ),
-                  if (downloadProv.failedTasks.isNotEmpty) ...[
-                    const SizedBox(width: 8),
-                    BouncingButton(
-                      onTap: () => downloadProv.retryFailedTasks(),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: IosTheme.primaryPink.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: const Text(
-                          '重试全部失败',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: IosTheme.primaryPink,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),

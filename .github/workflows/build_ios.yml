@@ -1,4 +1,4 @@
-name: Build iOS IPA (Free No-Mac Cloud Build)
+name: Build iOS IPA & Android APK (Dual-Platform Cloud Release)
 
 on:
   push:
@@ -9,8 +9,8 @@ permissions:
   contents: write
 
 jobs:
-  build-ios:
-    name: Build Unsigned iOS IPA
+  build-release:
+    name: Build iOS IPA & Android APK
     runs-on: macos-14
 
     steps:
@@ -45,7 +45,6 @@ jobs:
           rm -rf ipa_staging
           mkdir -p ipa_staging/Payload
           cp -RL build/ios/iphoneos/Runner.app ipa_staging/Payload/
-          # Remove any dummy code signature or metadata that might confuse third-party resigners
           find ipa_staging/Payload -name "_CodeSignature" -exec rm -rf {} + 2>/dev/null || true
           find ipa_staging/Payload -name "embedded.mobileprovision" -delete 2>/dev/null || true
           find ipa_staging/Payload -name ".DS_Store" -delete 2>/dev/null || true
@@ -55,6 +54,13 @@ jobs:
           mv hentai_cosplay_downloader.ipa "$GITHUB_WORKSPACE/"
           ls -lh "$GITHUB_WORKSPACE/hentai_cosplay_downloader.ipa"
 
+      - name: Build Android Release APK
+        run: |
+          cd hentai_cosplay_downloader
+          flutter build apk --release
+          cp build/app/outputs/flutter-apk/app-release.apk "$GITHUB_WORKSPACE/hentai_cosplay_downloader.apk"
+          ls -lh "$GITHUB_WORKSPACE/hentai_cosplay_downloader.apk"
+
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -63,17 +69,34 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - name: Create or Update GitHub Release (Direct IPA Download)
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hentai_cosplay_downloader-android-apk
+          path: hentai_cosplay_downloader.apk
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Create or Update GitHub Release (Direct IPA & APK Download)
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         with:
-          tag_name: v1.0.0-ios
-          name: "Hentai Cosplay Downloader iOS Release"
+          tag_name: v1.0.0-release
+          name: "Hentai Cosplay Downloader Release (iOS & Android)"
           body: |
-            ### 📱 iOS 免费直装版本（包含高清 App 图标与纯净动态库）
-            - 直接下载下方的 `hentai_cosplay_downloader.ipa` 文件。
-            - 打开 **Sideloadly** 拖入安装到 iPhone。
-          files: hentai_cosplay_downloader.ipa
+            ### 📱 安装包下载
+            - **🍎 iOS (iPhone / iPad)**: 下载 `hentai_cosplay_downloader.ipa`，使用 **Sideloadly** / **AltStore** / **TrollStore** 签名安装。
+            - **🤖 Android (安卓)**: 下载 `hentai_cosplay_downloader.apk`，在安卓手机上直接点击安装即可。
+
+            ### 🚀 最新修复与功能更新
+            - **大图包完整下载**：支持多页（>100张）相册自动分页解析与全量下载。
+            - **任务管理**：新增“全部暂停”与“全部开始”，修复暂停任务恢复下载。
+            - **本地图库**：新增按空间占用（从高到低 / 从低到高）排序，并在卡片上显示大小。
+            - **iOS 体验优化**：修复 100+ 图片相册浏览滑动闪退；启用 iOS 本地通知与后台保活。
+            - **在线搜索**：修复关键词与中文搜索功能。
+          files: |
+            hentai_cosplay_downloader.ipa
+            hentai_cosplay_downloader.apk
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

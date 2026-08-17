@@ -4,6 +4,8 @@ import '../services/storage_service.dart';
 enum GallerySortMode {
   dateDesc('时间最新 (默认)'),
   dateAsc('时间最早'),
+  sizeDesc('占用空间 (从高到低)'),
+  sizeAsc('占用空间 (从低到高)'),
   titleAsc('名称 (A-Z)'),
   imagesDesc('图片数 (从多到少)'),
   imagesAsc('图片数 (从少到多)');
@@ -36,6 +38,12 @@ class GalleryProvider extends ChangeNotifier {
         break;
       case GallerySortMode.dateAsc:
         sorted.sort((a, b) => a.modifiedAt.compareTo(b.modifiedAt));
+        break;
+      case GallerySortMode.sizeDesc:
+        sorted.sort((a, b) => b.totalBytes.compareTo(a.totalBytes));
+        break;
+      case GallerySortMode.sizeAsc:
+        sorted.sort((a, b) => a.totalBytes.compareTo(b.totalBytes));
         break;
       case GallerySortMode.titleAsc:
         sorted.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));

@@ -27,6 +27,10 @@ void main() async {
   await ConfigService.init();
   await NotificationService.init();
 
+  // Protect from iOS Jetsam memory kills when scrolling large photo sets
+  PaintingBinding.instance.imageCache.maximumSize = 100;
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 120 * 1024 * 1024; // 120MB limit
+
   runApp(
     MultiProvider(
       providers: [

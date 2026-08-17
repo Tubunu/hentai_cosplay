@@ -262,6 +262,21 @@ class DownloadProvider extends ChangeNotifier {
     _updateNotification();
   }
 
+  /// Pause all downloading and queued tasks
+  void pauseAllTasks() {
+    for (final task in activeTasks) {
+      _activeEngines[task.id]?.cancel();
+      task.status = TaskStatus.paused;
+    }
+    for (final task in queuedTasks) {
+      task.status = TaskStatus.paused;
+    }
+    _runningTasks.clear();
+    _persistTasks();
+    notifyListeners();
+    _updateNotification();
+  }
+
   /// Resume a single task
   void resumeTask(AlbumDownloadTask task) {
     if (task.status == TaskStatus.paused || task.status == TaskStatus.failed) {
@@ -271,6 +286,19 @@ class DownloadProvider extends ChangeNotifier {
       notifyListeners();
       _triggerDownloadLoop();
     }
+  }
+
+  /// Resume all paused and failed tasks
+  void resumeAllTasks() {
+    for (final task in _allTasks) {
+      if (task.status == TaskStatus.paused || task.status == TaskStatus.failed) {
+        task.status = TaskStatus.queued;
+        _currentBatchTaskIds.add(task.id);
+      }
+    }
+    _persistTasks();
+    notifyListeners();
+    _triggerDownloadLoop();
   }
 
   /// Retry failed tasks
@@ -308,34 +336,45 @@ class DownloadProvider extends ChangeNotifier {
     }
   }
 
+  bool _loopRerunRequested = false;
+
   /// Main queue processor loop with pack concurrency control
   Future<void> _triggerDownloadLoop() async {
-    if (_isEngineRunning) return;
-    _isEngineRunning = true;
+    _loopRerunRequested = true;
     _startSpeedTimer();
     _batchStartTime ??= DateTime.now();
-    _config = ConfigService.loadConfig();
-    if (_config.savePath.isEmpty) {
-      _config.savePath = await StorageService.getDefaultDownloadPath();
-      await ConfigService.saveConfig(_config);
-    } else {
-      _config.savePath = await StorageService.resolveValidPath(_config.savePath);
-    }
-    notifyListeners();
 
-    final maxPackWorkers = _config.packWorkers.clamp(1, 20);
-    final packPool = Pool(maxPackWorkers);
+    if (_isEngineRunning) return;
+    _isEngineRunning = true;
 
     try {
+      _config = ConfigService.loadConfig();
+      if (_config.savePath.isEmpty) {
+        _config.savePath = await StorageService.getDefaultDownloadPath();
+        await ConfigService.saveConfig(_config);
+      } else {
+        _config.savePath = await StorageService.resolveValidPath(_config.savePath);
+      }
+      notifyListeners();
+
+      final maxPackWorkers = _config.packWorkers.clamp(1, 20);
+      final packPool = Pool(maxPackWorkers);
+
       while (true) {
+        _loopRerunRequested = false;
         final pendingTasks = _allTasks.where((t) => t.status == TaskStatus.queued).toList();
-        if (pendingTasks.isEmpty) break;
+        if (pendingTasks.isEmpty) {
+          if (_loopRerunRequested || _allTasks.any((t) => t.status == TaskStatus.queued)) {
+            continue;
+          }
+          break;
+        }
 
         final List<Future<void>> futures = [];
 
         for (final task in pendingTasks) {
           final future = packPool.withResource(() async {
-            if (task.status == TaskStatus.paused) return;
+            if (task.status != TaskStatus.queued) return;
 
             task.status = TaskStatus.downloading;
             task.startTime ??= DateTime.now();
@@ -377,6 +416,16 @@ class DownloadProvider extends ChangeNotifier {
                   detailUrl: task.albumItem.detailUrl,
                 );
                 onAlbumCompleted?.call(record);
+
+                NotificationService.showAlbumCompleted(
+                  title: task.albumItem.title,
+                  imagesCount: task.downloadedImages + task.skippedImages,
+                );
+              }
+            } catch (e) {
+              debugPrint('Task ${task.id} execution error: $e');
+              if (task.status == TaskStatus.downloading) {
+                task.status = TaskStatus.failed;
               }
             } finally {
               _activeEngines.remove(task.id);
@@ -428,6 +477,9 @@ class DownloadProvider extends ChangeNotifier {
       _batchStartTime = null;
       _persistTasks();
       notifyListeners();
+      if (_allTasks.any((t) => t.status == TaskStatus.queued)) {
+        _triggerDownloadLoop();
+      }
       if (activeTasks.isNotEmpty || pausedTasks.isNotEmpty) {
         _updateNotification();
       }

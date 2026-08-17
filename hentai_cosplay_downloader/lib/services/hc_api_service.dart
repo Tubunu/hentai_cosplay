@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 import '../models/album_item.dart';
@@ -88,9 +89,9 @@ class HCApiService {
     } else {
       final encoded = Uri.encodeComponent(cleanKeyword);
       if (page <= 1) {
-        return '$kBaseUrl/search/$encoded/';
+        return '$kBaseUrl/search/keyword/$encoded/';
       } else {
-        return '$kBaseUrl/search/$encoded/page/$page/';
+        return '$kBaseUrl/search/keyword/$encoded/page/$page/';
       }
     }
   }
@@ -180,70 +181,152 @@ class HCApiService {
     return maxP > 1 ? maxP : (itemCount > 0 ? 1 : 0);
   }
 
-  /// Parse detail page: extract full resolution images and previews
-  static Future<AlbumItem?> fetchAlbumDetail(AlbumItem item, {int retryCount = 3}) async {
+  /// Parse detail page total pages (handles multi-page albums with >100 images)
+  static int parseDetailTotalPages(String html) {
+    int maxPage = 1;
+
+    // 1. Check wp-pagenavi last page link: class="last" href=".../page/3/"
+    final lastPageMatch = RegExp(
+      r'class="last"[^>]*?href="[^"]*?/page/(\d+)/?"',
+      caseSensitive: false,
+    ).firstMatch(html);
+    if (lastPageMatch != null) {
+      final p = int.tryParse(lastPageMatch.group(1) ?? '');
+      if (p != null && p > maxPage) maxPage = p;
+    }
+
+    // 2. Check all pagination page links: class="page larger" or href=".../page/N/"
+    final pageMatches = RegExp(
+      r'href="[^"]*?/page/(\d+)/?"',
+      caseSensitive: false,
+    ).allMatches(html);
+    for (final m in pageMatches) {
+      final p = int.tryParse(m.group(1) ?? '');
+      if (p != null && p > maxPage && p < 1000) {
+        maxPage = p;
+      }
+    }
+
+    // 3. Check page text indicators like "1/3" or "Page 1 of 3"
+    final pagesTextMatch = RegExp(
+      r'class=["\x27]pages["\x27][^>]*>[\s\S]*?(\d+)\s*[/／]\s*(\d+)',
+      caseSensitive: false,
+    ).firstMatch(html);
+    if (pagesTextMatch != null) {
+      final p = int.tryParse(pagesTextMatch.group(2) ?? '');
+      if (p != null && p > maxPage) maxPage = p;
+    }
+
+    return maxPage;
+  }
+
+  /// Helper to fetch raw HTML of a single URL with retries
+  static Future<String?> _fetchHtml(String url, {int retryCount = 3}) async {
     if (!_initialized) _recreateDio();
 
     for (int i = 0; i < retryCount; i++) {
       try {
         final response = await _dio.get(
-          item.detailUrl,
-          options: Options(responseType: ResponseType.plain),
+          url,
+          options: Options(
+            responseType: ResponseType.plain,
+            headers: {
+              'Referer': '$kBaseUrl/',
+            },
+          ),
         );
-
         if (response.statusCode == 200 && response.data != null) {
-          final html = response.data.toString();
-
-          // Extract title
-          final titleMatch = RegExp(r'<title>([^<]+)</title>', caseSensitive: false).firstMatch(html);
-          final rawTitle = titleMatch?.group(1)?.replaceAll('- Hentai Cosplay', '').trim();
-          final title = (rawTitle != null && rawTitle.isNotEmpty) ? rawTitle : item.title;
-
-          // Extract images in post container
-          final imgPattern = RegExp(
-            r'<div class="icon-overlay">\s*<a href="([^"]+)"[^>]*>\s*<img src="([^"]+)"',
-            caseSensitive: false,
-          );
-          final matches = imgPattern.allMatches(html);
-
-          final List<String> imageUrls = [];
-          final List<String> previewUrls = [];
-
-          for (final m in matches) {
-            final full = m.group(1)?.trim();
-            final thumb = m.group(2)?.trim();
-            if (full != null && full.isNotEmpty) {
-              imageUrls.add(full);
-              previewUrls.add(thumb ?? full);
-            }
-          }
-
-          // Extract tags if any
-          final List<String> tags = [];
-          final tagMatches = RegExp(r'<p id="detail_tag">([\s\S]*?)</p>', caseSensitive: false).firstMatch(html);
-          if (tagMatches != null) {
-            final tagLinks = RegExp(r'<a[^>]*>([^<]+)</a>').allMatches(tagMatches.group(1) ?? '');
-            for (final tm in tagLinks) {
-              final t = tm.group(1)?.trim();
-              if (t != null && t.isNotEmpty) tags.add(t);
-            }
-          }
-
-          return item.copyWith(
-            title: title,
-            imageUrls: imageUrls,
-            previewUrls: previewUrls,
-            tags: tags,
-            isDetailLoaded: true,
-          );
+          return response.data.toString();
         }
       } catch (e) {
         if (i < retryCount - 1) {
-          await Future.delayed(const Duration(milliseconds: 1000));
+          await Future.delayed(const Duration(milliseconds: 800));
         }
       }
     }
     return null;
+  }
+
+  /// Parse detail page: extract full resolution images and previews from ALL pages
+  static Future<AlbumItem?> fetchAlbumDetail(AlbumItem item, {int retryCount = 3}) async {
+    if (!_initialized) _recreateDio();
+
+    final page1Html = await _fetchHtml(item.detailUrl, retryCount: retryCount);
+    if (page1Html == null || page1Html.isEmpty) return null;
+
+    try {
+      // Extract title
+      final titleMatch = RegExp(r'<title>([^<]+)</title>', caseSensitive: false).firstMatch(page1Html);
+      final rawTitle = titleMatch?.group(1)?.replaceAll('- Hentai Cosplay', '').trim();
+      final title = (rawTitle != null && rawTitle.isNotEmpty) ? rawTitle : item.title;
+
+      // Image pattern
+      final imgPattern = RegExp(
+        r'<div class="icon-overlay">\s*<a href="([^"]+)"[^>]*>\s*<img src="([^"]+)"',
+        caseSensitive: false,
+      );
+
+      final List<String> imageUrls = [];
+      final List<String> previewUrls = [];
+      final Set<String> seenUrls = {};
+
+      void addImagesFromHtml(String html) {
+        final matches = imgPattern.allMatches(html);
+        for (final m in matches) {
+          final full = m.group(1)?.trim();
+          final thumb = m.group(2)?.trim();
+          if (full != null && full.isNotEmpty && !seenUrls.contains(full)) {
+            seenUrls.add(full);
+            imageUrls.add(full);
+            previewUrls.add(thumb ?? full);
+          }
+        }
+      }
+
+      // Add page 1 images
+      addImagesFromHtml(page1Html);
+
+      // Check if the album has multiple pages (e.g. >100 images)
+      final totalPages = parseDetailTotalPages(page1Html);
+      if (totalPages > 1) {
+        final cleanBaseUrl = item.detailUrl.replaceAll(RegExp(r'/+$'), '');
+        final List<Future<String?>> subPageFutures = [];
+
+        for (int p = 2; p <= totalPages; p++) {
+          final subPageUrl = '$cleanBaseUrl/page/$p/';
+          subPageFutures.add(_fetchHtml(subPageUrl, retryCount: retryCount));
+        }
+
+        final subPagesHtml = await Future.wait(subPageFutures);
+        for (final subHtml in subPagesHtml) {
+          if (subHtml != null && subHtml.isNotEmpty) {
+            addImagesFromHtml(subHtml);
+          }
+        }
+      }
+
+      // Extract tags if any
+      final List<String> tags = [];
+      final tagMatches = RegExp(r'<p id="detail_tag">([\s\S]*?)</p>', caseSensitive: false).firstMatch(page1Html);
+      if (tagMatches != null) {
+        final tagLinks = RegExp(r'<a[^>]*>([^<]+)</a>').allMatches(tagMatches.group(1) ?? '');
+        for (final tm in tagLinks) {
+          final t = tm.group(1)?.trim();
+          if (t != null && t.isNotEmpty) tags.add(t);
+        }
+      }
+
+      return item.copyWith(
+        title: title,
+        imageUrls: imageUrls,
+        previewUrls: previewUrls,
+        tags: tags,
+        isDetailLoaded: true,
+      );
+    } catch (e) {
+      debugPrint('Error parsing album detail: $e');
+      return null;
+    }
   }
 
   /// Fetch page data (Search or Tag or Keyword)

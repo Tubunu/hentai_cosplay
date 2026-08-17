@@ -22,11 +22,19 @@ void main() {
       );
       expect(
         HCApiService.buildSearchUrl(page: 1, keyword: 'byoru'),
-        'https://zh.hentai-cosplay-xxx.com/search/byoru/',
+        'https://zh.hentai-cosplay-xxx.com/search/keyword/byoru/',
       );
       expect(
         HCApiService.buildSearchUrl(page: 3, keyword: 'byoru'),
-        'https://zh.hentai-cosplay-xxx.com/search/byoru/page/3/',
+        'https://zh.hentai-cosplay-xxx.com/search/keyword/byoru/page/3/',
+      );
+      expect(
+        HCApiService.buildSearchUrl(page: 1, keyword: '焖焖碳'),
+        'https://zh.hentai-cosplay-xxx.com/search/keyword/%E7%84%96%E7%84%96%E7%A2%B3/',
+      );
+      expect(
+        HCApiService.buildSearchUrl(page: 2, keyword: '焖焖碳'),
+        'https://zh.hentai-cosplay-xxx.com/search/keyword/%E7%84%96%E7%84%96%E7%A2%B3/page/2/',
       );
     });
 
@@ -195,6 +203,29 @@ void main() {
       expect(restoredList[0].status, TaskStatus.completed);
       expect(restoredList[0].downloadedImages, 28);
       expect(restoredList[0].skippedImages, 2);
+    });
+
+    test('parseDetailTotalPages detects multi-page albums with >100 images', () {
+      const singlePageHtml = '''
+<div id="display_area_image">
+  <div class="icon-overlay"><a href="https://img.site/1.jpg"><img src="https://img.site/t1.jpg"/></a></div>
+</div>
+      ''';
+      expect(HCApiService.parseDetailTotalPages(singlePageHtml), 1);
+
+      const multiPageHtml = '''
+<div id="display_area_image">
+  <div class="icon-overlay"><a href="https://img.site/1.jpg"><img src="https://img.site/t1.jpg"/></a></div>
+</div>
+<div class="wp-pagenavi">
+  <span class="pages">1/3</span>
+  <span class="current">1</span>
+  <a class="page larger" href="/image/poppachan-cipher-1/page/2/">2</a>
+  <a class="page larger" href="/image/poppachan-cipher-1/page/3/">3</a>
+  <a class="last" href="/image/poppachan-cipher-1/page/3/">最后一页 &gt;&gt;</a>
+</div>
+      ''';
+      expect(HCApiService.parseDetailTotalPages(multiPageHtml), 3);
     });
   });
 }

@@ -21,9 +21,9 @@ class NotificationService {
 
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
     const darwinSettings = DarwinInitializationSettings(
-      requestAlertPermission: false,
-      requestBadgePermission: false,
-      requestSoundPermission: false,
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
     );
     const initSettings = InitializationSettings(
       android: androidSettings,
@@ -33,6 +33,9 @@ class NotificationService {
     try {
       await _notificationsPlugin.initialize(initSettings);
       _isInitialized = true;
+      if (Platform.isIOS) {
+        await requestNotificationPermission();
+      }
     } catch (e) {
       debugPrint('Notification init error: $e');
     }
@@ -103,6 +106,48 @@ class NotificationService {
       );
     } catch (e) {
       debugPrint('Show progress notification error: $e');
+    }
+  }
+
+  /// Show single album completed notification on both Android & iOS
+  static Future<void> showAlbumCompleted({
+    required String title,
+    required int imagesCount,
+  }) async {
+    if (!_isInitialized) await init();
+
+    const androidDetails = AndroidNotificationDetails(
+      _channelId,
+      _channelName,
+      channelDescription: _channelDesc,
+      importance: Importance.defaultImportance,
+      priority: Priority.defaultPriority,
+      ongoing: false,
+      autoCancel: true,
+      color: Color(0xFFFF2D55),
+    );
+
+    const darwinDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    const notificationDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: darwinDetails,
+    );
+
+    try {
+      final notifId = (title.hashCode & 0x7FFFFFFF) % 5000 + 1000;
+      await _notificationsPlugin.show(
+        notifId,
+        '✅ 图集下载完成',
+        '《$title》已成功下载 $imagesCount 张图片',
+        notificationDetails,
+      );
+    } catch (e) {
+      debugPrint('Show album completed notification error: $e');
     }
   }
 
