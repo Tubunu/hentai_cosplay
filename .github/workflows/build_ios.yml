@@ -70,5 +70,6 @@ jobs:
             - 直接下载下方的 `hentai_cosplay_downloader.ipa` 文件（单个文件，无需解压）。
             - 打开 **Sideloadly** 拖入安装到 iPhone。
           files: hentai_cosplay_downloader.ipa
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
