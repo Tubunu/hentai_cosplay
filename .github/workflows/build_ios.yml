@@ -9,19 +9,13 @@ permissions:
   contents: write
 
 jobs:
-  build-release:
-    name: Build iOS IPA & Android APK
+  build-ios:
+    name: Build iOS IPA
     runs-on: macos-14
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '17'
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -54,13 +48,6 @@ jobs:
           mv hentai_cosplay_downloader.ipa "$GITHUB_WORKSPACE/"
           ls -lh "$GITHUB_WORKSPACE/hentai_cosplay_downloader.ipa"
 
-      - name: Build Android Release APK
-        run: |
-          cd hentai_cosplay_downloader
-          flutter build apk --release
-          cp build/app/outputs/flutter-apk/app-release.apk "$GITHUB_WORKSPACE/hentai_cosplay_downloader.apk"
-          ls -lh "$GITHUB_WORKSPACE/hentai_cosplay_downloader.apk"
-
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -68,6 +55,38 @@ jobs:
           path: hentai_cosplay_downloader.ipa
           if-no-files-found: error
           retention-days: 7
+
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Get Dependencies
+        run: |
+          cd hentai_cosplay_downloader
+          flutter pub get
+
+      - name: Build Android Release APK
+        run: |
+          cd hentai_cosplay_downloader
+          flutter build apk --release
+          cp build/app/outputs/flutter-apk/app-release.apk "$GITHUB_WORKSPACE/hentai_cosplay_downloader.apk"
+          ls -lh "$GITHUB_WORKSPACE/hentai_cosplay_downloader.apk"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
@@ -77,22 +96,40 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - name: Create or Update GitHub Release (Direct IPA & APK Download)
+  create-release:
+    name: Publish Release (iOS & Android)
+    needs: [build-ios, build-android]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+
+    steps:
+      - name: Download iOS IPA
+        uses: actions/download-artifact@v4
+        with:
+          name: hentai_cosplay_downloader-ios-ipa
+
+      - name: Download Android APK
+        uses: actions/download-artifact@v4
+        with:
+          name: hentai_cosplay_downloader-android-apk
+
+      - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         with:
           tag_name: v1.0.0-release
           name: "Hentai Cosplay Downloader Release (iOS & Android)"
           body: |
             ### 📱 安装包下载
-            - **🍎 iOS (iPhone / iPad)**: 下载 `hentai_cosplay_downloader.ipa`，使用 **Sideloadly** / **AltStore** / **TrollStore** 签名安装。
+            - **🍎 iOS (iPhone / iPad)**: 下载 `hentai_cosplay_downloader.ipa`，使用 **爱思助手** / **Sideloadly** / **TrollStore** 签名安装。
             - **🤖 Android (安卓)**: 下载 `hentai_cosplay_downloader.apk`，在安卓手机上直接点击安装即可。
 
             ### 🚀 最新修复与功能更新
+            - **画中画（PiP）后台保活**：支持 iOS 原生画中画浮窗保活，切到后台持续满速下载，可在任务管理页点击【画中画】开启。
+            - **队列调度重构**：重构响应式调度池，暂停后重新开始立即启动，彻底解决一直卡在“队列中”。
             - **大图包完整下载**：支持多页（>100张）相册自动分页解析与全量下载。
-            - **任务管理**：新增“全部暂停”与“全部开始”，修复暂停任务恢复下载。
+            - **任务管理**：新增“全部暂停”与“全部开始”，整批下载完成仅弹一次汇总通知。
             - **本地图库**：新增按空间占用（从高到低 / 从低到高）排序，并在卡片上显示大小。
-            - **iOS 体验优化**：修复 100+ 图片相册浏览滑动闪退；启用 iOS 本地通知与后台保活。
+            - **iOS 防闪退**：限制本地浏览图片显存，彻底解决滑动闪退问题。
             - **在线搜索**：修复关键词与中文搜索功能。
           files: |
             hentai_cosplay_downloader.ipa
