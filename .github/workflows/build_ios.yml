@@ -34,21 +34,21 @@ jobs:
           cd hentai_cosplay_downloader
           flutter pub get
 
-      - name: Build Full iOS Archive (Archive Pipeline)
+      - name: Build iOS Release App
         run: |
           cd hentai_cosplay_downloader
-          flutter build ipa --no-codesign
+          flutter build ios --release --no-codesign
 
-      - name: Package XCArchive into Standard Sideloadly-Compliant IPA
+      - name: Package Payload into Standard Sideloadly-Compliant IPA
         run: |
           cd hentai_cosplay_downloader
           rm -rf ipa_staging
           mkdir -p ipa_staging/Payload
-          cp -R build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app ipa_staging/Payload/
+          cp -R build/ios/iphoneos/Runner.app ipa_staging/Payload/
           chmod -R 755 ipa_staging/Payload/Runner.app
           cd ipa_staging
           zip -r -y -q hentai_cosplay_downloader.ipa Payload
-          cp hentai_cosplay_downloader.ipa "$GITHUB_WORKSPACE/"
+          mv hentai_cosplay_downloader.ipa "$GITHUB_WORKSPACE/"
           ls -lh "$GITHUB_WORKSPACE/hentai_cosplay_downloader.ipa"
 
       - name: Upload IPA Artifact
@@ -66,9 +66,9 @@ jobs:
           tag_name: v1.0.0-ios
           name: "Hentai Cosplay Downloader iOS Release"
           body: |
-            ### 📱 iOS 完整安装包（集成全部核心库与高清图标）
-            - 点击下方 `hentai_cosplay_downloader.ipa` 直接下载。
-            - 使用 **Sideloadly** 或 **AltStore** 拖入安装到 iPhone。
+            ### 📱 iOS 免费直装版本（包含高清 App 图标与完整动态库）
+            - 直接下载下方的 `hentai_cosplay_downloader.ipa` 文件（单个文件，无需解压）。
+            - 打开 **Sideloadly** 拖入安装到 iPhone。
           files: hentai_cosplay_downloader.ipa
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
