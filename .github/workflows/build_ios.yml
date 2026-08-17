@@ -41,7 +41,7 @@ jobs:
           cd hentai_cosplay_downloader/build/ios/iphoneos
           mkdir -p Payload
           cp -r Runner.app Payload/
-          zip -r -q hentai_cosplay_downloader.ipa Payload
+          zip -r -y -q hentai_cosplay_downloader.ipa Payload
           cp hentai_cosplay_downloader.ipa "$GITHUB_WORKSPACE/"
 
       - name: Upload IPA Artifact
