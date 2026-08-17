@@ -11,10 +11,11 @@ class PipDownloadManager: NSObject, AVPictureInPictureControllerDelegate {
   private var playerLayer: AVPlayerLayer?
   private var player: AVQueuePlayer?
   private var playerLooper: AVPlayerLooper?
+  private var containerView: UIView?
   private var isSetup = false
 
-  func setup(with view: UIView) {
-    guard !isSetup, AVPictureInPictureController.isPictureInPictureSupported() else { return }
+  func setup(with view: UIView?) {
+    guard let view = view, !isSetup, AVPictureInPictureController.isPictureInPictureSupported() else { return }
     isSetup = true
 
     do {
@@ -23,18 +24,26 @@ class PipDownloadManager: NSObject, AVPictureInPictureControllerDelegate {
       try session.setActive(true)
     } catch {}
 
-    guard let videoUrl = createOrGetPipVideoUrl() else { return }
+    guard let videoUrl = getOrCreatePipVideoUrl() else { return }
     let playerItem = AVPlayerItem(url: videoUrl)
     player = AVQueuePlayer(playerItem: playerItem)
+    player?.isMuted = true
     if let player = player {
       playerLooper = AVPlayerLooper(player: player, templateItem: playerItem)
     }
 
+    let cView = UIView(frame: CGRect(x: 0, y: 0, width: 64, height: 64))
+    cView.backgroundColor = .black
+    cView.isUserInteractionEnabled = false
+    cView.clipsToBounds = true
+    view.addSubview(cView)
+    view.sendSubviewToBack(cView)
+    self.containerView = cView
+
     let layer = AVPlayerLayer(player: player)
-    layer.frame = CGRect(x: 0, y: 0, width: 2, height: 2)
-    layer.isHidden = false
-    layer.opacity = 0.01
-    view.layer.addSublayer(layer)
+    layer.frame = cView.bounds
+    layer.videoGravity = .resizeAspectFill
+    cView.layer.addSublayer(layer)
     self.playerLayer = layer
 
     if let playerLayer = self.playerLayer {
@@ -47,12 +56,22 @@ class PipDownloadManager: NSObject, AVPictureInPictureControllerDelegate {
     }
   }
 
-  func startPip() {
+  func startPip(view: UIView? = nil) {
+    if !isSetup, let view = view {
+      setup(with: view)
+    }
     guard let pipController = pipController, AVPictureInPictureController.isPictureInPictureSupported() else { return }
     player?.play()
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+
+    if pipController.isPictureInPicturePossible {
       if !pipController.isPictureInPictureActive {
         pipController.startPictureInPicture()
+      }
+    } else {
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+        if let pip = self?.pipController, pip.isPictureInPicturePossible && !pip.isPictureInPictureActive {
+          pip.startPictureInPicture()
+        }
       }
     }
   }
@@ -66,59 +85,22 @@ class PipDownloadManager: NSObject, AVPictureInPictureControllerDelegate {
     return AVPictureInPictureController.isPictureInPictureSupported()
   }
 
-  private func createOrGetPipVideoUrl() -> URL? {
+  private func getOrCreatePipVideoUrl() -> URL? {
     let fileManager = FileManager.default
     let tempDir = fileManager.temporaryDirectory
-    let videoUrl = tempDir.appendingPathComponent("hc_pip_loop.mp4")
+    let videoUrl = tempDir.appendingPathComponent("hc_pip_keeper.mp4")
 
     if fileManager.fileExists(atPath: videoUrl.path) {
       return videoUrl
     }
 
-    guard let writer = try? AVAssetWriter(outputURL: videoUrl, fileType: .mp4) else { return nil }
-    let videoSettings: [String: Any] = [
-      AVVideoCodecKey: AVVideoCodecType.h264,
-      AVVideoWidthKey: 320,
-      AVVideoHeightKey: 240
-    ]
-    let writerInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
-    let adaptor = AVAssetWriterInputPixelBufferAdaptor(
-      assetWriterInput: writerInput,
-      sourcePixelBufferAttributes: [
-        kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_32ARGB),
-        kCVPixelBufferWidthKey as String: 320,
-        kCVPixelBufferHeightKey as String: 240
-      ]
-    )
-    writer.add(writerInput)
-    writer.startWriting()
-    writer.startSession(atSourceTime: .zero)
+    let base64Video = "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AAAhaGRscgAAAAAAAAAAbWRpcmFwcGwAAAAAAAAAAAAAAAAtaWxzdAAAACWpdG9vAAAAHWRhdGEAAAABAAAAAExhdmY2Mi4xMi4xMDAAAAAIZnJlZQAABEptZGF0AAACrgYF//+q3EXpvebZSLeWLNgg2SPu73gyNjQgLSBjb3JlIDE2NSByMzIyMyAwNDgwY2IwIC0gSC4yNjQvTVBFRy00IEFWQyBjb2RlYyAtIENvcHlsZWZ0IDIwMDMtMjAyNSAtIGh0dHA6Ly93d3cudmlkZW9sYW4ub3JnL3gyNjQuaHRtbCAtIG9wdGlvbnM6IGNhYmFjPTEgcmVmPTMgZGVibG9jaz0xOjA6MCBhbmFseXNlPTB4MzoweDExMyBtZT1oZXggc3VibWU9NyBwc3k9MSBwc3lfcmQ9MS4wMDowLjAwIG1peGVkX3JlZj0xIG1lX3JhbmdlPTE2IGNocm9tYV9tZT0xIHRyZWxsaXM9MSA4eDhkY3Q9MSBjcW09MCBkZWFkem9uZT0yMSwxMSBmYXN0X3Bza2lwPTEgY2hyb21hX3FwX29mZnNldD0tMiB0aHJlYWRzPTYgbG9va2FoZWFkX3RocmVhZHM9MSBzbGljZWRfdGhyZWFkcz0wIG5yPTAgZGVjaW1hdGU9MSBpbnRlcmxhY2VkPTAgYmx1cmF5X2NvbXBhdD0wIGNvbnN0cmFpbmVkX2ludHJhPTAgYmZyYW1lcz0zIGJfcHlyYW1pZD0yIGJfYWRhcHQ9MSBiX2JpYXM9MCBkaXJlY3Q9MSB3ZWlnaHRiPTEgb3Blbl9nb3A9MCB3ZWlnaHRwPTIga2V5aW50PTI1MCBrZXlpbnRfbWluPTEwIHNjZW5lY3V0PTQwIGludHJhX3JlZnJlc2g9MCByY19sb29rYWhlYWQ9NDAgcmM9Y3JmIG1idHJlZT0xIGNyZj0yMy4wIHFjb21wPTAuNjAgcXBtaW49MCBxcG1heD02OSBxcHN0ZXA9NCBpcF9yYXRpbz0xLjQwIGFxPTE6MS4wMACAAAAAOmWIhAAR//73iB8yy2+catdyEeetLq0fUO5GcV6kvf4gAhHyNo1+s9B83ToEdAAAOQG2AVspks3jS4EAAAANQZokbEEP/qpVAACFgN4CAExhdmM2Mi4yOC4xMDAAAjBADgAAAAlBnkJ4h38AAQMBGCAHARggBwEYIAcBGCAHARggBwAAAAkBnmF0Q38AAXcBGCAHARggBwEYIAcBGCAHAAAACQGeY2pDfwABdwEYIAcBGCAHARggBwEYIAcAAAASQZpoSahBaJlMCHf//qmWAAIHARggBwEYIAcBGCAHARggBwEYIAcAAAALQZ6GRREsO/8AAQMBGCAHARggBwEYIAcBGCAHAAAACQGepXRDfwABdwEYIAcBGCAHARggBwEYIAcAAAAJAZ6nakN/AAF3ARggBwEYIAcBGCAHARggBwEYIAcAAAASQZqpSahBbJlMCG///qeEAAP8ARggBwEYIAcBGCAHARggBwEYIAcBGCAHARggBwEYIAcBGCAHARggBwEYIAcBGCAHARggBw=="
 
-    var buffer: CVPixelBuffer?
-    let status = CVPixelBufferCreate(kCFAllocatorDefault, 320, 240, kCVPixelFormatType_32ARGB, nil, &buffer)
-    if status == kCVReturnSuccess, let buffer = buffer {
-      CVPixelBufferLockBaseAddress(buffer, [])
-      if let baseAddress = CVPixelBufferGetBaseAddress(buffer) {
-        memset(baseAddress, 0x1A, 320 * 240 * 4)
-      }
-      CVPixelBufferUnlockBaseAddress(buffer, [])
-
-      for i in 0..<30 {
-        while !writerInput.isReadyForMoreMediaData {
-          Thread.sleep(forTimeInterval: 0.01)
-        }
-        let presentationTime = CMTime(value: Int64(i * 100), timescale: 1500)
-        adaptor.append(buffer, withPresentationTime: presentationTime)
-      }
+    if let data = Data(base64Encoded: base64Video) {
+      try? data.write(to: videoUrl)
+      return videoUrl
     }
-
-    writerInput.markAsFinished()
-    let semaphore = DispatchSemaphore(value: 0)
-    writer.finishWriting {
-      semaphore.signal()
-    }
-    semaphore.wait()
-    return videoUrl
+    return nil
   }
 }
 
@@ -222,7 +204,7 @@ class SilentAudioPlayer {
           }
           result(true)
         case "startPip":
-          PipDownloadManager.shared.startPip()
+          PipDownloadManager.shared.startPip(view: controller.view)
           result(true)
         case "stopPip":
           PipDownloadManager.shared.stopPip()
@@ -241,7 +223,7 @@ class SilentAudioPlayer {
   override func applicationDidEnterBackground(_ application: UIApplication) {
     if isDownloadingActive {
       SilentAudioPlayer.shared.start()
-      PipDownloadManager.shared.startPip()
+      PipDownloadManager.shared.startPip(view: window?.rootViewController?.view)
     }
 
     backgroundTask = application.beginBackgroundTask(withName: "HentaiCosplayDownloadTask") { [weak self] in
