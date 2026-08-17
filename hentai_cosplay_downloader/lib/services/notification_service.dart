@@ -65,7 +65,7 @@ class NotificationService {
     return true;
   }
 
-  /// Show or update the real-time download progress notification (Android only for ongoing bar)
+  /// Show or update the real-time download progress notification on Android & iOS
   static Future<void> updateProgressNotification({
     required String title,
     required double progress, // 0.0 ~ 1.0
@@ -74,7 +74,6 @@ class NotificationService {
     required int totalCount,
     bool isPaused = false,
   }) async {
-    if (!Platform.isAndroid) return;
     if (!_isInitialized) await init();
 
     final percent = (progress * 100).toInt().clamp(0, 100);
@@ -95,7 +94,17 @@ class NotificationService {
       color: const Color(0xFFFF2D55),
     );
 
-    final notificationDetails = NotificationDetails(android: androidDetails);
+    const darwinDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: false, // Silent update to prevent ringing every second
+      threadIdentifier: 'hc_download_progress',
+    );
+
+    final notificationDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: darwinDetails,
+    );
 
     try {
       await _notificationsPlugin.show(

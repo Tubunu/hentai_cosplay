@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:pool/pool.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/album_item.dart';
@@ -13,6 +15,17 @@ import '../services/notification_service.dart';
 import '../services/storage_service.dart';
 
 const String _kTasksKey = 'hc_saved_download_tasks';
+const MethodChannel _bgChannel = MethodChannel('com.hentaicosplay/background_keeper');
+
+void _setIosBackgroundKeeper(bool enable) {
+  if (Platform.isIOS) {
+    try {
+      _bgChannel.invokeMethod('enableBackground', enable);
+    } catch (e) {
+      debugPrint('Error setting iOS background keeper: $e');
+    }
+  }
+}
 
 class DownloadProvider extends ChangeNotifier {
   final List<AlbumDownloadTask> _allTasks = [];
@@ -264,6 +277,7 @@ class DownloadProvider extends ChangeNotifier {
 
   /// Pause all downloading and queued tasks
   void pauseAllTasks() {
+    _setIosBackgroundKeeper(false);
     for (final task in activeTasks) {
       _activeEngines[task.id]?.cancel();
       task.status = TaskStatus.paused;
@@ -346,6 +360,7 @@ class DownloadProvider extends ChangeNotifier {
 
     if (_isEngineRunning) return;
     _isEngineRunning = true;
+    _setIosBackgroundKeeper(true);
 
     try {
       _config = ConfigService.loadConfig();
@@ -416,11 +431,6 @@ class DownloadProvider extends ChangeNotifier {
                   detailUrl: task.albumItem.detailUrl,
                 );
                 onAlbumCompleted?.call(record);
-
-                NotificationService.showAlbumCompleted(
-                  title: task.albumItem.title,
-                  imagesCount: task.downloadedImages + task.skippedImages,
-                );
               }
             } catch (e) {
               debugPrint('Task ${task.id} execution error: $e');
@@ -479,6 +489,8 @@ class DownloadProvider extends ChangeNotifier {
       notifyListeners();
       if (_allTasks.any((t) => t.status == TaskStatus.queued)) {
         _triggerDownloadLoop();
+      } else {
+        _setIosBackgroundKeeper(false);
       }
       if (activeTasks.isNotEmpty || pausedTasks.isNotEmpty) {
         _updateNotification();
