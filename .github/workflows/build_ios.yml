@@ -5,6 +5,9 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-ios:
     name: Build Unsigned iOS IPA
@@ -31,18 +34,20 @@ jobs:
           cd hentai_cosplay_downloader
           flutter pub get
 
-      - name: Build iOS App (No Codesign)
+      - name: Build iOS Release App
         run: |
           cd hentai_cosplay_downloader
           flutter build ios --release --no-codesign
 
-      - name: Package Payload into IPA
+      - name: Package Payload into Clean Standard IPA
         run: |
-          cd hentai_cosplay_downloader/build/ios/iphoneos
-          mkdir -p Payload
-          cp -r Runner.app Payload/
+          rm -rf ipa_build
+          mkdir -p ipa_build/Payload
+          cp -R hentai_cosplay_downloader/build/ios/iphoneos/Runner.app ipa_build/Payload/
+          chmod -R 755 ipa_build/Payload/Runner.app
+          cd ipa_build
           zip -r -y -q hentai_cosplay_downloader.ipa Payload
-          cp hentai_cosplay_downloader.ipa "$GITHUB_WORKSPACE/"
+          mv hentai_cosplay_downloader.ipa "$GITHUB_WORKSPACE/"
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
@@ -51,3 +56,17 @@ jobs:
           path: hentai_cosplay_downloader.ipa
           if-no-files-found: error
           retention-days: 7
+
+      - name: Create or Update GitHub Release (Direct IPA Download)
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        with:
+          tag_name: v1.0.0-ios
+          name: "Hentai Cosplay Downloader iOS Release"
+          body: |
+            ### 📱 iOS 免费直装版本（免 Mac）
+            - 直接下载下方的 `hentai_cosplay_downloader.ipa` 文件（无需解压）。
+            - 使用 **Sideloadly** 或 **AltStore** 拖入安装到 iPhone。
+          files: hentai_cosplay_downloader.ipa
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
