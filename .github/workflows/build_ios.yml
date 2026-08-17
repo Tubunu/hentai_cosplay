@@ -1,0 +1,52 @@
+name: Build iOS IPA (Free No-Mac Cloud Build)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch: # Allows manual trigger from GitHub web UI
+
+jobs:
+  build-ios:
+    name: Build Unsigned iOS IPA
+    runs-on: macos-14 # Uses free macOS Apple Silicon runner provided by GitHub
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Get Dependencies
+        run: |
+          cd hentai_cosplay_downloader
+          flutter pub get
+
+      - name: Build iOS App (No Codesign)
+        run: |
+          cd hentai_cosplay_downloader
+          flutter build ios --release --no-codesign
+
+      - name: Package Payload into IPA
+        run: |
+          cd hentai_cosplay_downloader/build/ios/iphoneos
+          mkdir Payload
+          cp -r Runner.app Payload/
+          zip -r -q hentai_cosplay_downloader.ipa Payload
+          mv hentai_cosplay_downloader.ipa ../../../
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hentai_cosplay_downloader-ios-ipa
+          path: hentai_cosplay_downloader.ipa
+          retention-days: 7
