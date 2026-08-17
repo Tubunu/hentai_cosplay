@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -24,10 +25,12 @@ class _DownloadTasksPageState extends State<DownloadTasksPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final downloadProv = context.watch<DownloadProvider>();
 
-    List<AlbumDownloadTask> filteredTasks;
+    final List<AlbumDownloadTask> filteredTasks;
     switch (_selectedSegment) {
       case 1:
-        filteredTasks = downloadProv.activeTasks + downloadProv.queuedTasks;
+        filteredTasks = downloadProv.allTasks
+            .where((t) => t.status == TaskStatus.downloading || t.status == TaskStatus.queued || t.status == TaskStatus.paused)
+            .toList();
         break;
       case 2:
         filteredTasks = downloadProv.completedTasks;
@@ -35,30 +38,73 @@ class _DownloadTasksPageState extends State<DownloadTasksPage> {
       case 3:
         filteredTasks = downloadProv.failedTasks;
         break;
+      case 0:
       default:
         filteredTasks = downloadProv.allTasks;
         break;
     }
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         bottom: false,
         child: Column(
           children: [
-            // Top App Bar
+            // Top Bar
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: Row(
                 children: [
                   const Text(
-                    '下载任务',
+                    '任务管理',
                     style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w900,
                       letterSpacing: -0.5,
                     ),
                   ),
                   const Spacer(),
+
+                  // iOS PiP Button
+                  if (Platform.isIOS && downloadProv.isDownloading)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: BouncingButton(
+                        onTap: () {
+                          downloadProv.startPip();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text('已激活画中画后台保活，切到后台可保持不间断下载'),
+                              backgroundColor: IosTheme.primaryPink,
+                              behavior: SnackBarBehavior.floating,
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: IosTheme.primaryBlue.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.picture_in_picture_alt_rounded, size: 13, color: IosTheme.primaryBlue),
+                              SizedBox(width: 4),
+                              Text(
+                                '画中画',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: IosTheme.primaryBlue,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
 
                   // Pause All Button
                   if (downloadProv.activeTasks.isNotEmpty || downloadProv.queuedTasks.isNotEmpty)

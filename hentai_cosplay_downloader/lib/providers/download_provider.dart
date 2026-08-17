@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:pool/pool.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/album_item.dart';
 import '../models/app_config.dart';
@@ -35,7 +34,6 @@ class DownloadProvider extends ChangeNotifier {
 
   AppConfig _config = ConfigService.loadConfig();
 
-  bool _isEngineRunning = false;
   Timer? _speedTimer;
   int _bytesSinceLastTick = 0;
   double _currentSpeedBps = 0.0;
@@ -265,27 +263,64 @@ class DownloadProvider extends ChangeNotifier {
     }
   }
 
+  /// Start iOS Picture-in-Picture mode
+  Future<void> startPip() async {
+    if (Platform.isIOS) {
+      try {
+        await _bgChannel.invokeMethod('startPip');
+      } catch (e) {
+        debugPrint('Error starting PiP: $e');
+      }
+    }
+  }
+
+  /// Stop iOS Picture-in-Picture mode
+  Future<void> stopPip() async {
+    if (Platform.isIOS) {
+      try {
+        await _bgChannel.invokeMethod('stopPip');
+      } catch (e) {
+        debugPrint('Error stopping PiP: $e');
+      }
+    }
+  }
+
+  /// Check if PiP is supported
+  Future<bool> isPipSupported() async {
+    if (!Platform.isIOS) return false;
+    try {
+      final res = await _bgChannel.invokeMethod<bool>('isPipSupported');
+      return res ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Pause a single task
   void pauseTask(AlbumDownloadTask task) {
     _activeEngines[task.id]?.cancel();
+    _activeEngines.remove(task.id);
     task.status = TaskStatus.paused;
     _runningTasks.remove(task);
     _persistTasks();
     notifyListeners();
     _updateNotification();
+    _scheduleNextTasks();
   }
 
   /// Pause all downloading and queued tasks
   void pauseAllTasks() {
-    _setIosBackgroundKeeper(false);
-    for (final task in activeTasks) {
-      _activeEngines[task.id]?.cancel();
-      task.status = TaskStatus.paused;
+    for (final engine in _activeEngines.values) {
+      engine.cancel();
     }
-    for (final task in queuedTasks) {
-      task.status = TaskStatus.paused;
+    _activeEngines.clear();
+    for (final task in _allTasks) {
+      if (task.status == TaskStatus.downloading || task.status == TaskStatus.queued) {
+        task.status = TaskStatus.paused;
+      }
     }
     _runningTasks.clear();
+    _setIosBackgroundKeeper(false);
     _persistTasks();
     notifyListeners();
     _updateNotification();
@@ -298,7 +333,7 @@ class DownloadProvider extends ChangeNotifier {
       _currentBatchTaskIds.add(task.id);
       _persistTasks();
       notifyListeners();
-      _triggerDownloadLoop();
+      _scheduleNextTasks();
     }
   }
 
@@ -312,7 +347,7 @@ class DownloadProvider extends ChangeNotifier {
     }
     _persistTasks();
     notifyListeners();
-    _triggerDownloadLoop();
+    _scheduleNextTasks();
   }
 
   /// Retry failed tasks
@@ -323,7 +358,7 @@ class DownloadProvider extends ChangeNotifier {
     }
     _persistTasks();
     notifyListeners();
-    _triggerDownloadLoop();
+    _scheduleNextTasks();
   }
 
   /// Clear finished/completed tasks from task manager list
@@ -350,152 +385,123 @@ class DownloadProvider extends ChangeNotifier {
     }
   }
 
-  bool _loopRerunRequested = false;
+  void _triggerDownloadLoop() {
+    _scheduleNextTasks();
+  }
 
-  /// Main queue processor loop with pack concurrency control
-  Future<void> _triggerDownloadLoop() async {
-    _loopRerunRequested = true;
+  /// Dynamic reactive task scheduler (Producer-Consumer worker pool)
+  void _scheduleNextTasks() {
     _startSpeedTimer();
     _batchStartTime ??= DateTime.now();
 
-    if (_isEngineRunning) return;
-    _isEngineRunning = true;
-    _setIosBackgroundKeeper(true);
+    _config = ConfigService.loadConfig();
+    final maxPackWorkers = _config.packWorkers.clamp(1, 20);
+
+    while (_runningTasks.length < maxPackWorkers) {
+      final queuedList = _allTasks.where((t) => t.status == TaskStatus.queued).toList();
+      if (queuedList.isEmpty) break;
+
+      final task = queuedList.first;
+      task.status = TaskStatus.downloading;
+      task.startTime ??= DateTime.now();
+      _runningTasks.add(task);
+      _setIosBackgroundKeeper(true);
+      notifyListeners();
+      _updateNotification();
+
+      _executeSingleTask(task);
+    }
+
+    if (_runningTasks.isEmpty && queuedTasks.isEmpty) {
+      _finishBatchIfNeeded();
+    }
+  }
+
+  Future<void> _executeSingleTask(AlbumDownloadTask task) async {
+    final engine = DownloadEngine(
+      config: _config,
+      onLog: (msg, level) {},
+      onTaskProgress: (t) {
+        notifyListeners();
+        _updateNotification();
+      },
+    );
+    _activeEngines[task.id] = engine;
 
     try {
-      _config = ConfigService.loadConfig();
       if (_config.savePath.isEmpty) {
         _config.savePath = await StorageService.getDefaultDownloadPath();
         await ConfigService.saveConfig(_config);
       } else {
         _config.savePath = await StorageService.resolveValidPath(_config.savePath);
       }
-      notifyListeners();
 
-      final maxPackWorkers = _config.packWorkers.clamp(1, 20);
-      final packPool = Pool(maxPackWorkers);
+      await engine.processAlbum(
+        task,
+        _config.savePath,
+        onBytesReceived: _onBytesReceived,
+      );
 
-      while (true) {
-        _loopRerunRequested = false;
-        final pendingTasks = _allTasks.where((t) => t.status == TaskStatus.queued).toList();
-        if (pendingTasks.isEmpty) {
-          if (_loopRerunRequested || _allTasks.any((t) => t.status == TaskStatus.queued)) {
-            continue;
-          }
-          break;
-        }
+      if (task.status == TaskStatus.completed) {
+        final diskBytes = task.downloadedBytes > 0
+            ? task.downloadedBytes
+            : await StorageService.getFolderSize(task.targetFolder);
 
-        final List<Future<void>> futures = [];
-
-        for (final task in pendingTasks) {
-          final future = packPool.withResource(() async {
-            if (task.status != TaskStatus.queued) return;
-
-            task.status = TaskStatus.downloading;
-            task.startTime ??= DateTime.now();
-            _runningTasks.add(task);
-            notifyListeners();
-            _updateNotification();
-
-            final engine = DownloadEngine(
-              config: _config,
-              onLog: (msg, level) {},
-              onTaskProgress: (t) {
-                notifyListeners();
-                _updateNotification();
-              },
-            );
-            _activeEngines[task.id] = engine;
-
-            try {
-              await engine.processAlbum(
-                task,
-                _config.savePath,
-                onBytesReceived: _onBytesReceived,
-              );
-
-              if (task.status == TaskStatus.completed) {
-                final diskBytes = task.downloadedBytes > 0
-                    ? task.downloadedBytes
-                    : await StorageService.getFolderSize(task.targetFolder);
-
-                final record = HistoryRecord(
-                  id: task.albumItem.slug.isNotEmpty ? task.albumItem.slug : task.id,
-                  title: task.albumItem.title,
-                  author: task.albumItem.author,
-                  coverUrl: task.albumItem.coverUrl,
-                  targetFolder: task.targetFolder,
-                  imageCount: task.downloadedImages + task.skippedImages,
-                  downloadedBytes: diskBytes,
-                  completedAt: task.finishTime ?? DateTime.now(),
-                  detailUrl: task.albumItem.detailUrl,
-                );
-                onAlbumCompleted?.call(record);
-              }
-            } catch (e) {
-              debugPrint('Task ${task.id} execution error: $e');
-              if (task.status == TaskStatus.downloading) {
-                task.status = TaskStatus.failed;
-              }
-            } finally {
-              _activeEngines.remove(task.id);
-              _runningTasks.remove(task);
-            }
-
-            _persistTasks();
-            notifyListeners();
-            _updateNotification();
-          });
-
-          futures.add(future);
-        }
-
-        await Future.wait(futures);
+        final record = HistoryRecord(
+          id: task.albumItem.slug.isNotEmpty ? task.albumItem.slug : task.id,
+          title: task.albumItem.title,
+          author: task.albumItem.author,
+          coverUrl: task.albumItem.coverUrl,
+          targetFolder: task.targetFolder,
+          imageCount: task.downloadedImages + task.skippedImages,
+          downloadedBytes: diskBytes,
+          completedAt: task.finishTime ?? DateTime.now(),
+          detailUrl: task.albumItem.detailUrl,
+        );
+        onAlbumCompleted?.call(record);
       }
-
-      // Check if all downloads in this batch finished
-      if (activeTasks.isEmpty && queuedTasks.isEmpty) {
-        final duration = _batchStartTime != null
-            ? DateTime.now().difference(_batchStartTime!).inMilliseconds / 1000.0
-            : 1.0;
-
-        final batchTasks = _allTasks
-            .where((t) => _currentBatchTaskIds.isEmpty || _currentBatchTaskIds.contains(t.id))
-            .toList();
-        final finishedBatch = batchTasks.where((t) => t.status == TaskStatus.completed).toList();
-
-        int totalImages = 0;
-        for (final t in finishedBatch) {
-          totalImages += (t.downloadedImages + t.skippedImages);
-        }
-
-        if (finishedBatch.isNotEmpty) {
-          await NotificationService.showDownloadCompleted(
-            albumsCount: finishedBatch.length,
-            imagesCount: totalImages,
-            durationSec: duration,
-          );
-        }
-      }
-
-      _persistTasks();
-      onAlbumsChanged?.call();
     } catch (e) {
-      debugPrint('Download loop error: $e');
+      debugPrint('Task ${task.id} execution error: $e');
+      if (task.status == TaskStatus.downloading) {
+        task.status = TaskStatus.failed;
+      }
     } finally {
-      _isEngineRunning = false;
-      _batchStartTime = null;
+      _activeEngines.remove(task.id);
+      _runningTasks.remove(task);
       _persistTasks();
       notifyListeners();
-      if (_allTasks.any((t) => t.status == TaskStatus.queued)) {
-        _triggerDownloadLoop();
-      } else {
-        _setIosBackgroundKeeper(false);
-      }
-      if (activeTasks.isNotEmpty || pausedTasks.isNotEmpty) {
-        _updateNotification();
-      }
+      _updateNotification();
+
+      _scheduleNextTasks();
     }
+  }
+
+  void _finishBatchIfNeeded() {
+    _setIosBackgroundKeeper(false);
+    final duration = _batchStartTime != null
+        ? DateTime.now().difference(_batchStartTime!).inMilliseconds / 1000.0
+        : 1.0;
+
+    final batchTasks = _allTasks
+        .where((t) => _currentBatchTaskIds.isEmpty || _currentBatchTaskIds.contains(t.id))
+        .toList();
+    final finishedBatch = batchTasks.where((t) => t.status == TaskStatus.completed).toList();
+
+    int totalImages = 0;
+    for (final t in finishedBatch) {
+      totalImages += (t.downloadedImages + t.skippedImages);
+    }
+
+    if (finishedBatch.isNotEmpty) {
+      NotificationService.showDownloadCompleted(
+        albumsCount: finishedBatch.length,
+        imagesCount: totalImages,
+        durationSec: duration,
+      );
+    }
+    _batchStartTime = null;
+    _currentBatchTaskIds.clear();
+    onAlbumsChanged?.call();
   }
 
   void _updateNotification() {

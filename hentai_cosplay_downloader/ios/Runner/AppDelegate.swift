@@ -2,6 +2,125 @@ import Flutter
 import UIKit
 import UserNotifications
 import AVFoundation
+import AVKit
+
+class PipDownloadManager: NSObject, AVPictureInPictureControllerDelegate {
+  static let shared = PipDownloadManager()
+
+  private var pipController: AVPictureInPictureController?
+  private var playerLayer: AVPlayerLayer?
+  private var player: AVQueuePlayer?
+  private var playerLooper: AVPlayerLooper?
+  private var isSetup = false
+
+  func setup(with view: UIView) {
+    guard !isSetup, AVPictureInPictureController.isPictureInPictureSupported() else { return }
+    isSetup = true
+
+    do {
+      let session = AVAudioSession.sharedInstance()
+      try session.setCategory(.playback, mode: .moviePlayback, options: [.mixWithOthers])
+      try session.setActive(true)
+    } catch {}
+
+    guard let videoUrl = createOrGetPipVideoUrl() else { return }
+    let playerItem = AVPlayerItem(url: videoUrl)
+    player = AVQueuePlayer(playerItem: playerItem)
+    if let player = player {
+      playerLooper = AVPlayerLooper(player: player, templateItem: playerItem)
+    }
+
+    let layer = AVPlayerLayer(player: player)
+    layer.frame = CGRect(x: 0, y: 0, width: 2, height: 2)
+    layer.isHidden = false
+    layer.opacity = 0.01
+    view.layer.addSublayer(layer)
+    self.playerLayer = layer
+
+    if let playerLayer = self.playerLayer {
+      pipController = AVPictureInPictureController(playerLayer: playerLayer)
+      pipController?.delegate = self
+
+      if #available(iOS 14.2, *) {
+        pipController?.canStartPictureInPictureAutomaticallyFromInline = true
+      }
+    }
+  }
+
+  func startPip() {
+    guard let pipController = pipController, AVPictureInPictureController.isPictureInPictureSupported() else { return }
+    player?.play()
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+      if !pipController.isPictureInPictureActive {
+        pipController.startPictureInPicture()
+      }
+    }
+  }
+
+  func stopPip() {
+    pipController?.stopPictureInPicture()
+    player?.pause()
+  }
+
+  func isSupported() -> Bool {
+    return AVPictureInPictureController.isPictureInPictureSupported()
+  }
+
+  private func createOrGetPipVideoUrl() -> URL? {
+    let fileManager = FileManager.default
+    let tempDir = fileManager.temporaryDirectory
+    let videoUrl = tempDir.appendingPathComponent("hc_pip_loop.mp4")
+
+    if fileManager.fileExists(atPath: videoUrl.path) {
+      return videoUrl
+    }
+
+    guard let writer = try? AVAssetWriter(outputURL: videoUrl, fileType: .mp4) else { return nil }
+    let videoSettings: [String: Any] = [
+      AVVideoCodecKey: AVVideoCodecType.h264,
+      AVVideoWidthKey: 320,
+      AVVideoHeightKey: 240
+    ]
+    let writerInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
+    let adaptor = AVAssetWriterInputPixelBufferAdaptor(
+      assetWriterInput: writerInput,
+      sourcePixelBufferAttributes: [
+        kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_32ARGB),
+        kCVPixelBufferWidthKey as String: 320,
+        kCVPixelBufferHeightKey as String: 240
+      ]
+    )
+    writer.add(writerInput)
+    writer.startWriting()
+    writer.startSession(atSourceTime: .zero)
+
+    var buffer: CVPixelBuffer?
+    let status = CVPixelBufferCreate(kCFAllocatorDefault, 320, 240, kCVPixelFormatType_32ARGB, nil, &buffer)
+    if status == kCVReturnSuccess, let buffer = buffer {
+      CVPixelBufferLockBaseAddress(buffer, [])
+      if let baseAddress = CVPixelBufferGetBaseAddress(buffer) {
+        memset(baseAddress, 0x1A, 320 * 240 * 4)
+      }
+      CVPixelBufferUnlockBaseAddress(buffer, [])
+
+      for i in 0..<30 {
+        while !writerInput.isReadyForMoreMediaData {
+          Thread.sleep(forTimeInterval: 0.01)
+        }
+        let presentationTime = CMTime(value: Int64(i * 100), timescale: 1500)
+        adaptor.append(buffer, withPresentationTime: presentationTime)
+      }
+    }
+
+    writerInput.markAsFinished()
+    let semaphore = DispatchSemaphore(value: 0)
+    writer.finishWriting {
+      semaphore.signal()
+    }
+    semaphore.wait()
+    return videoUrl
+  }
+}
 
 class SilentAudioPlayer {
   static let shared = SilentAudioPlayer()
@@ -71,6 +190,7 @@ class SilentAudioPlayer {
 @main
 @objc class AppDelegate: FlutterAppDelegate {
   private var backgroundTask: UIBackgroundTaskIdentifier = .invalid
+  private var isDownloadingActive = false
 
   override func application(
     _ application: UIApplication,
@@ -83,19 +203,33 @@ class SilentAudioPlayer {
     }
 
     if let controller = window?.rootViewController as? FlutterViewController {
+      PipDownloadManager.shared.setup(with: controller.view)
+
       let channel = FlutterMethodChannel(
         name: "com.hentaicosplay/background_keeper",
         binaryMessenger: controller.binaryMessenger
       )
-      channel.setMethodCallHandler { (call: FlutterMethodCall, result: @escaping FlutterResult) in
-        if call.method == "enableBackground" {
-          if let enable = call.arguments as? Bool, enable {
+      channel.setMethodCallHandler { [weak self] (call: FlutterMethodCall, result: @escaping FlutterResult) in
+        switch call.method {
+        case "enableBackground":
+          let enable = (call.arguments as? Bool) ?? false
+          self?.isDownloadingActive = enable
+          if enable {
             SilentAudioPlayer.shared.start()
           } else {
             SilentAudioPlayer.shared.stop()
+            PipDownloadManager.shared.stopPip()
           }
           result(true)
-        } else {
+        case "startPip":
+          PipDownloadManager.shared.startPip()
+          result(true)
+        case "stopPip":
+          PipDownloadManager.shared.stopPip()
+          result(true)
+        case "isPipSupported":
+          result(PipDownloadManager.shared.isSupported())
+        default:
           result(FlutterMethodNotImplemented)
         }
       }
@@ -105,6 +239,11 @@ class SilentAudioPlayer {
   }
 
   override func applicationDidEnterBackground(_ application: UIApplication) {
+    if isDownloadingActive {
+      SilentAudioPlayer.shared.start()
+      PipDownloadManager.shared.startPip()
+    }
+
     backgroundTask = application.beginBackgroundTask(withName: "HentaiCosplayDownloadTask") { [weak self] in
       if let self = self, self.backgroundTask != .invalid {
         application.endBackgroundTask(self.backgroundTask)
