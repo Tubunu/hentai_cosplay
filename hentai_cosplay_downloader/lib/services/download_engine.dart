@@ -9,8 +9,10 @@ import 'package:pool/pool.dart';
 import '../models/album_item.dart';
 import '../models/app_config.dart';
 import '../models/download_task.dart';
+import '../models/video_item.dart';
 import 'hc_api_service.dart';
 import 'storage_service.dart';
+import 'video_api_service.dart';
 
 typedef DownloadLogCallback = void Function(String message, String level);
 typedef TaskProgressCallback = void Function(AlbumDownloadTask task);
@@ -270,12 +272,188 @@ class DownloadEngine {
     return ImageTaskStatus.failed;
   }
 
+  /// Process a video task with direct download, auto-organization, and companion metadata
+  Future<AlbumDownloadTask> processVideo(
+    AlbumDownloadTask task,
+    String baseDir, {
+    required void Function(int bytes) onBytesReceived,
+  }) async {
+    final item = task.albumItem;
+    final videoBaseDir = p.join(baseDir, 'video');
+
+    // 1. Determine target directory according to autoArchive
+    String targetFolder;
+    if (config.autoArchive) {
+      final author = VideoItem.cleanArchiveSegment(item.author);
+      targetFolder = p.join(videoBaseDir, author);
+    } else {
+      targetFolder = videoBaseDir;
+    }
+
+    final cleanTitle = VideoItem.cleanFilename(item.title);
+    final videoFilePath = p.join(targetFolder, '$cleanTitle.mp4');
+    final metaFilePath = p.join(targetFolder, '$cleanTitle.json');
+    final coverFilePath = p.join(targetFolder, '$cleanTitle.jpg');
+
+    task.targetFolder = targetFolder;
+    task.totalImages = 1;
+    task.status = TaskStatus.downloading;
+    task.startTime ??= DateTime.now();
+
+    // 2. Check if already exists
+    final existingFile = File(videoFilePath);
+    if (await existingFile.exists() && await existingFile.length() > 1024) {
+      final size = await existingFile.length();
+      task.skippedImages = 1;
+      task.downloadedImages = 0;
+      task.failedImages = 0;
+      task.downloadedBytes = size;
+      task.totalBytes = size;
+      task.status = TaskStatus.completed;
+      task.finishTime = DateTime.now();
+      onLog('已存在完整视频，自动跳过: ${item.title}', 'info');
+      onTaskProgress?.call(task);
+      return task;
+    }
+
+    onTaskProgress?.call(task);
+
+    // 3. Resolve video direct URL if needed
+    String? directUrl = task.videoUrl;
+    if (directUrl == null || directUrl.isEmpty) {
+      onLog('正在解析视频播放地址: ${item.title}', 'info');
+      final vDetail = await VideoApiService.fetchVideoDetail(
+        VideoItem(
+          title: item.title,
+          slug: item.slug,
+          detailUrl: item.detailUrl,
+          coverUrl: item.coverUrl,
+          date: item.date,
+          author: item.author,
+          tags: item.tags,
+        ),
+      );
+
+      directUrl = vDetail?.videoUrl;
+    }
+
+    if (directUrl == null || directUrl.isEmpty) {
+      onLog('未能在详情页解析到有效视频源: ${item.title}', 'error');
+      task.status = TaskStatus.failed;
+      task.errorMessage = '未能解析到视频源地址';
+      onTaskProgress?.call(task);
+      return task;
+    }
+
+    // 4. Create directory and download video stream
+    final dir = Directory(targetFolder);
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+
+    final tempFilePath = '$videoFilePath.tmp';
+    final tempFile = File(tempFilePath);
+    if (await tempFile.exists()) await tempFile.delete();
+
+    onLog('开始下载视频: ${item.title}', 'info');
+    int lastReportedBytes = 0;
+
+    for (int i = 0; i < config.retryCount; i++) {
+      if (_isCancelled) {
+        task.status = TaskStatus.failed;
+        return task;
+      }
+
+      try {
+        await _dio.download(
+          directUrl,
+          tempFilePath,
+          options: Options(
+            headers: {
+              'Referer': '${VideoApiService.kBaseUrl}/',
+            },
+          ),
+          onReceiveProgress: (received, total) {
+            if (_isCancelled) return;
+            final delta = received - lastReportedBytes;
+            if (delta > 0) {
+              onBytesReceived(delta);
+              lastReportedBytes = received;
+            }
+
+            task.downloadedBytes = received;
+            if (total > 0) {
+              task.totalBytes = total;
+            }
+            onTaskProgress?.call(task);
+          },
+        );
+
+        if (await tempFile.exists() && await tempFile.length() > 1024) {
+          final finalFile = File(videoFilePath);
+          if (await finalFile.exists()) await finalFile.delete();
+          await tempFile.rename(finalFile.path);
+
+          task.downloadedImages = 1;
+          task.status = TaskStatus.completed;
+          task.finishTime = DateTime.now();
+
+          // Save companion cover and metadata
+          try {
+            if (item.coverUrl != null && item.coverUrl!.isNotEmpty) {
+              await _dio.download(
+                item.coverUrl!,
+                coverFilePath,
+                options: Options(headers: {'Referer': '${VideoApiService.kBaseUrl}/'}),
+              );
+            }
+
+            final metaPayload = {
+              'title': item.title,
+              'slug': item.slug,
+              'author': item.author,
+              'date': item.date,
+              'duration': task.duration ?? '',
+              'sourceUrl': item.detailUrl,
+              'videoUrl': directUrl,
+              'tags': item.tags,
+              'saved_at': DateTime.now().toIso8601String(),
+            };
+            await File(metaFilePath).writeAsString(
+              const JsonEncoder.withIndent('  ').convert(metaPayload),
+            );
+          } catch (_) {}
+
+          onLog('视频下载完成: ${item.title}', 'success');
+          onTaskProgress?.call(task);
+          return task;
+        }
+      } catch (e) {
+        if (i < config.retryCount - 1) {
+          await Future.delayed(const Duration(seconds: 2));
+        }
+      }
+    }
+
+    if (await tempFile.exists()) await tempFile.delete();
+    task.status = TaskStatus.failed;
+    task.errorMessage = '视频下载失败，请检查网络或配置代理';
+    onLog('视频下载失败: ${item.title}', 'error');
+    onTaskProgress?.call(task);
+    return task;
+  }
+
   /// Process an entire album task with image concurrency and smart skip detection
   Future<AlbumDownloadTask> processAlbum(
     AlbumDownloadTask task,
     String baseDir, {
     required void Function(int bytes) onBytesReceived,
   }) async {
+    // If this is a video download task, forward to processVideo
+    if (task.isVideo) {
+      return processVideo(task, baseDir, onBytesReceived: onBytesReceived);
+    }
+
     var item = task.albumItem;
 
     // 1. If detail is not loaded, fetch it now to get full imageUrls

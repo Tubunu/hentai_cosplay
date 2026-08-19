@@ -7,11 +7,13 @@ import '../models/album_item.dart';
 import '../models/app_config.dart';
 import '../models/download_task.dart';
 import '../models/history_record.dart';
+import '../models/video_item.dart';
 import '../services/config_service.dart';
 import '../services/download_engine.dart';
 import '../services/hc_api_service.dart';
 import '../services/notification_service.dart';
 import '../services/storage_service.dart';
+import '../services/video_api_service.dart';
 
 const String _kTasksKey = 'hc_saved_download_tasks';
 const MethodChannel _bgChannel = MethodChannel('com.hentaicosplay/background_keeper');
@@ -263,6 +265,95 @@ class DownloadProvider extends ChangeNotifier {
     }
   }
 
+  /// Add a single video task
+  void addVideoTask(VideoItem video) {
+    addBatchVideoTasks([video]);
+  }
+
+  /// Add multiple videos in batch
+  void addBatchVideoTasks(List<VideoItem> videos) {
+    _config = ConfigService.loadConfig();
+
+    if (!isDownloading) {
+      _currentBatchTaskIds.clear();
+    }
+
+    for (final video in videos) {
+      final key = video.slug.isNotEmpty ? video.slug : video.title;
+      final existingIndex = _allTasks.indexWhere((t) => t.albumItem.slug == key || t.albumItem.title == key);
+
+      if (existingIndex != -1) {
+        final existingTask = _allTasks[existingIndex];
+        _currentBatchTaskIds.add(existingTask.id);
+        if (existingTask.status == TaskStatus.paused || existingTask.status == TaskStatus.failed) {
+          existingTask.status = TaskStatus.queued;
+        }
+        continue;
+      }
+
+      final taskId = '${DateTime.now().millisecondsSinceEpoch}_${video.title.hashCode.abs()}';
+      final albumItem = AlbumItem(
+        title: video.title,
+        slug: video.slug,
+        detailUrl: video.detailUrl,
+        coverUrl: video.coverUrl,
+        date: video.date,
+        author: video.author,
+        tags: video.tags,
+      );
+
+      final task = AlbumDownloadTask(
+        id: taskId,
+        albumItem: albumItem,
+        targetFolder: '${_config.savePath}/video',
+        totalImages: 1,
+        status: TaskStatus.queued,
+        isVideo: true,
+        videoUrl: video.videoUrl,
+        duration: video.duration,
+      );
+      _allTasks.add(task);
+      _currentBatchTaskIds.add(taskId);
+    }
+
+    _persistTasks();
+    notifyListeners();
+
+    _triggerDownloadLoop();
+  }
+
+  /// Fetch and add online video page range to batch download queue
+  Future<void> addVideoPageRange(
+    int startPage,
+    int endPage, {
+    VideoCategory category = VideoCategory.latest,
+    String? keyword,
+    String? tag,
+  }) async {
+    _config = ConfigService.loadConfig();
+    final List<VideoItem> allVideos = [];
+
+    for (int p = startPage; p <= endPage; p++) {
+      try {
+        final pageData = await VideoApiService.fetchVideoPageData(
+          category: category,
+          keyword: keyword,
+          tag: tag,
+          page: p,
+        );
+        if (pageData != null && pageData.items.isNotEmpty) {
+          allVideos.addAll(pageData.items);
+        }
+      } catch (e) {
+        debugPrint('Error fetching video page $p during batch range download: $e');
+      }
+    }
+
+    if (allVideos.isNotEmpty) {
+      addBatchVideoTasks(allVideos);
+    }
+  }
+
   /// Start iOS Picture-in-Picture mode
   Future<void> startPip() async {
     if (Platform.isIOS) {
@@ -457,8 +548,11 @@ class DownloadProvider extends ChangeNotifier {
           downloadedBytes: diskBytes,
           completedAt: task.finishTime ?? DateTime.now(),
           detailUrl: task.albumItem.detailUrl,
+          isVideo: task.isVideo,
+          duration: task.duration,
         );
         onAlbumCompleted?.call(record);
+        onAlbumsChanged?.call();
       }
     } catch (e) {
       debugPrint('Task ${task.id} execution error: $e');

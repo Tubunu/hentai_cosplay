@@ -1,25 +1,25 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../models/album_item.dart';
-import '../../../providers/browse_provider.dart';
+import '../../../models/video_item.dart';
 import '../../../providers/download_provider.dart';
+import '../../../providers/video_browse_provider.dart';
 import '../../theme/ios_theme.dart';
-import '../../widgets/album_card.dart';
-import '../../widgets/batch_download_dialog.dart';
 import '../../widgets/bouncing_button.dart';
 import '../../widgets/frosted_glass.dart';
-import '../../widgets/ranking_tags_sheet.dart';
-import 'album_detail_page.dart';
+import '../../widgets/video_batch_download_dialog.dart';
+import '../../widgets/video_card.dart';
+import '../../widgets/video_tags_sheet.dart';
+import 'video_detail_page.dart';
 
-class BrowsePage extends StatefulWidget {
-  const BrowsePage({super.key});
+class VideoBrowsePage extends StatefulWidget {
+  const VideoBrowsePage({super.key});
 
   @override
-  State<BrowsePage> createState() => _BrowsePageState();
+  State<VideoBrowsePage> createState() => _VideoBrowsePageState();
 }
 
-class _BrowsePageState extends State<BrowsePage> {
+class _VideoBrowsePageState extends State<VideoBrowsePage> {
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _pageJumpController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -43,20 +43,20 @@ class _BrowsePageState extends State<BrowsePage> {
   }
 
   void _onSearchSubmitted(String val) {
-    context.read<BrowseProvider>().setSearchKeyword(val);
+    context.read<VideoBrowseProvider>().setSearchKeyword(val);
     _scrollToTop();
   }
 
-  void _downloadSelected(BrowseProvider browseProv) {
+  void _downloadSelected(VideoBrowseProvider browseProv) {
     final selected = browseProv.selectedItems;
     if (selected.isEmpty) return;
 
     final downloadProv = context.read<DownloadProvider>();
-    downloadProv.addBatchAlbumTasks(selected);
+    downloadProv.addBatchVideoTasks(selected);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('已将 ${selected.length} 个选中图集加入下载队列'),
+        content: Text('已将 ${selected.length} 个选中视频加入下载队列'),
         backgroundColor: IosTheme.primaryPink,
         behavior: SnackBarBehavior.floating,
       ),
@@ -64,13 +64,13 @@ class _BrowsePageState extends State<BrowsePage> {
     browseProv.clearSelection();
   }
 
-  void _showJumpPageDialog(BrowseProvider browseProv) {
+  void _showJumpPageDialog(VideoBrowseProvider browseProv) {
     _pageJumpController.text = browseProv.currentPage.toString();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('跳转页码', style: TextStyle(fontWeight: FontWeight.w800)),
+        title: const Text('跳转视频页码', style: TextStyle(fontWeight: FontWeight.w800)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -120,7 +120,7 @@ class _BrowsePageState extends State<BrowsePage> {
 
   @override
   Widget build(BuildContext context) {
-    final browseProv = context.watch<BrowseProvider>();
+    final browseProv = context.watch<VideoBrowseProvider>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -147,7 +147,7 @@ class _BrowsePageState extends State<BrowsePage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'HENTAI COSPLAY',
+                            'PORN VIDEO',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w800,
@@ -156,7 +156,7 @@ class _BrowsePageState extends State<BrowsePage> {
                             ),
                           ),
                           const Text(
-                            '在线图片',
+                            '在线视频',
                             style: TextStyle(
                               fontSize: 30,
                               fontWeight: FontWeight.w900,
@@ -165,7 +165,7 @@ class _BrowsePageState extends State<BrowsePage> {
                           ),
                           if (browseProv.totalPages > 1)
                             Text(
-                              '共收录 ${browseProv.totalPages} 页相册',
+                              '共收录 ${browseProv.totalPages} 页视频',
                               style: TextStyle(
                                 fontSize: 11.5,
                                 color: isDark ? Colors.white54 : Colors.black45,
@@ -178,10 +178,13 @@ class _BrowsePageState extends State<BrowsePage> {
 
                       // Batch Page Range Download Button (区间批量)
                       BouncingButton(
-                        onTap: () => BatchDownloadDialog.show(
+                        onTap: () => VideoBatchDownloadDialog.show(
                           context,
                           initialStart: browseProv.currentPage,
-                          initialEnd: (browseProv.currentPage + 4).clamp(1, browseProv.totalPages),
+                          initialEnd: (browseProv.currentPage + 2).clamp(1, browseProv.totalPages),
+                          category: browseProv.category,
+                          keyword: browseProv.searchKeyword.isNotEmpty ? browseProv.searchKeyword : null,
+                          tag: browseProv.currentTag,
                         ),
                         child: FrostedGlass(
                           borderRadius: 16,
@@ -230,7 +233,7 @@ class _BrowsePageState extends State<BrowsePage> {
                 ),
               ),
 
-              // Category Dropdown and Hot Tags / Hot Keywords Toolbar
+              // Category Dropdown and TAG Button Toolbar
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(20, 2, 20, 6),
@@ -240,9 +243,9 @@ class _BrowsePageState extends State<BrowsePage> {
                     child: Row(
                       children: [
                         // Category Dropdown (分类排行)
-                        PopupMenuButton<BrowseCategory>(
+                        PopupMenuButton<VideoCategory>(
                           initialValue: browseProv.category,
-                          tooltip: '选择分类与排行',
+                          tooltip: '选择视频排行与分类',
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                           color: isDark ? const Color(0xFF2C2C2E) : Colors.white,
                           onSelected: (cat) {
@@ -250,22 +253,24 @@ class _BrowsePageState extends State<BrowsePage> {
                             browseProv.setCategory(cat);
                             _scrollToTop();
                           },
-                          itemBuilder: (context) => BrowseCategory.values.map((cat) {
+                          itemBuilder: (context) => VideoCategory.values.map((cat) {
                             final isSelected = browseProv.category == cat && !browseProv.isTagActive && !browseProv.isSearchActive;
-                            return PopupMenuItem<BrowseCategory>(
+                            return PopupMenuItem<VideoCategory>(
                               value: cat,
                               child: Row(
                                 children: [
                                   Icon(
-                                    cat == BrowseCategory.latest
+                                    cat == VideoCategory.latest
                                         ? CupertinoIcons.sparkles
-                                        : cat == BrowseCategory.ranking
+                                        : cat == VideoCategory.ranking
                                             ? CupertinoIcons.flame_fill
-                                            : cat == BrowseCategory.rankingDownload
-                                                ? CupertinoIcons.arrow_down_circle_fill
-                                                : cat == BrowseCategory.rankingBookmark
-                                                    ? CupertinoIcons.bookmark_fill
-                                                    : CupertinoIcons.hand_thumbsup_fill,
+                                            : cat == VideoCategory.rankingPlay
+                                                ? CupertinoIcons.play_circle_fill
+                                                : cat == VideoCategory.rankingDownload
+                                                    ? CupertinoIcons.arrow_down_circle_fill
+                                                    : cat == VideoCategory.rankingBookmark
+                                                        ? CupertinoIcons.bookmark_fill
+                                                        : CupertinoIcons.hand_thumbsup_fill,
                                     size: 16,
                                     color: isSelected ? IosTheme.primaryPink : (isDark ? Colors.white70 : Colors.black87),
                                   ),
@@ -329,12 +334,11 @@ class _BrowsePageState extends State<BrowsePage> {
                         ),
                         const SizedBox(width: 8),
 
-                        // Hot Tags Button (热门标签)
+                        // Hot Tags Button (TAG 标签)
                         BouncingButton(
                           onTap: () {
-                            RankingTagsSheet.show(
+                            VideoTagsSheet.show(
                               context,
-                              isTag: true,
                               onSelect: (tag) {
                                 _searchController.clear();
                                 browseProv.setTag(tag.name);
@@ -353,48 +357,11 @@ class _BrowsePageState extends State<BrowsePage> {
                                 Icon(CupertinoIcons.tag_fill, size: 13, color: IosTheme.primaryPink),
                                 SizedBox(width: 5),
                                 Text(
-                                  '热门标签',
+                                  'TAG 标签',
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w700,
                                     color: IosTheme.primaryPink,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-
-                        // Hot Search Keywords Button (热门搜索词)
-                        BouncingButton(
-                          onTap: () {
-                            RankingTagsSheet.show(
-                              context,
-                              isTag: false,
-                              onSelect: (kw) {
-                                _searchController.text = kw.name;
-                                browseProv.setSearchKeyword(kw.name);
-                                _scrollToTop();
-                              },
-                            );
-                          },
-                          child: FrostedGlass(
-                            borderRadius: 14,
-                            blur: 15,
-                            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-                            backgroundColor: isDark ? const Color(0x9924242A) : const Color(0xDDFFFFFF),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(CupertinoIcons.flame_fill, size: 13, color: Colors.orange),
-                                SizedBox(width: 5),
-                                Text(
-                                  '热门搜索词',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.orange,
                                   ),
                                 ),
                               ],
@@ -459,7 +426,7 @@ class _BrowsePageState extends State<BrowsePage> {
                       Expanded(
                         child: CupertinoSearchTextField(
                           controller: _searchController,
-                          placeholder: '搜索 Coser 名字、角色或关键词...',
+                          placeholder: '搜索 视频名称、角色或关键词...',
                           style: TextStyle(color: isDark ? Colors.white : Colors.black),
                           onSubmitted: _onSearchSubmitted,
                           onSuffixTap: () {
@@ -510,7 +477,7 @@ class _BrowsePageState extends State<BrowsePage> {
                       child: Row(
                         children: [
                           Text(
-                            '已选择 ${browseProv.selectedCount} 个图集',
+                            '已选择 ${browseProv.selectedCount} 个视频',
                             style: const TextStyle(
                               fontWeight: FontWeight.w700,
                               fontSize: 13,
@@ -543,7 +510,7 @@ class _BrowsePageState extends State<BrowsePage> {
                   ),
                 ),
 
-              // Content Grid or Loading / Error
+              // Video Content Grid or Loading / Error
               if (browseProv.isLoading)
                 const SliverFillRemaining(
                   child: Center(
@@ -552,7 +519,7 @@ class _BrowsePageState extends State<BrowsePage> {
                       children: [
                         CupertinoActivityIndicator(radius: 16),
                         SizedBox(height: 14),
-                        Text('正在加载新到图像列表...', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                        Text('正在加载在线视频列表...', style: TextStyle(color: Colors.grey, fontSize: 13)),
                       ],
                     ),
                   ),
@@ -590,7 +557,7 @@ class _BrowsePageState extends State<BrowsePage> {
               else if (browseProv.items.isEmpty)
                 const SliverFillRemaining(
                   child: Center(
-                    child: Text('没有找到相关图集', style: TextStyle(color: Colors.grey)),
+                    child: Text('没有找到相关视频', style: TextStyle(color: Colors.grey)),
                   ),
                 )
               else
@@ -599,7 +566,7 @@ class _BrowsePageState extends State<BrowsePage> {
                   sliver: SliverGrid(
                     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 2,
-                      childAspectRatio: 0.72,
+                      childAspectRatio: 0.95,
                       crossAxisSpacing: 10,
                       mainAxisSpacing: 12,
                     ),
@@ -607,16 +574,16 @@ class _BrowsePageState extends State<BrowsePage> {
                       (context, index) {
                         final item = browseProv.items[index];
 
-                        return AlbumCard(
+                        return VideoCard(
                           item: item,
                           onTap: () {
                             if (browseProv.isSelectionMode) {
-                              browseProv.toggleAlbumSelection(item);
+                              browseProv.toggleVideoSelection(item);
                             } else {
                               Navigator.push(
                                 context,
                                 CupertinoPageRoute(
-                                  builder: (_) => AlbumDetailPage(initialItem: item),
+                                  builder: (_) => VideoDetailPage(initialItem: item),
                                 ),
                               );
                             }
@@ -720,7 +687,7 @@ class _BrowsePageState extends State<BrowsePage> {
                   ),
                 ),
 
-              // Dynamic bottom spacer to prevent obstruction by bottom navigation & mini download bar
+              // Dynamic bottom spacer
               SliverToBoxAdapter(
                 child: SizedBox(
                   height: context.watch<DownloadProvider>().isDownloading ? 210 : 130,

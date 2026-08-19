@@ -10,6 +10,8 @@ class HistoryRecord {
   int downloadedBytes;
   final DateTime completedAt;
   final String detailUrl;
+  final bool isVideo;
+  final String? duration;
 
   HistoryRecord({
     required this.id,
@@ -21,6 +23,8 @@ class HistoryRecord {
     required this.downloadedBytes,
     required this.completedAt,
     required this.detailUrl,
+    this.isVideo = false,
+    this.duration,
   });
 
   factory HistoryRecord.fromJson(Map<String, dynamic> json) {
@@ -34,6 +38,8 @@ class HistoryRecord {
       downloadedBytes: (json['downloadedBytes'] as num?)?.toInt() ?? 0,
       completedAt: DateTime.tryParse(json['completedAt'] ?? '') ?? DateTime.now(),
       detailUrl: json['detailUrl'] ?? '',
+      isVideo: json['isVideo'] as bool? ?? false,
+      duration: json['duration'] as String?,
     );
   }
 
@@ -47,6 +53,8 @@ class HistoryRecord {
     'downloadedBytes': downloadedBytes,
     'completedAt': completedAt.toIso8601String(),
     'detailUrl': detailUrl,
+    'isVideo': isVideo,
+    'duration': duration,
   };
 
   String toRawJson() => jsonEncode(toJson());

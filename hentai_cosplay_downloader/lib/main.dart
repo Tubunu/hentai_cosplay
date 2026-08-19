@@ -5,7 +5,9 @@ import 'providers/browse_provider.dart';
 import 'providers/download_provider.dart';
 import 'providers/gallery_provider.dart';
 import 'providers/history_provider.dart';
+import 'providers/local_video_provider.dart';
 import 'providers/settings_provider.dart';
+import 'providers/video_browse_provider.dart';
 import 'services/config_service.dart';
 import 'services/notification_service.dart';
 import 'ui/pages/home_scaffold.dart';
@@ -36,9 +38,11 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
         ChangeNotifierProvider(create: (_) => BrowseProvider()),
+        ChangeNotifierProvider(create: (_) => VideoBrowseProvider()),
         ChangeNotifierProvider(create: (_) => DownloadProvider()),
         ChangeNotifierProvider(create: (_) => HistoryProvider()),
         ChangeNotifierProvider(create: (_) => GalleryProvider()),
+        ChangeNotifierProvider(create: (_) => LocalVideoProvider()),
       ],
       child: const HentaiCosplayApp(),
     ),

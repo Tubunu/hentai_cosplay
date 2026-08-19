@@ -81,6 +81,9 @@ class AlbumDownloadTask {
   List<ImageDownloadTask> imageTasks;
   double speed; // bytes per second
   String? errorMessage;
+  final bool isVideo;
+  final String? videoUrl;
+  final String? duration;
 
   AlbumDownloadTask({
     String? id,
@@ -98,6 +101,9 @@ class AlbumDownloadTask {
     List<ImageDownloadTask>? imageTasks,
     this.speed = 0.0,
     this.errorMessage,
+    this.isVideo = false,
+    this.videoUrl,
+    this.duration,
   })  : id = id ?? (albumItem.slug.isNotEmpty ? albumItem.slug : '${DateTime.now().millisecondsSinceEpoch}_${albumItem.title.hashCode.abs()}'),
         imageTasks = imageTasks ?? [];
 
@@ -129,6 +135,9 @@ class AlbumDownloadTask {
     'startTime': startTime?.toIso8601String(),
     'finishTime': finishTime?.toIso8601String(),
     'errorMessage': errorMessage,
+    'isVideo': isVideo,
+    'videoUrl': videoUrl,
+    'duration': duration,
   };
 
   factory AlbumDownloadTask.fromJson(Map<String, dynamic> json) {
@@ -152,6 +161,9 @@ class AlbumDownloadTask {
       startTime: json['startTime'] != null ? DateTime.tryParse(json['startTime']) : null,
       finishTime: json['finishTime'] != null ? DateTime.tryParse(json['finishTime']) : null,
       errorMessage: json['errorMessage'] as String?,
+      isVideo: json['isVideo'] as bool? ?? false,
+      videoUrl: json['videoUrl'] as String?,
+      duration: json['duration'] as String?,
     );
   }
 

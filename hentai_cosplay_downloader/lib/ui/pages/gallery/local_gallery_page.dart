@@ -81,7 +81,7 @@ class _LocalGalleryPageState extends State<LocalGalleryPage> {
     if (albums.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('本地图库暂无相册，快去在线浏览下载吧～'),
+          content: Text('本地图库暂无相册，快去在线图片下载吧～'),
           duration: Duration(seconds: 2),
         ),
       );

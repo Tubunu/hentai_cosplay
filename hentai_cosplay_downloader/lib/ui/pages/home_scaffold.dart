@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../providers/download_provider.dart';
 import '../../providers/gallery_provider.dart';
 import '../../providers/history_provider.dart';
+import '../../providers/local_video_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../theme/ios_theme.dart';
 import '../widgets/bouncing_button.dart';
@@ -14,6 +15,8 @@ import 'gallery/local_gallery_page.dart';
 import 'history/history_page.dart';
 import 'settings/settings_page.dart';
 import 'tasks/download_tasks_page.dart';
+import 'video/local_video_page.dart';
+import 'video/video_browse_page.dart';
 
 class HomeScaffold extends StatefulWidget {
   const HomeScaffold({super.key});
@@ -27,9 +30,11 @@ class _HomeScaffoldState extends State<HomeScaffold> {
 
   final List<Widget> _pages = const [
     BrowsePage(),
+    VideoBrowsePage(),
     DownloadTasksPage(),
     HistoryPage(),
     LocalGalleryPage(),
+    LocalVideoPage(),
     SettingsPage(),
   ];
 
@@ -40,6 +45,7 @@ class _HomeScaffoldState extends State<HomeScaffold> {
       final downloadProv = context.read<DownloadProvider>();
       final historyProv = context.read<HistoryProvider>();
       final galleryProv = context.read<GalleryProvider>();
+      final localVideoProv = context.read<LocalVideoProvider>();
       final settingsProv = context.read<SettingsProvider>();
 
       downloadProv.onAlbumCompleted = (record) {
@@ -47,6 +53,7 @@ class _HomeScaffoldState extends State<HomeScaffold> {
       };
       downloadProv.onAlbumsChanged = () {
         galleryProv.scanLocalDirectory(settingsProv.config.savePath);
+        localVideoProv.scanLocalVideos(settingsProv.config.savePath);
       };
     });
   }
@@ -72,31 +79,38 @@ class _HomeScaffoldState extends State<HomeScaffold> {
               // 1. Floating Mini Download Player Bar
               MiniDownloadBar(
                 onTap: () {
-                  setState(() => _currentIndex = 1);
+                  setState(() => _currentIndex = 2);
                 },
               ),
 
               // 2. Next-Gen Liquid Glass Bottom Navigation Bar Capsule
               Padding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+                padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
                 child: LiquidGlass(
                   borderRadius: 28,
                   blur: 18,
                   opacity: settingsProv.config.navBarOpacity,
-                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
                   fluidAuraColor: IosTheme.primaryPink,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
                       _buildNavItem(
                         index: 0,
-                        icon: CupertinoIcons.compass,
-                        activeIcon: CupertinoIcons.compass_fill,
-                        label: '在线浏览',
+                        icon: CupertinoIcons.photo,
+                        activeIcon: CupertinoIcons.photo_fill,
+                        label: '在线图片',
                         isDark: isDark,
                       ),
                       _buildNavItem(
                         index: 1,
+                        icon: CupertinoIcons.play_rectangle,
+                        activeIcon: CupertinoIcons.play_rectangle_fill,
+                        label: '在线视频',
+                        isDark: isDark,
+                      ),
+                      _buildNavItem(
+                        index: 2,
                         icon: CupertinoIcons.arrow_down_circle,
                         activeIcon: CupertinoIcons.arrow_down_circle_fill,
                         label: '下载任务',
@@ -104,21 +118,28 @@ class _HomeScaffoldState extends State<HomeScaffold> {
                         isDark: isDark,
                       ),
                       _buildNavItem(
-                        index: 2,
+                        index: 3,
                         icon: CupertinoIcons.clock,
                         activeIcon: CupertinoIcons.clock_fill,
                         label: '下载历史',
                         isDark: isDark,
                       ),
                       _buildNavItem(
-                        index: 3,
+                        index: 4,
                         icon: CupertinoIcons.photo_on_rectangle,
                         activeIcon: CupertinoIcons.photo_fill_on_rectangle_fill,
                         label: '本地图库',
                         isDark: isDark,
                       ),
                       _buildNavItem(
-                        index: 4,
+                        index: 5,
+                        icon: CupertinoIcons.film,
+                        activeIcon: CupertinoIcons.film_fill,
+                        label: '本地视频',
+                        isDark: isDark,
+                      ),
+                      _buildNavItem(
+                        index: 6,
                         icon: CupertinoIcons.gear_alt,
                         activeIcon: CupertinoIcons.gear_alt_fill,
                         label: '系统设置',
@@ -150,7 +171,7 @@ class _HomeScaffoldState extends State<HomeScaffold> {
         setState(() => _currentIndex = index);
       },
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -163,16 +184,16 @@ class _HomeScaffoldState extends State<HomeScaffold> {
                   curve: Curves.easeOutBack,
                   child: Icon(
                     isSelected ? activeIcon : icon,
-                    size: 23,
+                    size: 21,
                     color: isSelected ? IosTheme.primaryPink : (isDark ? Colors.white60 : Colors.black45),
                   ),
                 ),
                 if (badgeCount > 0)
                   Positioned(
                     top: -4,
-                    right: -9,
+                    right: -8,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                       decoration: BoxDecoration(
                         color: IosTheme.primaryPink,
                         shape: BoxShape.circle,
@@ -187,7 +208,7 @@ class _HomeScaffoldState extends State<HomeScaffold> {
                         '$badgeCount',
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 9,
+                          fontSize: 8.5,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
@@ -199,7 +220,7 @@ class _HomeScaffoldState extends State<HomeScaffold> {
             Text(
               label,
               style: TextStyle(
-                fontSize: 10,
+                fontSize: 9.5,
                 fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
                 color: isSelected ? IosTheme.primaryPink : (isDark ? Colors.white60 : Colors.black45),
               ),
