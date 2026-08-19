@@ -18,29 +18,38 @@ class DownloadTasksPage extends StatefulWidget {
 }
 
 class _DownloadTasksPageState extends State<DownloadTasksPage> {
-  int _selectedSegment = 0; // 0: All, 1: Active, 2: Completed, 3: Failed
+  int _resourceSegment = 0; // 0: 图片任务, 1: 视频任务
+  int _selectedStatusSegment = 0; // 0: 全部, 1: 进行中, 2: 已完成, 3: 失败
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final downloadProv = context.watch<DownloadProvider>();
 
+    final imageTasks = downloadProv.allTasks.where((t) => !t.isVideo).toList();
+    final videoTasks = downloadProv.allTasks.where((t) => t.isVideo).toList();
+    final currentResourceTasks = _resourceSegment == 0 ? imageTasks : videoTasks;
+
+    final activeTasks = currentResourceTasks
+        .where((t) => t.status == TaskStatus.downloading || t.status == TaskStatus.queued || t.status == TaskStatus.paused)
+        .toList();
+    final completedTasks = currentResourceTasks.where((t) => t.status == TaskStatus.completed).toList();
+    final failedTasks = currentResourceTasks.where((t) => t.status == TaskStatus.failed).toList();
+
     final List<AlbumDownloadTask> filteredTasks;
-    switch (_selectedSegment) {
+    switch (_selectedStatusSegment) {
       case 1:
-        filteredTasks = downloadProv.allTasks
-            .where((t) => t.status == TaskStatus.downloading || t.status == TaskStatus.queued || t.status == TaskStatus.paused)
-            .toList();
+        filteredTasks = activeTasks;
         break;
       case 2:
-        filteredTasks = downloadProv.completedTasks;
+        filteredTasks = completedTasks;
         break;
       case 3:
-        filteredTasks = downloadProv.failedTasks;
+        filteredTasks = failedTasks;
         break;
       case 0:
       default:
-        filteredTasks = downloadProv.allTasks;
+        filteredTasks = currentResourceTasks;
         break;
     }
 
@@ -50,15 +59,15 @@ class _DownloadTasksPageState extends State<DownloadTasksPage> {
         bottom: false,
         child: Column(
           children: [
-            // Top Bar
+            // Top Bar with Resource Switcher & Action Buttons
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
               child: Row(
                 children: [
                   const Text(
                     '任务管理',
                     style: TextStyle(
-                      fontSize: 26,
+                      fontSize: 24,
                       fontWeight: FontWeight.w900,
                       letterSpacing: -0.5,
                     ),
@@ -73,11 +82,11 @@ class _DownloadTasksPageState extends State<DownloadTasksPage> {
                         onTap: () {
                           downloadProv.startPip();
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: const Text('已激活画中画后台保活，切到后台可保持不间断下载'),
+                            const SnackBar(
+                              content: Text('已激活画中画后台保活，切到后台可保持不间断下载'),
                               backgroundColor: IosTheme.primaryPink,
                               behavior: SnackBarBehavior.floating,
-                              duration: const Duration(seconds: 2),
+                              duration: Duration(seconds: 2),
                             ),
                           );
                         },
@@ -107,7 +116,7 @@ class _DownloadTasksPageState extends State<DownloadTasksPage> {
                     ),
 
                   // Pause All Button
-                  if (downloadProv.activeTasks.isNotEmpty || downloadProv.queuedTasks.isNotEmpty)
+                  if (activeTasks.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(right: 6),
                       child: BouncingButton(
@@ -138,7 +147,7 @@ class _DownloadTasksPageState extends State<DownloadTasksPage> {
                     ),
 
                   // Resume All Button
-                  if (downloadProv.pausedTasks.isNotEmpty || downloadProv.failedTasks.isNotEmpty)
+                  if (currentResourceTasks.any((t) => t.status == TaskStatus.paused || t.status == TaskStatus.failed))
                     Padding(
                       padding: const EdgeInsets.only(right: 6),
                       child: BouncingButton(
@@ -169,7 +178,7 @@ class _DownloadTasksPageState extends State<DownloadTasksPage> {
                     ),
 
                   // Clear Completed Button
-                  if (downloadProv.completedTasks.isNotEmpty)
+                  if (completedTasks.isNotEmpty)
                     BouncingButton(
                       onTap: () => downloadProv.clearCompleted(),
                       child: Container(
@@ -192,23 +201,54 @@ class _DownloadTasksPageState extends State<DownloadTasksPage> {
               ),
             ),
 
+            // Top Resource Capsule Switcher: [ 📸 图片任务 ]   [ 🎬 视频任务 ]
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: FrostedGlass(
+                borderRadius: 18,
+                blur: 16,
+                padding: const EdgeInsets.all(3),
+                backgroundColor: isDark ? const Color(0xCC1E1E24) : const Color(0xCCFFFFFF),
+                borderColor: isDark ? Colors.white12 : Colors.black12,
+                borderWidth: 0.5,
+                child: Row(
+                  children: [
+                    _buildResourceSwitcherItem(
+                      index: 0,
+                      label: '图片任务',
+                      count: imageTasks.length,
+                      icon: CupertinoIcons.photo_on_rectangle,
+                      isDark: isDark,
+                    ),
+                    _buildResourceSwitcherItem(
+                      index: 1,
+                      label: '视频任务',
+                      count: videoTasks.length,
+                      icon: CupertinoIcons.play_rectangle_fill,
+                      isDark: isDark,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
             // Speed & Overall Progress Banner
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
               child: LiquidGlass(
                 borderRadius: 20,
                 blur: 16,
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(12),
                 fluidAuraColor: IosTheme.primaryPink,
                 child: Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(10),
+                      padding: const EdgeInsets.all(9),
                       decoration: BoxDecoration(
                         color: IosTheme.primaryPink.withValues(alpha: 0.15),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(CupertinoIcons.speedometer, color: IosTheme.primaryPink, size: 22),
+                      child: const Icon(CupertinoIcons.speedometer, color: IosTheme.primaryPink, size: 20),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -218,23 +258,26 @@ class _DownloadTasksPageState extends State<DownloadTasksPage> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Text('当前下载速度', style: TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w600)),
+                              Text(
+                                _resourceSegment == 0 ? '图片下载总进度' : '视频下载总进度',
+                                style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w600),
+                              ),
                               Text(
                                 downloadProv.formattedSpeed,
                                 style: const TextStyle(
-                                  fontSize: 16,
+                                  fontSize: 15,
                                   fontWeight: FontWeight.w900,
                                   color: IosTheme.primaryPink,
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 5),
                           ClipRRect(
                             borderRadius: BorderRadius.circular(4),
                             child: LinearProgressIndicator(
                               value: downloadProv.isDownloading ? downloadProv.overallProgress : 0.0,
-                              minHeight: 5,
+                              minHeight: 4.5,
                               backgroundColor: isDark ? Colors.white12 : Colors.black12,
                               valueColor: const AlwaysStoppedAnimation<Color>(IosTheme.primaryPink),
                             ),
@@ -247,19 +290,19 @@ class _DownloadTasksPageState extends State<DownloadTasksPage> {
               ),
             ),
 
-            // Segmented Tab Filter
+            // Sub Status Segmented Tab Filter: [ 全部 ] [ 进行中 ] [ 已完成 ] [ 失败 ]
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
               child: FrostedGlass(
-                borderRadius: 16,
+                borderRadius: 14,
                 blur: 12,
-                padding: const EdgeInsets.all(3),
+                padding: const EdgeInsets.all(2.5),
                 child: Row(
                   children: [
-                    _buildSegmentButton(0, '全部 (${downloadProv.allTasks.length})'),
-                    _buildSegmentButton(1, '进行中 (${downloadProv.activeTasks.length + downloadProv.queuedTasks.length})'),
-                    _buildSegmentButton(2, '已完成 (${downloadProv.completedTasks.length})'),
-                    _buildSegmentButton(3, '失败 (${downloadProv.failedTasks.length})'),
+                    _buildStatusSegmentButton(0, '全部 (${currentResourceTasks.length})'),
+                    _buildStatusSegmentButton(1, '进行中 (${activeTasks.length})'),
+                    _buildStatusSegmentButton(2, '已完成 (${completedTasks.length})'),
+                    _buildStatusSegmentButton(3, '失败 (${failedTasks.length})'),
                   ],
                 ),
               ),
@@ -273,13 +316,13 @@ class _DownloadTasksPageState extends State<DownloadTasksPage> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
-                            CupertinoIcons.tray,
-                            size: 48,
+                            _resourceSegment == 0 ? CupertinoIcons.photo : CupertinoIcons.film,
+                            size: 46,
                             color: isDark ? Colors.white24 : Colors.black26,
                           ),
                           const SizedBox(height: 12),
                           Text(
-                            '暂无下载任务',
+                            _resourceSegment == 0 ? '暂无图片下载任务' : '暂无视频下载任务',
                             style: TextStyle(
                               fontSize: 14,
                               color: isDark ? Colors.white38 : Colors.black38,
@@ -291,7 +334,7 @@ class _DownloadTasksPageState extends State<DownloadTasksPage> {
                     )
                   : ListView.builder(
                       physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+                      padding: const EdgeInsets.fromLTRB(16, 6, 16, 120),
                       itemCount: filteredTasks.length,
                       itemBuilder: (context, index) {
                         final task = filteredTasks[index];
@@ -305,17 +348,76 @@ class _DownloadTasksPageState extends State<DownloadTasksPage> {
     );
   }
 
-  Widget _buildSegmentButton(int index, String label) {
-    final isSelected = _selectedSegment == index;
+  Widget _buildResourceSwitcherItem({
+    required int index,
+    required String label,
+    required int count,
+    required IconData icon,
+    required bool isDark,
+  }) {
+    final isSelected = _resourceSegment == index;
 
     return Expanded(
       child: BouncingButton(
-        onTap: () => setState(() => _selectedSegment = index),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 7),
+        onTap: () {
+          if (_resourceSegment != index) {
+            setState(() {
+              _resourceSegment = index;
+            });
+          }
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
             color: isSelected ? IosTheme.primaryPink : Colors.transparent,
-            borderRadius: BorderRadius.circular(13),
+            borderRadius: BorderRadius.circular(15),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: IosTheme.primaryPink.withValues(alpha: 0.35),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 14,
+                color: isSelected ? Colors.white : (isDark ? Colors.white60 : Colors.black54),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '$label ($count)',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                  color: isSelected ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusSegmentButton(int index, String label) {
+    final isSelected = _selectedStatusSegment == index;
+
+    return Expanded(
+      child: BouncingButton(
+        onTap: () => setState(() => _selectedStatusSegment = index),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          decoration: BoxDecoration(
+            color: isSelected ? IosTheme.primaryPink : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
           ),
           child: Text(
             label,
@@ -350,120 +452,160 @@ class _DownloadTasksPageState extends State<DownloadTasksPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Cover
+              // Cover Thumbnail
               ClipRRect(
                 borderRadius: BorderRadius.circular(10),
-                child: Container(
-                  width: 54,
-                  height: 54,
-                  color: isDark ? Colors.white10 : Colors.black12,
+                child: SizedBox(
+                  width: task.isVideo ? 72 : 56,
+                  height: task.isVideo ? 45 : 72,
                   child: item.coverUrl != null && item.coverUrl!.isNotEmpty
                       ? CachedNetworkImage(
                           imageUrl: item.coverUrl!,
                           fit: BoxFit.cover,
-                          httpHeaders: const {
-                            'Referer': 'https://hentai-cosplay-xxx.com/',
-                          },
-                          placeholder: (_, __) => const Center(
-                            child: CupertinoActivityIndicator(radius: 8),
-                          ),
-                          errorWidget: (_, __, ___) => const Icon(
-                            CupertinoIcons.photo,
-                            color: Colors.grey,
-                            size: 24,
+                          placeholder: (_, __) => Container(color: Colors.grey.withValues(alpha: 0.2)),
+                          errorWidget: (_, __, ___) => Container(
+                            color: Colors.grey.withValues(alpha: 0.2),
+                            child: Icon(task.isVideo ? CupertinoIcons.film : CupertinoIcons.photo, color: Colors.grey, size: 20),
                           ),
                         )
-                      : const Icon(CupertinoIcons.photo, color: Colors.grey),
+                      : Container(
+                          color: Colors.grey.withValues(alpha: 0.2),
+                          child: Icon(task.isVideo ? CupertinoIcons.film : CupertinoIcons.photo, color: Colors.grey, size: 20),
+                        ),
                 ),
               ),
               const SizedBox(width: 12),
 
-              // Title & Status
+              // Title and Info
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      item.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
+                    Row(
+                      children: [
+                        if (task.isVideo)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                            margin: const EdgeInsets.only(right: 6),
+                            decoration: BoxDecoration(
+                              color: IosTheme.primaryPink.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(5),
+                            ),
+                            child: const Text(
+                              '视频',
+                              style: TextStyle(
+                                color: IosTheme.primaryPink,
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        Expanded(
+                          child: Text(
+                            item.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              height: 1.25,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 4),
+                    Text(
+                      item.author,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: IosTheme.primaryPink,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+
+                    // Status and Info Row
                     Row(
                       children: [
                         _buildStatusBadge(task.status),
-                        const SizedBox(width: 8),
-                        Text(
-                          '${task.downloadedImages + task.skippedImages} / ${task.totalImages > 0 ? task.totalImages : "?"} 张',
-                          style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w600),
-                        ),
+                        const Spacer(),
+                        if (task.isVideo)
+                          Text(
+                            task.status == TaskStatus.completed
+                                ? '下载完成'
+                                : (task.duration != null && task.duration!.isNotEmpty ? task.duration! : '高清视频'),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: isDark ? Colors.white54 : Colors.black45,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          )
+                        else
+                          Text(
+                            '${task.downloadedImages + task.skippedImages} / ${task.totalImages > 0 ? task.totalImages : '?'} 张',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: isDark ? Colors.white54 : Colors.black45,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                       ],
                     ),
                   ],
                 ),
               ),
-
-              // Action buttons
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (task.status == TaskStatus.downloading)
-                    BouncingButton(
-                      onTap: () => downloadProv.pauseTask(task),
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.withValues(alpha: 0.15),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(CupertinoIcons.pause_fill, size: 16, color: Colors.orange),
-                      ),
-                    )
-                  else if (task.status == TaskStatus.paused || task.status == TaskStatus.failed)
-                    BouncingButton(
-                      onTap: () => downloadProv.resumeTask(task),
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: IosTheme.primaryPink.withValues(alpha: 0.15),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(CupertinoIcons.play_fill, size: 16, color: IosTheme.primaryPink),
-                      ),
-                    ),
-                  const SizedBox(width: 6),
-                  BouncingButton(
-                    onTap: () => downloadProv.removeTask(task),
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.red.withValues(alpha: 0.12),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(CupertinoIcons.trash, size: 16, color: Colors.red),
-                    ),
-                  ),
-                ],
-              ),
             ],
           ),
-          const SizedBox(height: 10),
 
-          // Progress Bar
-          ClipRRect(
-            borderRadius: BorderRadius.circular(3),
-            child: LinearProgressIndicator(
-              value: task.status == TaskStatus.completed ? 1.0 : (progress > 0 ? progress : null),
-              minHeight: 4,
-              backgroundColor: isDark ? Colors.white10 : Colors.black12,
-              valueColor: AlwaysStoppedAnimation<Color>(
-                task.status == TaskStatus.completed
-                    ? IosTheme.primaryGreen
-                    : (task.status == TaskStatus.failed ? Colors.red : IosTheme.primaryPink),
+          // Progress Bar (if not completed)
+          if (task.status == TaskStatus.downloading ||
+              task.status == TaskStatus.paused ||
+              task.status == TaskStatus.queued) ...[
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 4,
+                backgroundColor: isDark ? Colors.white12 : Colors.black12,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  task.status == TaskStatus.paused ? Colors.orange : IosTheme.primaryPink,
+                ),
               ),
             ),
+          ],
+
+          // Action Row
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              if (task.status == TaskStatus.downloading)
+                _buildActionBtn(
+                  icon: CupertinoIcons.pause_fill,
+                  label: '暂停',
+                  color: Colors.orange,
+                  onTap: () => downloadProv.pauseTask(task),
+                ),
+              if (task.status == TaskStatus.paused || task.status == TaskStatus.failed)
+                _buildActionBtn(
+                  icon: CupertinoIcons.play_fill,
+                  label: '继续',
+                  color: IosTheme.primaryPink,
+                  onTap: () => downloadProv.resumeTask(task),
+                ),
+              const SizedBox(width: 8),
+              _buildActionBtn(
+                icon: CupertinoIcons.trash,
+                label: '移除',
+                color: Colors.redAccent,
+                onTap: () => downloadProv.removeTask(task),
+              ),
+            ],
           ),
         ],
       ),
@@ -471,47 +613,81 @@ class _DownloadTasksPageState extends State<DownloadTasksPage> {
   }
 
   Widget _buildStatusBadge(TaskStatus status) {
-    String label;
     Color color;
+    String label;
 
     switch (status) {
       case TaskStatus.completed:
-        label = '已完成';
         color = IosTheme.primaryGreen;
+        label = '已完成';
         break;
       case TaskStatus.downloading:
-        label = '下载中';
         color = IosTheme.primaryPink;
+        label = '下载中';
         break;
       case TaskStatus.queued:
-        label = '队列中';
         color = IosTheme.primaryBlue;
+        label = '等待中';
         break;
       case TaskStatus.paused:
-        label = '已暂停';
         color = Colors.orange;
+        label = '已暂停';
         break;
       case TaskStatus.failed:
-        label = '失败';
         color = Colors.red;
+        label = '失败';
         break;
       default:
-        label = '空闲';
         color = Colors.grey;
+        label = '未开始';
+        break;
     }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
         label,
         style: TextStyle(
           color: color,
           fontSize: 10,
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionBtn({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return BouncingButton(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 12, color: color),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+          ],
         ),
       ),
     );
