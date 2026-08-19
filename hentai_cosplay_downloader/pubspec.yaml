@@ -28,6 +28,7 @@ dependencies:
   pool: ^1.5.1
   flutter_local_notifications: ^18.0.1
   html: ^0.15.4
+  video_player: ^2.9.2
 
 dev_dependencies:
   flutter_test:

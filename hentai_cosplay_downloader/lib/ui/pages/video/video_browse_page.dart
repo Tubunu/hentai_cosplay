@@ -75,7 +75,7 @@ class _VideoBrowsePageState extends State<VideoBrowsePage> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('请输入 1 ~ ${browseProv.totalPages} 之间的页码：'),
+            const Text('请输入要跳转的目标页码：'),
             const SizedBox(height: 12),
             TextField(
               controller: _pageJumpController,
@@ -643,7 +643,9 @@ class _VideoBrowsePageState extends State<VideoBrowsePage> {
                             child: Row(
                               children: [
                                 Text(
-                                  '第 ${browseProv.currentPage} / ${browseProv.totalPages} 页',
+                                  browseProv.totalPages > browseProv.currentPage
+                                      ? '第 ${browseProv.currentPage} / ${browseProv.totalPages} 页'
+                                      : '第 ${browseProv.currentPage} 页',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w800,
                                     fontSize: 13.5,
@@ -658,27 +660,21 @@ class _VideoBrowsePageState extends State<VideoBrowsePage> {
 
                         const SizedBox(width: 14),
 
-                        // Next Page Button
+                        // Next Page Button (Allow continuous next page)
                         BouncingButton(
-                          onTap: browseProv.currentPage < browseProv.totalPages
-                              ? () {
-                                  browseProv.nextPage();
-                                  _scrollToTop();
-                                }
-                              : null,
+                          onTap: () {
+                            browseProv.nextPage();
+                            _scrollToTop();
+                          },
                           child: FrostedGlass(
                             borderRadius: 16,
                             blur: 20,
                             padding: const EdgeInsets.all(12),
-                            backgroundColor: browseProv.currentPage < browseProv.totalPages
-                                ? (isDark ? const Color(0x9928282E) : const Color(0xDDFFFFFF))
-                                : Colors.transparent,
-                            child: Icon(
+                            backgroundColor: isDark ? const Color(0x9928282E) : const Color(0xDDFFFFFF),
+                            child: const Icon(
                               CupertinoIcons.chevron_right,
                               size: 18,
-                              color: browseProv.currentPage < browseProv.totalPages
-                                  ? IosTheme.primaryPink
-                                  : Colors.grey.withValues(alpha: 0.3),
+                              color: IosTheme.primaryPink,
                             ),
                           ),
                         ),

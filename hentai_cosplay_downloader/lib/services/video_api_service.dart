@@ -228,7 +228,7 @@ class VideoApiService {
   }
 
   /// Parse total pages from pagination
-  static int parseTotalPages(String html, int fallbackItemCount) {
+  static int parseTotalPages(String html, int currentPage, int fallbackItemCount) {
     // 1. wp-pagenavi last page link
     final lastPageMatch = RegExp(r'<a\s+class=["\x27]last["\x27][^>]*href=["\x27][^"\x27]*/page/([0-9]+)/["\x27]').firstMatch(html);
     if (lastPageMatch != null) {
@@ -238,40 +238,66 @@ class VideoApiService {
 
     // 2. All /page/N/ matches
     final allPageMatches = RegExp(r'/page/([0-9]+)/').allMatches(html);
-    int maxPage = 1;
+    int maxPage = currentPage;
     for (final m in allPageMatches) {
       final p = int.tryParse(m.group(1) ?? '');
       if (p != null && p > maxPage) {
         maxPage = p;
       }
     }
-    if (maxPage > 1) return maxPage;
 
-    // 3. Fallback
-    return fallbackItemCount > 0 ? 1 : 1;
+    // 3. Check for next page link in paginator-container (navigate_next / arrow_forward_ios)
+    final hasNext = html.contains('navigate_next') ||
+        html.contains('arrow_forward_ios') ||
+        html.contains('/page/${currentPage + 1}/');
+
+    if (hasNext && maxPage <= currentPage) {
+      maxPage = currentPage + 1;
+    }
+
+    return maxPage > 0 ? maxPage : 1;
   }
 
-  /// Parse video detail page to extract real video file URL, tags, duration
+  /// Check if next page exists
+  static bool parseHasNextPage(String html, int currentPage) {
+    return html.contains('navigate_next') ||
+        html.contains('arrow_forward_ios') ||
+        html.contains('/page/${currentPage + 1}/');
+  }
+
+  /// Parse video detail page to extract real video file URL (m3u8/mp4), poster, tags, duration
   static VideoItem parseVideoDetail(String html, VideoItem item) {
     String? directVideoUrl;
     String cover = item.coverUrl ?? '';
     List<String> tags = [];
     String duration = item.duration;
 
-    // 1. Try to find <source src="..." type="video/mp4"> or <video src="...">
-    final sourceMatch = RegExp(
-      r'<(?:source|video)[^>]*src=["\x27]([^"\x27]+\.(?:mp4|m3u8|webm|mov)[^"\x27]*)["\x27]',
+    // 1. Extract from JSON-LD Schema VideoObject (Most reliable)
+    final jsonLdMatch = RegExp(
+      r'"contentUrl"\s*:\s*"(https?:\\?/\\?/[^"]+)"',
       caseSensitive: false,
     ).firstMatch(html);
 
-    if (sourceMatch != null) {
-      directVideoUrl = sourceMatch.group(1)?.trim();
+    if (jsonLdMatch != null) {
+      directVideoUrl = jsonLdMatch.group(1)?.replaceAll(r'\/', '/').trim();
     }
 
-    // 2. Try to find JavaScript player variable video_url / file / source
+    // 2. Try to find <source src="..." type="application/x-mpegURL"> or <source src="...">
+    if (directVideoUrl == null || directVideoUrl.isEmpty) {
+      final sourceMatch = RegExp(
+        r'<(?:source|video)[^>]*src=["\x27]([^"\x27]+\.(?:m3u8|mp4|webm|mov)[^"\x27]*)["\x27]',
+        caseSensitive: false,
+      ).firstMatch(html);
+
+      if (sourceMatch != null) {
+        directVideoUrl = sourceMatch.group(1)?.trim();
+      }
+    }
+
+    // 3. Try to find JavaScript player variable video_url / file / source
     if (directVideoUrl == null || directVideoUrl.isEmpty) {
       final jsMatch = RegExp(
-        r'(?:video_url|videoUrl|file|source|src)\s*[:=]\s*["\x27](https?:\\?/\\?/[^"\x27]+\.(?:mp4|m3u8|webm)[^"\x27]*)["\x27]',
+        r'(?:video_url|videoUrl|file|source|src)\s*[:=]\s*["\x27](https?:\\?/\\?/[^"\x27]+\.(?:m3u8|mp4|webm)[^"\x27]*)["\x27]',
         caseSensitive: false,
       ).firstMatch(html);
       if (jsMatch != null) {
@@ -279,7 +305,7 @@ class VideoApiService {
       }
     }
 
-    // 3. Try to find direct download link
+    // 4. Try to find direct download link
     if (directVideoUrl == null || directVideoUrl.isEmpty) {
       final downloadMatch = RegExp(
         r'<a[^>]*href=["\x27]([^"\x27]+\.(?:mp4|m3u8|webm)[^"\x27]*)["\x27][^>]*>(?:下载|Download|High Quality)',
@@ -290,13 +316,18 @@ class VideoApiService {
       }
     }
 
-    // 4. Extract video poster
+    // 5. Extract video poster
     final posterMatch = RegExp(r'<video[^>]*poster=["\x27]([^"\x27]+)["\x27]', caseSensitive: false).firstMatch(html);
     if (posterMatch != null) {
       cover = posterMatch.group(1)?.trim() ?? cover;
+    } else {
+      final jsonThumbMatch = RegExp(r'"thumbnailUrl"\s*:\s*"(https?:\\?/\\?/[^"]+)"').firstMatch(html);
+      if (jsonThumbMatch != null) {
+        cover = jsonThumbMatch.group(1)?.replaceAll(r'\/', '/').trim() ?? cover;
+      }
     }
 
-    // 5. Extract tags
+    // 6. Extract tags
     final tagMatches = RegExp(r'<a\s+[^>]*href=["\x27][^"\x27]*/search/tag/([^/]+)/["\x27][^>]*>([^<]+)</a>', caseSensitive: false).allMatches(html);
     for (final tm in tagMatches) {
       final t = tm.group(2)?.trim();
@@ -305,7 +336,7 @@ class VideoApiService {
       }
     }
 
-    // 6. Extract duration if present
+    // 7. Extract duration if present
     final durationMatch = RegExp(r'(?:时长|Duration|Time)[:：\s]*([0-9]{1,2}:[0-9]{2}(?::[0-9]{2})?)', caseSensitive: false).firstMatch(html);
     if (durationMatch != null) {
       duration = durationMatch.group(1) ?? duration;
@@ -390,7 +421,7 @@ class VideoApiService {
         if (response.statusCode == 200 && response.data != null) {
           final html = response.data.toString();
           final items = parseVideoList(html);
-          final totalPages = parseTotalPages(html, items.length);
+          final totalPages = parseTotalPages(html, page, items.length);
           final totalItems = totalPages * 24;
 
           return VideoApiResponse(
@@ -466,7 +497,7 @@ class VideoApiService {
         if (response.statusCode == 200 && response.data != null) {
           final html = response.data.toString();
           final items = parseVideoTags(html);
-          final totalPages = parseTotalPages(html, items.length);
+          final totalPages = parseTotalPages(html, page, items.length);
 
           return RankingTagsResponse(
             items: items,

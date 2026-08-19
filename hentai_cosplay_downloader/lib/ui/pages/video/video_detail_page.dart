@@ -10,6 +10,7 @@ import '../../../services/video_api_service.dart';
 import '../../theme/ios_theme.dart';
 import '../../widgets/bouncing_button.dart';
 import '../../widgets/frosted_glass.dart';
+import 'video_player_page.dart';
 
 class VideoDetailPage extends StatefulWidget {
   final VideoItem initialItem;
@@ -186,6 +187,48 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
               child: Row(
                 children: [
+                  // Preview Play Button
+                  if (_item.videoUrl != null && _item.videoUrl!.isNotEmpty) ...[
+                    Expanded(
+                      child: BouncingButton(
+                        onTap: () {
+                          VideoPlayerPage.openRemote(
+                            context,
+                            url: _item.videoUrl!,
+                            title: _item.title,
+                            author: _item.author,
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: isDark ? Colors.white24 : Colors.black12,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(CupertinoIcons.play_circle_fill, color: IosTheme.primaryPink, size: 20),
+                              const SizedBox(width: 6),
+                              Text(
+                                '在线播放',
+                                style: TextStyle(
+                                  color: isDark ? Colors.white : Colors.black87,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+                  // Download Button
                   Expanded(
                     child: BouncingButton(
                       onTap: () {
@@ -215,13 +258,13 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
                         child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(CupertinoIcons.arrow_down_circle_fill, color: Colors.white, size: 20),
-                            SizedBox(width: 8),
+                            Icon(CupertinoIcons.arrow_down_circle_fill, color: Colors.white, size: 19),
+                            SizedBox(width: 6),
                             Text(
-                              '一键下载视频',
+                              '下载视频',
                               style: TextStyle(
                                 color: Colors.white,
-                                fontSize: 15,
+                                fontSize: 14,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),

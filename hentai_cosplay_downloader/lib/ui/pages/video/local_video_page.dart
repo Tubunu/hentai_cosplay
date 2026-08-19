@@ -10,6 +10,7 @@ import '../../../providers/settings_provider.dart';
 import '../../theme/ios_theme.dart';
 import '../../widgets/bouncing_button.dart';
 import '../../widgets/frosted_glass.dart';
+import 'video_player_page.dart';
 
 class LocalVideoPage extends StatefulWidget {
   const LocalVideoPage({super.key});
@@ -81,6 +82,20 @@ class _LocalVideoPageState extends State<LocalVideoPage> {
         title: Text(video.title, maxLines: 2, overflow: TextOverflow.ellipsis),
         message: Text('${video.author} • ${video.formattedSize} • ${video.duration}'),
         actions: [
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(ctx);
+              VideoPlayerPage.openLocal(context, video);
+            },
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(CupertinoIcons.play_circle_fill, color: IosTheme.primaryPink, size: 20),
+                SizedBox(width: 8),
+                Text('播放视频', style: TextStyle(color: IosTheme.primaryPink, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
           CupertinoActionSheetAction(
             onPressed: () {
               Navigator.pop(ctx);
@@ -309,138 +324,159 @@ class _LocalVideoPageState extends State<LocalVideoPage> {
                         final video = videoProv.videos[index];
 
                         return BouncingButton(
-                          onTap: () => _showVideoOptions(context, video, videoProv),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(16),
-                              color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
+                          onTap: () => VideoPlayerPage.openLocal(context, video),
+                          child: GestureDetector(
+                            onLongPress: () => _showVideoOptions(context, video, videoProv),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(16),
+                                color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                                border: Border.all(
+                                  color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04),
+                                  width: 1,
                                 ),
-                              ],
-                              border: Border.all(
-                                color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04),
-                                width: 1,
                               ),
-                            ),
-                            clipBehavior: Clip.antiAlias,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // 16:9 Poster / Thumbnail
-                                AspectRatio(
-                                  aspectRatio: 16 / 9,
-                                  child: Stack(
-                                    fit: StackFit.expand,
-                                    children: [
-                                      video.coverPath != null && File(video.coverPath!).existsSync()
-                                          ? Image.file(
-                                              File(video.coverPath!),
-                                              fit: BoxFit.cover,
-                                            )
-                                          : Container(
-                                              color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
-                                              child: const Center(
-                                                child: Icon(CupertinoIcons.film, color: Colors.grey, size: 28),
+                              clipBehavior: Clip.antiAlias,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // 16:9 Poster / Thumbnail
+                                  AspectRatio(
+                                    aspectRatio: 16 / 9,
+                                    child: Stack(
+                                      fit: StackFit.expand,
+                                      children: [
+                                        video.coverPath != null && File(video.coverPath!).existsSync()
+                                            ? Image.file(
+                                                File(video.coverPath!),
+                                                fit: BoxFit.cover,
+                                              )
+                                            : Container(
+                                                color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
+                                                child: const Icon(CupertinoIcons.video_camera_solid, color: Colors.grey, size: 28),
                                               ),
-                                            ),
 
-                                      // Overlay
-                                      Container(
-                                        decoration: BoxDecoration(
-                                          gradient: LinearGradient(
-                                            begin: Alignment.topCenter,
-                                            end: Alignment.bottomCenter,
-                                            colors: [
-                                              Colors.transparent,
-                                              Colors.black.withValues(alpha: 0.65),
-                                            ],
+                                        // Overlay
+                                        Container(
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(
+                                              begin: Alignment.topCenter,
+                                              end: Alignment.bottomCenter,
+                                              colors: [
+                                                Colors.transparent,
+                                                Colors.black.withValues(alpha: 0.65),
+                                              ],
+                                            ),
                                           ),
                                         ),
-                                      ),
 
-                                      // Duration Badge
-                                      if (video.duration.isNotEmpty)
+                                        // Center Play Icon
+                                        Center(
+                                          child: Container(
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: Colors.black.withValues(alpha: 0.5),
+                                              shape: BoxShape.circle,
+                                              border: Border.all(color: Colors.white38, width: 1),
+                                            ),
+                                            child: const Icon(CupertinoIcons.play_fill, color: Colors.white, size: 16),
+                                          ),
+                                        ),
+
+                                        // Duration Badge
+                                        if (video.duration.isNotEmpty)
+                                          Positioned(
+                                            left: 6,
+                                            bottom: 6,
+                                            child: Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: Colors.black.withValues(alpha: 0.75),
+                                                borderRadius: BorderRadius.circular(6),
+                                              ),
+                                              child: Text(
+                                                video.duration,
+                                                style: const TextStyle(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.w700),
+                                              ),
+                                            ),
+                                          ),
+
+                                        // File Size Badge
                                         Positioned(
-                                          left: 6,
+                                          right: 6,
                                           bottom: 6,
                                           child: Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                                             decoration: BoxDecoration(
-                                              color: Colors.black.withValues(alpha: 0.75),
+                                              color: IosTheme.primaryPink.withValues(alpha: 0.85),
                                               borderRadius: BorderRadius.circular(6),
                                             ),
                                             child: Text(
-                                              video.duration,
+                                              video.formattedSize,
                                               style: const TextStyle(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.w700),
                                             ),
                                           ),
                                         ),
-
-                                      // File Size Badge
-                                      Positioned(
-                                        right: 6,
-                                        bottom: 6,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: IosTheme.primaryPink.withValues(alpha: 0.85),
-                                            borderRadius: BorderRadius.circular(6),
-                                          ),
-                                          child: Text(
-                                            video.formattedSize,
-                                            style: const TextStyle(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.w700),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-
-                                // Metadata
-                                Expanded(
-                                  child: Padding(
-                                    padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Text(
-                                          video.title,
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w700,
-                                            height: 1.25,
-                                            color: isDark ? Colors.white : Colors.black87,
-                                          ),
-                                        ),
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                video.author,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: const TextStyle(
-                                                  fontSize: 10.5,
-                                                  color: IosTheme.primaryPink,
-                                                  fontWeight: FontWeight.w700,
-                                                ),
-                                              ),
-                                            ),
-                                            const Icon(CupertinoIcons.ellipsis, size: 14, color: Colors.grey),
-                                          ],
-                                        ),
                                       ],
                                     ),
                                   ),
-                                ),
-                              ],
+
+                                  // Metadata
+                                  Expanded(
+                                    child: Padding(
+                                      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Text(
+                                            video.title,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              height: 1.25,
+                                              color: isDark ? Colors.white : Colors.black87,
+                                            ),
+                                          ),
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  video.author,
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                    fontSize: 10.5,
+                                                    color: IosTheme.primaryPink,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ),
+                                              GestureDetector(
+                                                behavior: HitTestBehavior.opaque,
+                                                onTap: () => _showVideoOptions(context, video, videoProv),
+                                                child: const Padding(
+                                                  padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                                  child: Icon(CupertinoIcons.ellipsis, size: 16, color: Colors.grey),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         );

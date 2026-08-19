@@ -10,13 +10,11 @@ import '../theme/ios_theme.dart';
 import '../widgets/bouncing_button.dart';
 import '../widgets/liquid_glass.dart';
 import '../widgets/mini_download_bar.dart';
-import 'browse/browse_page.dart';
-import 'gallery/local_gallery_page.dart';
 import 'history/history_page.dart';
+import 'resources/local_resources_page.dart';
+import 'resources/online_resources_page.dart';
 import 'settings/settings_page.dart';
 import 'tasks/download_tasks_page.dart';
-import 'video/local_video_page.dart';
-import 'video/video_browse_page.dart';
 
 class HomeScaffold extends StatefulWidget {
   const HomeScaffold({super.key});
@@ -29,12 +27,10 @@ class _HomeScaffoldState extends State<HomeScaffold> {
   int _currentIndex = 0;
 
   final List<Widget> _pages = const [
-    BrowsePage(),
-    VideoBrowsePage(),
+    OnlineResourcesPage(),
     DownloadTasksPage(),
     HistoryPage(),
-    LocalGalleryPage(),
-    LocalVideoPage(),
+    LocalResourcesPage(),
     SettingsPage(),
   ];
 
@@ -79,38 +75,31 @@ class _HomeScaffoldState extends State<HomeScaffold> {
               // 1. Floating Mini Download Player Bar
               MiniDownloadBar(
                 onTap: () {
-                  setState(() => _currentIndex = 2);
+                  setState(() => _currentIndex = 1);
                 },
               ),
 
               // 2. Next-Gen Liquid Glass Bottom Navigation Bar Capsule
               Padding(
-                padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                 child: LiquidGlass(
                   borderRadius: 28,
-                  blur: 18,
+                  blur: 20,
                   opacity: settingsProv.config.navBarOpacity,
-                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
                   fluidAuraColor: IosTheme.primaryPink,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
                       _buildNavItem(
                         index: 0,
-                        icon: CupertinoIcons.photo,
-                        activeIcon: CupertinoIcons.photo_fill,
-                        label: '在线图片',
+                        icon: CupertinoIcons.compass,
+                        activeIcon: CupertinoIcons.compass_fill,
+                        label: '在线资源',
                         isDark: isDark,
                       ),
                       _buildNavItem(
                         index: 1,
-                        icon: CupertinoIcons.play_rectangle,
-                        activeIcon: CupertinoIcons.play_rectangle_fill,
-                        label: '在线视频',
-                        isDark: isDark,
-                      ),
-                      _buildNavItem(
-                        index: 2,
                         icon: CupertinoIcons.arrow_down_circle,
                         activeIcon: CupertinoIcons.arrow_down_circle_fill,
                         label: '下载任务',
@@ -118,28 +107,21 @@ class _HomeScaffoldState extends State<HomeScaffold> {
                         isDark: isDark,
                       ),
                       _buildNavItem(
-                        index: 3,
+                        index: 2,
                         icon: CupertinoIcons.clock,
                         activeIcon: CupertinoIcons.clock_fill,
                         label: '下载历史',
                         isDark: isDark,
                       ),
                       _buildNavItem(
+                        index: 3,
+                        icon: CupertinoIcons.folder,
+                        activeIcon: CupertinoIcons.folder_fill,
+                        label: '本地资源',
+                        isDark: isDark,
+                      ),
+                      _buildNavItem(
                         index: 4,
-                        icon: CupertinoIcons.photo_on_rectangle,
-                        activeIcon: CupertinoIcons.photo_fill_on_rectangle_fill,
-                        label: '本地图库',
-                        isDark: isDark,
-                      ),
-                      _buildNavItem(
-                        index: 5,
-                        icon: CupertinoIcons.film,
-                        activeIcon: CupertinoIcons.film_fill,
-                        label: '本地视频',
-                        isDark: isDark,
-                      ),
-                      _buildNavItem(
-                        index: 6,
                         icon: CupertinoIcons.gear_alt,
                         activeIcon: CupertinoIcons.gear_alt_fill,
                         label: '系统设置',

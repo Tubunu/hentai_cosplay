@@ -445,12 +445,20 @@ void main() {
       expect(items[0].duration, '12:34');
       expect(items[0].coverUrl, 'https://static.pv.com/cover/1.jpg');
 
-      final totalPages = VideoApiService.parseTotalPages(sampleHtml, items.length);
+      final totalPages = VideoApiService.parseTotalPages(sampleHtml, 1, items.length);
       expect(totalPages, 10);
 
       const detailHtml = '''
+<script type="application/ld+json">
+{
+  "@type": "VideoObject",
+  "name": "Cute Bunny Girl Dance 4K",
+  "contentUrl": "https://stream.pv.com/videos/alice_bunny/video.m3u8",
+  "thumbnailUrl": "https://static.pv.com/poster/1.jpg"
+}
+</script>
 <video poster="https://static.pv.com/poster/1.jpg">
-  <source src="https://stream.pv.com/videos/alice_bunny.mp4" type="video/mp4" />
+  <source src="https://stream.pv.com/videos/alice_bunny/video.m3u8" type="application/x-mpegURL" />
 </video>
 <p id="detail_tag">
   <a href="/search/tag/cosplay/">cosplay</a>
@@ -459,7 +467,7 @@ void main() {
       ''';
 
       final detailed = VideoApiService.parseVideoDetail(detailHtml, items[0]);
-      expect(detailed.videoUrl, 'https://stream.pv.com/videos/alice_bunny.mp4');
+      expect(detailed.videoUrl, 'https://stream.pv.com/videos/alice_bunny/video.m3u8');
       expect(detailed.tags, containsAll(['cosplay', 'bunny']));
     });
   });

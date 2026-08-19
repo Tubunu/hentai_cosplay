@@ -356,83 +356,92 @@ class DownloadEngine {
     if (await tempFile.exists()) await tempFile.delete();
 
     onLog('开始下载视频: ${item.title}', 'info');
-    int lastReportedBytes = 0;
+    bool downloadSuccess = false;
 
-    for (int i = 0; i < config.retryCount; i++) {
-      if (_isCancelled) {
-        task.status = TaskStatus.failed;
-        return task;
-      }
+    // Check if this is an M3U8 HLS stream
+    final isM3u8 = directUrl.contains('.m3u8');
 
-      try {
-        await _dio.download(
-          directUrl,
-          tempFilePath,
-          options: Options(
-            headers: {
-              'Referer': '${VideoApiService.kBaseUrl}/',
+    if (isM3u8) {
+      downloadSuccess = await _downloadM3u8Video(
+        m3u8Url: directUrl,
+        targetMp4Path: videoFilePath,
+        task: task,
+        onBytesReceived: onBytesReceived,
+      );
+    } else {
+      // Direct MP4 stream download
+      int lastReportedBytes = 0;
+      for (int i = 0; i < config.retryCount; i++) {
+        if (_isCancelled) break;
+        try {
+          await _dio.download(
+            directUrl,
+            tempFilePath,
+            options: Options(
+              headers: {'Referer': '${VideoApiService.kBaseUrl}/'},
+            ),
+            onReceiveProgress: (received, total) {
+              if (_isCancelled) return;
+              final delta = received - lastReportedBytes;
+              if (delta > 0) {
+                onBytesReceived(delta);
+                lastReportedBytes = received;
+              }
+              task.downloadedBytes = received;
+              if (total > 0) task.totalBytes = total;
+              onTaskProgress?.call(task);
             },
-          ),
-          onReceiveProgress: (received, total) {
-            if (_isCancelled) return;
-            final delta = received - lastReportedBytes;
-            if (delta > 0) {
-              onBytesReceived(delta);
-              lastReportedBytes = received;
-            }
+          );
 
-            task.downloadedBytes = received;
-            if (total > 0) {
-              task.totalBytes = total;
-            }
-            onTaskProgress?.call(task);
-          },
-        );
-
-        if (await tempFile.exists() && await tempFile.length() > 1024) {
-          final finalFile = File(videoFilePath);
-          if (await finalFile.exists()) await finalFile.delete();
-          await tempFile.rename(finalFile.path);
-
-          task.downloadedImages = 1;
-          task.status = TaskStatus.completed;
-          task.finishTime = DateTime.now();
-
-          // Save companion cover and metadata
-          try {
-            if (item.coverUrl != null && item.coverUrl!.isNotEmpty) {
-              await _dio.download(
-                item.coverUrl!,
-                coverFilePath,
-                options: Options(headers: {'Referer': '${VideoApiService.kBaseUrl}/'}),
-              );
-            }
-
-            final metaPayload = {
-              'title': item.title,
-              'slug': item.slug,
-              'author': item.author,
-              'date': item.date,
-              'duration': task.duration ?? '',
-              'sourceUrl': item.detailUrl,
-              'videoUrl': directUrl,
-              'tags': item.tags,
-              'saved_at': DateTime.now().toIso8601String(),
-            };
-            await File(metaFilePath).writeAsString(
-              const JsonEncoder.withIndent('  ').convert(metaPayload),
-            );
-          } catch (_) {}
-
-          onLog('视频下载完成: ${item.title}', 'success');
-          onTaskProgress?.call(task);
-          return task;
-        }
-      } catch (e) {
-        if (i < config.retryCount - 1) {
-          await Future.delayed(const Duration(seconds: 2));
+          if (await tempFile.exists() && await tempFile.length() > 1024) {
+            final finalFile = File(videoFilePath);
+            if (await finalFile.exists()) await finalFile.delete();
+            await tempFile.rename(finalFile.path);
+            downloadSuccess = true;
+            break;
+          }
+        } catch (e) {
+          if (i < config.retryCount - 1) {
+            await Future.delayed(const Duration(seconds: 2));
+          }
         }
       }
+    }
+
+    if (downloadSuccess) {
+      task.downloadedImages = 1;
+      task.status = TaskStatus.completed;
+      task.finishTime = DateTime.now();
+
+      // Save companion cover and metadata
+      try {
+        if (item.coverUrl != null && item.coverUrl!.isNotEmpty) {
+          await _dio.download(
+            item.coverUrl!,
+            coverFilePath,
+            options: Options(headers: {'Referer': '${VideoApiService.kBaseUrl}/'}),
+          );
+        }
+
+        final metaPayload = {
+          'title': item.title,
+          'slug': item.slug,
+          'author': item.author,
+          'date': item.date,
+          'duration': task.duration ?? '',
+          'sourceUrl': item.detailUrl,
+          'videoUrl': directUrl,
+          'tags': item.tags,
+          'saved_at': DateTime.now().toIso8601String(),
+        };
+        await File(metaFilePath).writeAsString(
+          const JsonEncoder.withIndent('  ').convert(metaPayload),
+        );
+      } catch (_) {}
+
+      onLog('视频下载完成: ${item.title}', 'success');
+      onTaskProgress?.call(task);
+      return task;
     }
 
     if (await tempFile.exists()) await tempFile.delete();
@@ -441,6 +450,122 @@ class DownloadEngine {
     onLog('视频下载失败: ${item.title}', 'error');
     onTaskProgress?.call(task);
     return task;
+  }
+
+  /// Download M3U8 HLS stream by fetching playlist and concatenating TS video segments
+  Future<bool> _downloadM3u8Video({
+    required String m3u8Url,
+    required String targetMp4Path,
+    required AlbumDownloadTask task,
+    required void Function(int bytes) onBytesReceived,
+  }) async {
+    try {
+      // 1. Fetch m3u8 playlist text
+      final resp = await _dio.get(
+        m3u8Url,
+        options: Options(
+          responseType: ResponseType.plain,
+          headers: {'Referer': '${VideoApiService.kBaseUrl}/'},
+        ),
+      );
+
+      if (resp.statusCode != 200 || resp.data == null) {
+        return false;
+      }
+
+      final m3u8Text = resp.data.toString();
+      final lines = m3u8Text.split(RegExp(r'\r?\n'));
+      final List<String> segmentUrls = [];
+
+      final baseUri = Uri.parse(m3u8Url);
+      for (final line in lines) {
+        final trimmed = line.trim();
+        if (trimmed.isEmpty || trimmed.startsWith('#')) continue;
+        if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+          segmentUrls.add(trimmed);
+        } else {
+          final resolved = baseUri.resolve(trimmed).toString();
+          segmentUrls.add(resolved);
+        }
+      }
+
+      if (segmentUrls.isEmpty) return false;
+
+      final tempFile = File('$targetMp4Path.tmp');
+      if (await tempFile.exists()) await tempFile.delete();
+      final sink = tempFile.openWrite(mode: FileMode.writeOnlyAppend);
+
+      int totalDownloadedBytes = 0;
+      int completedSegments = 0;
+
+      for (int i = 0; i < segmentUrls.length; i++) {
+        if (_isCancelled) {
+          await sink.flush();
+          await sink.close();
+          if (await tempFile.exists()) await tempFile.delete();
+          return false;
+        }
+
+        final segUrl = segmentUrls[i];
+        List<int>? segBytes;
+
+        for (int retry = 0; retry < config.retryCount; retry++) {
+          try {
+            final segResp = await _dio.get<List<int>>(
+              segUrl,
+              options: Options(
+                responseType: ResponseType.bytes,
+                headers: {'Referer': '${VideoApiService.kBaseUrl}/'},
+              ),
+            );
+
+            if (segResp.statusCode == 200 && segResp.data != null) {
+              segBytes = segResp.data!;
+              break;
+            }
+          } catch (_) {
+            if (retry < config.retryCount - 1) {
+              await Future.delayed(const Duration(milliseconds: 500));
+            }
+          }
+        }
+
+        if (segBytes == null) {
+          await sink.flush();
+          await sink.close();
+          if (await tempFile.exists()) await tempFile.delete();
+          return false;
+        }
+
+        sink.add(segBytes);
+        totalDownloadedBytes += segBytes.length;
+        onBytesReceived(segBytes.length);
+        completedSegments++;
+
+        task.downloadedBytes = totalDownloadedBytes;
+        final avgSeg = totalDownloadedBytes / completedSegments;
+        task.totalBytes = (avgSeg * segmentUrls.length).toInt();
+        onTaskProgress?.call(task);
+      }
+
+      await sink.flush();
+      await sink.close();
+
+      if (await tempFile.exists() && await tempFile.length() > 1024) {
+        final finalFile = File(targetMp4Path);
+        if (await finalFile.exists()) await finalFile.delete();
+        await tempFile.rename(finalFile.path);
+        return true;
+      }
+    } catch (e) {
+      if (await File('$targetMp4Path.tmp').exists()) {
+        try {
+          await File('$targetMp4Path.tmp').delete();
+        } catch (_) {}
+      }
+      return false;
+    }
+    return false;
   }
 
   /// Process an entire album task with image concurrency and smart skip detection
