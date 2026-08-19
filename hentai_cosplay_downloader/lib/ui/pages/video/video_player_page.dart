@@ -1,13 +1,17 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 import '../../../models/video_item.dart';
+import '../../theme/ios_theme.dart';
 import '../../widgets/bouncing_button.dart';
 
 class VideoPlayerPage extends StatefulWidget {
+  final List<LocalVideoItem>? playlist;
+  final int initialIndex;
   final String? localFilePath;
   final String? remoteVideoUrl;
   final String title;
@@ -15,17 +19,29 @@ class VideoPlayerPage extends StatefulWidget {
 
   const VideoPlayerPage({
     super.key,
+    this.playlist,
+    this.initialIndex = 0,
     this.localFilePath,
     this.remoteVideoUrl,
     required this.title,
     this.author = '',
   });
 
-  static void openLocal(BuildContext context, LocalVideoItem video) {
+  static void openLocal(
+    BuildContext context, {
+    required LocalVideoItem video,
+    List<LocalVideoItem>? playlist,
+    int? initialIndex,
+  }) {
+    final list = playlist ?? [video];
+    final index = initialIndex ?? (list.isNotEmpty ? list.indexOf(video).clamp(0, list.length - 1) : 0);
+
     Navigator.push(
       context,
       CupertinoPageRoute(
         builder: (_) => VideoPlayerPage(
+          playlist: list,
+          initialIndex: index,
           localFilePath: video.filePath,
           title: video.title,
           author: video.author,
@@ -34,7 +50,12 @@ class VideoPlayerPage extends StatefulWidget {
     );
   }
 
-  static void openRemote(BuildContext context, {required String url, required String title, String author = ''}) {
+  static void openRemote(
+    BuildContext context, {
+    required String url,
+    required String title,
+    String author = '',
+  }) {
     Navigator.push(
       context,
       CupertinoPageRoute(
@@ -61,21 +82,45 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   bool _isSeeking = false;
   double _sliderValue = 0.0;
 
+  // Playlist state
+  late int _currentIndex;
+  late String _currentTitle;
+  late String _currentAuthor;
+  late String? _currentFilePath;
+  late String? _currentRemoteUrl;
+
   // Rotation and Display Controls
   int _quarterTurns = 0; // 0 = 0°, 1 = 90°, 2 = 180°, 3 = 270°
   bool _isLandscape = false;
   bool _isFillMode = false; // false = Contain, true = Cover/Fill
 
+  bool get _hasPlaylist => widget.playlist != null && widget.playlist!.length > 1;
+
   @override
   void initState() {
     super.initState();
+    _currentIndex = widget.initialIndex;
+
+    if (widget.playlist != null && widget.playlist!.isNotEmpty) {
+      final item = widget.playlist![_currentIndex.clamp(0, widget.playlist!.length - 1)];
+      _currentTitle = item.title;
+      _currentAuthor = item.author;
+      _currentFilePath = item.filePath;
+      _currentRemoteUrl = null;
+    } else {
+      _currentTitle = widget.title;
+      _currentAuthor = widget.author;
+      _currentFilePath = widget.localFilePath;
+      _currentRemoteUrl = widget.remoteVideoUrl;
+    }
+
     _initPlayer();
   }
 
   Future<void> _initPlayer() async {
     try {
-      if (widget.localFilePath != null && widget.localFilePath!.isNotEmpty) {
-        final file = File(widget.localFilePath!);
+      if (_currentFilePath != null && _currentFilePath!.isNotEmpty) {
+        final file = File(_currentFilePath!);
         if (!await file.exists()) {
           setState(() {
             _hasError = true;
@@ -84,9 +129,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
           return;
         }
         _controller = VideoPlayerController.file(file);
-      } else if (widget.remoteVideoUrl != null && widget.remoteVideoUrl!.isNotEmpty) {
+      } else if (_currentRemoteUrl != null && _currentRemoteUrl!.isNotEmpty) {
         _controller = VideoPlayerController.networkUrl(
-          Uri.parse(widget.remoteVideoUrl!),
+          Uri.parse(_currentRemoteUrl!),
           httpHeaders: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36',
             'Referer': 'https://porn-video-xxx.com/',
@@ -178,6 +223,75 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     _startHideTimer();
   }
 
+  /// Switch video to a specified playlist index
+  Future<void> _switchToIndex(int index) async {
+    if (!_hasPlaylist) return;
+    final playlist = widget.playlist!;
+    final safeIndex = (index + playlist.length) % playlist.length;
+    final nextItem = playlist[safeIndex];
+
+    _hideTimer?.cancel();
+    if (_isInitialized) {
+      _controller.removeListener(_onControllerUpdate);
+      await _controller.pause();
+      _controller.dispose();
+    }
+
+    setState(() {
+      _currentIndex = safeIndex;
+      _currentTitle = nextItem.title;
+      _currentAuthor = nextItem.author;
+      _currentFilePath = nextItem.filePath;
+      _isInitialized = false;
+      _hasError = false;
+      _errorMessage = '';
+      _sliderValue = 0.0;
+    });
+
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('正在播放 [${safeIndex + 1}/${playlist.length}]: ${nextItem.title}'),
+        backgroundColor: IosTheme.primaryPink,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(milliseconds: 1200),
+      ),
+    );
+
+    await _initPlayer();
+  }
+
+  /// Play previous video in current list order
+  void _playPrevious() {
+    if (!_hasPlaylist) return;
+    _switchToIndex(_currentIndex - 1);
+  }
+
+  /// Play next video in current list order
+  void _playNext() {
+    if (!_hasPlaylist) return;
+    _switchToIndex(_currentIndex + 1);
+  }
+
+  /// Play random video from playlist
+  void _playRandom() {
+    if (!_hasPlaylist) return;
+    final playlist = widget.playlist!;
+    if (playlist.length == 1) {
+      _controller.seekTo(Duration.zero);
+      _controller.play();
+      return;
+    }
+
+    int nextIndex;
+    final rng = math.Random();
+    do {
+      nextIndex = rng.nextInt(playlist.length);
+    } while (nextIndex == _currentIndex && playlist.length > 1);
+
+    _switchToIndex(nextIndex);
+  }
+
   /// Rotate video content by 90 degrees
   void _rotateVideoContent() {
     setState(() {
@@ -188,7 +302,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('画面已旋转 $angle°'),
-        backgroundColor: const Color(0xFFFF2D55),
+        backgroundColor: IosTheme.primaryPink,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(milliseconds: 900),
       ),
@@ -225,7 +339,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(_isFillMode ? '已切换至：铺满全屏' : '已切换至：原始比例'),
-        backgroundColor: const Color(0xFFFF2D55),
+        backgroundColor: IosTheme.primaryPink,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(milliseconds: 900),
       ),
@@ -246,7 +360,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   @override
   void dispose() {
     _hideTimer?.cancel();
-    // Always restore system orientation & overlays when leaving player
+    // Restore system orientation & overlays when exiting player
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
@@ -367,25 +481,49 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                       ),
                       const SizedBox(width: 12),
 
-                      // Title & Author
+                      // Title & Author & Playlist Index
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                              widget.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                              ),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    _currentTitle,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                if (_hasPlaylist) ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: IosTheme.primaryPink.withAlpha(180),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      '${_currentIndex + 1}/${widget.playlist!.length}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
-                            if (widget.author.isNotEmpty)
+                            if (_currentAuthor.isNotEmpty)
                               Text(
-                                widget.author,
+                                _currentAuthor,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
@@ -404,7 +542,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
-                            color: _quarterTurns > 0 ? const Color(0xFFFF2D55) : Colors.white.withAlpha(40),
+                            color: _quarterTurns > 0 ? IosTheme.primaryPink : Colors.white.withAlpha(40),
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(color: Colors.white24, width: 0.5),
                           ),
@@ -431,7 +569,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                         child: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: _isFillMode ? const Color(0xFFFF2D55) : Colors.white.withAlpha(40),
+                            color: _isFillMode ? IosTheme.primaryPink : Colors.white.withAlpha(40),
                             shape: BoxShape.circle,
                             border: Border.all(color: Colors.white24, width: 0.5),
                           ),
@@ -450,7 +588,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                         child: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: _isLandscape ? const Color(0xFFFF2D55) : Colors.white.withAlpha(40),
+                            color: _isLandscape ? IosTheme.primaryPink : Colors.white.withAlpha(40),
                             shape: BoxShape.circle,
                             border: Border.all(color: Colors.white24, width: 0.5),
                           ),
@@ -466,28 +604,60 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                 ),
               ),
 
-              // Center Play / Pause & Skip Buttons
+              // Center Control Bar with Playlist Previous / Next / Random / Play / 10s Skips
               if (_isInitialized)
                 Center(
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
+                      // Random Video Button (if playlist exists)
+                      if (_hasPlaylist) ...[
+                        BouncingButton(
+                          onTap: _playRandom,
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.black45,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white24),
+                            ),
+                            child: const Icon(CupertinoIcons.shuffle, color: Colors.white, size: 20),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+
+                        // Previous Video in List Order
+                        BouncingButton(
+                          onTap: _playPrevious,
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.black45,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white24),
+                            ),
+                            child: const Icon(CupertinoIcons.backward_end_fill, color: Colors.white, size: 20),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                      ],
+
                       // -10s
                       BouncingButton(
                         onTap: () => _seekRelative(-10),
                         child: Container(
-                          padding: const EdgeInsets.all(12),
+                          padding: const EdgeInsets.all(11),
                           decoration: BoxDecoration(
                             color: Colors.black45,
                             shape: BoxShape.circle,
                             border: Border.all(color: Colors.white24),
                           ),
-                          child: const Icon(CupertinoIcons.gobackward_10, color: Colors.white, size: 28),
+                          child: const Icon(CupertinoIcons.gobackward_10, color: Colors.white, size: 24),
                         ),
                       ),
-                      const SizedBox(width: 32),
+                      const SizedBox(width: 20),
 
-                      // Play/Pause
+                      // Large Play/Pause
                       BouncingButton(
                         onTap: _togglePlayPause,
                         child: Container(
@@ -510,25 +680,42 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                                 ? CupertinoIcons.pause_fill
                                 : CupertinoIcons.play_fill,
                             color: Colors.white,
-                            size: 36,
+                            size: 34,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 32),
+                      const SizedBox(width: 20),
 
                       // +10s
                       BouncingButton(
                         onTap: () => _seekRelative(10),
                         child: Container(
-                          padding: const EdgeInsets.all(12),
+                          padding: const EdgeInsets.all(11),
                           decoration: BoxDecoration(
                             color: Colors.black45,
                             shape: BoxShape.circle,
                             border: Border.all(color: Colors.white24),
                           ),
-                          child: const Icon(CupertinoIcons.goforward_10, color: Colors.white, size: 28),
+                          child: const Icon(CupertinoIcons.goforward_10, color: Colors.white, size: 24),
                         ),
                       ),
+
+                      // Next Video in List Order (if playlist exists)
+                      if (_hasPlaylist) ...[
+                        const SizedBox(width: 14),
+                        BouncingButton(
+                          onTap: _playNext,
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.black45,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white24),
+                            ),
+                            child: const Icon(CupertinoIcons.forward_end_fill, color: Colors.white, size: 20),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -559,11 +746,11 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                         SliderTheme(
                           data: SliderThemeData(
                             trackHeight: 3.5,
-                            activeTrackColor: const Color(0xFFFF2D55),
+                            activeTrackColor: IosTheme.primaryPink,
                             inactiveTrackColor: Colors.white24,
                             thumbColor: Colors.white,
                             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                            overlayColor: const Color(0xFFFF2D55).withAlpha(40),
+                            overlayColor: IosTheme.primaryPink.withAlpha(40),
                             overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
                           ),
                           child: Slider(

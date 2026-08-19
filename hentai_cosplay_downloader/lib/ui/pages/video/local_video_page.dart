@@ -85,7 +85,12 @@ class _LocalVideoPageState extends State<LocalVideoPage> {
           CupertinoActionSheetAction(
             onPressed: () {
               Navigator.pop(ctx);
-              VideoPlayerPage.openLocal(context, video);
+              VideoPlayerPage.openLocal(
+                context,
+                video: video,
+                playlist: videoProv.videos,
+                initialIndex: videoProv.videos.indexOf(video),
+              );
             },
             child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -324,7 +329,12 @@ class _LocalVideoPageState extends State<LocalVideoPage> {
                         final video = videoProv.videos[index];
 
                         return BouncingButton(
-                          onTap: () => VideoPlayerPage.openLocal(context, video),
+                          onTap: () => VideoPlayerPage.openLocal(
+                            context,
+                            video: video,
+                            playlist: videoProv.videos,
+                            initialIndex: index,
+                          ),
                           child: GestureDetector(
                             onLongPress: () => _showVideoOptions(context, video, videoProv),
                             child: Container(

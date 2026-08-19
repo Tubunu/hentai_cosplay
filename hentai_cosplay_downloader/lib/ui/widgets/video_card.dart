@@ -2,7 +2,11 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../models/download_task.dart';
 import '../../models/video_item.dart';
+import '../../providers/download_provider.dart';
+import '../../providers/history_provider.dart';
+import '../../providers/local_video_provider.dart';
 import '../../providers/video_browse_provider.dart';
 import '../theme/ios_theme.dart';
 import 'bouncing_button.dart';
@@ -21,7 +25,32 @@ class VideoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final browseProv = context.watch<VideoBrowseProvider>();
+    final downloadProv = context.watch<DownloadProvider>();
+    final localVideoProv = context.watch<LocalVideoProvider>();
+    final historyProv = context.watch<HistoryProvider>();
+
     final isSelected = browseProv.isVideoSelected(item);
+    final isSelectionMode = browseProv.isSelectionMode;
+
+    // Check if task exists in download queue or completed
+    final existingTask = downloadProv.allTasks.cast<AlbumDownloadTask?>().firstWhere(
+      (t) => t?.isVideo == true && (
+        (item.slug.isNotEmpty && t?.albumItem.slug == item.slug) ||
+        t?.albumItem.title == item.title ||
+        (item.detailUrl.isNotEmpty && t?.albumItem.detailUrl == item.detailUrl)
+      ),
+      orElse: () => null,
+    );
+
+    // Check if video is downloaded locally or recorded in history
+    final isDownloaded = existingTask?.status == TaskStatus.completed ||
+        localVideoProv.videos.any((v) =>
+            v.title == item.title ||
+            (item.detailUrl.isNotEmpty && v.sourceUrl == item.detailUrl)) ||
+        historyProv.records.any((r) =>
+            r.isVideo == true &&
+            (r.title == item.title ||
+             (item.detailUrl.isNotEmpty && r.detailUrl == item.detailUrl)));
 
     return BouncingButton(
       onTap: onTap,
@@ -32,8 +61,10 @@ class VideoCard extends StatelessWidget {
           color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
-              blurRadius: 10,
+              color: isSelected
+                  ? IosTheme.primaryPink.withValues(alpha: 0.25)
+                  : Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
+              blurRadius: isSelected ? 12 : 10,
               offset: const Offset(0, 4),
             ),
           ],
@@ -137,24 +168,30 @@ class VideoCard extends StatelessWidget {
                       ),
                     ),
 
-                  // Selection Mode Indicator (top-right)
-                  if (browseProv.isSelectionMode)
-                    Positioned(
-                      top: 6,
-                      right: 6,
-                      child: Container(
-                        width: 24,
-                        height: 24,
-                        decoration: BoxDecoration(
-                          color: isSelected ? IosTheme.primaryPink : Colors.black.withValues(alpha: 0.5),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 1.5),
-                        ),
-                        child: isSelected
-                            ? const Icon(CupertinoIcons.checkmark, size: 14, color: Colors.white)
-                            : null,
-                      ),
-                    ),
+                  // Top right: Selection checkmark OR Download Status Pill / Green Checkmark
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: isSelectionMode
+                        ? AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            width: 24,
+                            height: 24,
+                            decoration: BoxDecoration(
+                              color: isSelected ? IosTheme.primaryPink : Colors.black.withValues(alpha: 0.5),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 1.5),
+                            ),
+                            child: isSelected
+                                ? const Icon(CupertinoIcons.checkmark, size: 14, color: Colors.white)
+                                : null,
+                          )
+                        : (isDownloaded
+                            ? _buildCompletedBadge()
+                            : (existingTask != null
+                                ? _buildTaskStatusBadge(existingTask)
+                                : const SizedBox.shrink())),
+                  ),
                 ],
               ),
             ),
@@ -213,6 +250,68 @@ class VideoCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildCompletedBadge() {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: IosTheme.primaryGreen.withValues(alpha: 0.95),
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: IosTheme.primaryGreen.withValues(alpha: 0.5),
+            blurRadius: 6,
+          ),
+        ],
+      ),
+      child: const Icon(CupertinoIcons.checkmark_alt, size: 14, color: Colors.white),
+    );
+  }
+
+  Widget _buildTaskStatusBadge(AlbumDownloadTask task) {
+    Color bg;
+    IconData icon;
+
+    switch (task.status) {
+      case TaskStatus.completed:
+        bg = IosTheme.primaryGreen;
+        icon = CupertinoIcons.checkmark_alt;
+        break;
+      case TaskStatus.downloading:
+        bg = IosTheme.primaryPink;
+        icon = CupertinoIcons.arrow_down;
+        break;
+      case TaskStatus.queued:
+        bg = IosTheme.primaryBlue;
+        icon = CupertinoIcons.clock;
+        break;
+      case TaskStatus.failed:
+        bg = Colors.red;
+        icon = CupertinoIcons.exclamationmark;
+        break;
+      case TaskStatus.paused:
+        bg = Colors.orange;
+        icon = CupertinoIcons.pause;
+        break;
+      default:
+        return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: bg.withValues(alpha: 0.9),
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: bg.withValues(alpha: 0.5),
+            blurRadius: 6,
+          ),
+        ],
+      ),
+      child: Icon(icon, size: 14, color: Colors.white),
     );
   }
 }
