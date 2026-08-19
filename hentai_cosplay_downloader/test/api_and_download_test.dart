@@ -10,31 +10,31 @@ void main() {
     test('buildSearchUrl generates correct URLs', () {
       expect(
         HCApiService.buildSearchUrl(page: 1),
-        'https://zh.hentai-cosplay-xxx.com/',
+        'https://hentai-cosplay-xxx.com/search/',
       );
       expect(
         HCApiService.buildSearchUrl(page: 2),
-        'https://zh.hentai-cosplay-xxx.com/page/2/',
+        'https://hentai-cosplay-xxx.com/search/page/2/',
       );
       expect(
         HCApiService.buildSearchUrl(page: 15),
-        'https://zh.hentai-cosplay-xxx.com/page/15/',
+        'https://hentai-cosplay-xxx.com/search/page/15/',
       );
       expect(
         HCApiService.buildSearchUrl(page: 1, keyword: 'byoru'),
-        'https://zh.hentai-cosplay-xxx.com/search/keyword/byoru/',
+        'https://hentai-cosplay-xxx.com/search/keyword/byoru/',
       );
       expect(
         HCApiService.buildSearchUrl(page: 3, keyword: 'byoru'),
-        'https://zh.hentai-cosplay-xxx.com/search/keyword/byoru/page/3/',
+        'https://hentai-cosplay-xxx.com/search/keyword/byoru/page/3/',
       );
       expect(
         HCApiService.buildSearchUrl(page: 1, keyword: '焖焖碳'),
-        'https://zh.hentai-cosplay-xxx.com/search/keyword/%E7%84%96%E7%84%96%E7%A2%B3/',
+        'https://hentai-cosplay-xxx.com/search/keyword/%E7%84%96%E7%84%96%E7%A2%B3/',
       );
       expect(
         HCApiService.buildSearchUrl(page: 2, keyword: '焖焖碳'),
-        'https://zh.hentai-cosplay-xxx.com/search/keyword/%E7%84%96%E7%84%96%E7%A2%B3/page/2/',
+        'https://hentai-cosplay-xxx.com/search/keyword/%E7%84%96%E7%84%96%E7%A2%B3/page/2/',
       );
     });
 
@@ -84,7 +84,7 @@ void main() {
 
       expect(items[0].title, 'Byoru – Zenith Maid');
       expect(items[0].slug, 'byoru-zenith-maid');
-      expect(items[0].detailUrl, 'https://zh.hentai-cosplay-xxx.com/image/byoru-zenith-maid/');
+      expect(items[0].detailUrl, 'https://hentai-cosplay-xxx.com/image/byoru-zenith-maid/');
       expect(items[0].coverUrl, 'https://static17.hentai-cosplay-xxx.com/upload/20260404/436/446230/p=160x200/31.jpg');
       expect(items[0].author, 'Byoru');
       expect(items[0].date, '2026/08/15');
@@ -169,7 +169,7 @@ void main() {
         imageCount: 50,
         downloadedBytes: 1024000,
         completedAt: DateTime(2026, 8, 15),
-        detailUrl: 'https://zh.hentai-cosplay-xxx.com/image/sample/',
+        detailUrl: 'https://hentai-cosplay-xxx.com/image/sample/',
       );
       final recordJson = record.toJson();
       final restoredRecord = HistoryRecord.fromJson(recordJson);

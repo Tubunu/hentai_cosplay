@@ -22,7 +22,7 @@ class HCApiResponse {
 }
 
 class HCApiService {
-  static const String kBaseUrl = 'https://zh.hentai-cosplay-xxx.com';
+  static const String kBaseUrl = 'https://hentai-cosplay-xxx.com';
   static const String kSearchBaseUrl = '$kBaseUrl/search/';
 
   static String? _configuredProxy;
@@ -82,9 +82,9 @@ class HCApiService {
     final cleanKeyword = keyword?.trim() ?? '';
     if (cleanKeyword.isEmpty) {
       if (page <= 1) {
-        return '$kBaseUrl/';
+        return '$kBaseUrl/search/';
       } else {
-        return '$kBaseUrl/page/$page/';
+        return '$kBaseUrl/search/page/$page/';
       }
     } else {
       final encoded = Uri.encodeComponent(cleanKeyword);

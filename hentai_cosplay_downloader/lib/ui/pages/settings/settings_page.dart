@@ -354,7 +354,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '数据来源: zh.hentai-cosplay-xxx.com',
+                    '数据来源: hentai-cosplay-xxx.com',
                     style: TextStyle(fontSize: 11, color: isDark ? Colors.white38 : Colors.black38),
                   ),
                 ],

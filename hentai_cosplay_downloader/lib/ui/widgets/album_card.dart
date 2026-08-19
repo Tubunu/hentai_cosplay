@@ -79,7 +79,7 @@ class AlbumCard extends StatelessWidget {
                           imageUrl: item.coverUrl!,
                           fit: BoxFit.cover,
                           httpHeaders: const {
-                            'Referer': 'https://zh.hentai-cosplay-xxx.com/',
+                            'Referer': 'https://hentai-cosplay-xxx.com/',
                           },
                           placeholder: (context, url) => Container(
                             color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),

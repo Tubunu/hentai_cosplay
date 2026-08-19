@@ -61,7 +61,7 @@ class MiniDownloadBar extends StatelessWidget {
                               imageUrl: item.coverUrl!,
                               fit: BoxFit.cover,
                               httpHeaders: const {
-                                'Referer': 'https://zh.hentai-cosplay-xxx.com/',
+                                'Referer': 'https://hentai-cosplay-xxx.com/',
                               },
                               placeholder: (_, __) => const Center(
                                 child: CupertinoActivityIndicator(radius: 8),

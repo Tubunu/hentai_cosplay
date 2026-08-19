@@ -162,7 +162,7 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
                           imageUrl: _item.coverUrl!,
                           fit: BoxFit.cover,
                           httpHeaders: const {
-                            'Referer': 'https://zh.hentai-cosplay-xxx.com/',
+                            'Referer': 'https://hentai-cosplay-xxx.com/',
                           },
                         )
                       : Container(color: Colors.grey[900]),
@@ -441,7 +441,7 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
                                 imageUrl: previewUrl,
                                 fit: BoxFit.cover,
                                 httpHeaders: const {
-                                  'Referer': 'https://zh.hentai-cosplay-xxx.com/',
+                                  'Referer': 'https://hentai-cosplay-xxx.com/',
                                 },
                                 placeholder: (_, __) => const Center(
                                   child: CupertinoActivityIndicator(radius: 8),
@@ -552,7 +552,7 @@ class _PhotoGalleryViewerState extends State<_PhotoGalleryViewer> {
                 imageProvider: CachedNetworkImageProvider(
                   url,
                   headers: const {
-                    'Referer': 'https://zh.hentai-cosplay-xxx.com/',
+                    'Referer': 'https://hentai-cosplay-xxx.com/',
                   },
                 ),
                 minScale: PhotoViewComputedScale.contained,
