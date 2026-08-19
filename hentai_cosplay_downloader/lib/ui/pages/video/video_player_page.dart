@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 import '../../../models/video_item.dart';
-import '../../theme/ios_theme.dart';
 import '../../widgets/bouncing_button.dart';
 
 class VideoPlayerPage extends StatefulWidget {
@@ -61,6 +60,11 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   Timer? _hideTimer;
   bool _isSeeking = false;
   double _sliderValue = 0.0;
+
+  // Rotation and Display Controls
+  int _quarterTurns = 0; // 0 = 0°, 1 = 90°, 2 = 180°, 3 = 270°
+  bool _isLandscape = false;
+  bool _isFillMode = false; // false = Contain, true = Cover/Fill
 
   @override
   void initState() {
@@ -174,6 +178,61 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     _startHideTimer();
   }
 
+  /// Rotate video content by 90 degrees
+  void _rotateVideoContent() {
+    setState(() {
+      _quarterTurns = (_quarterTurns + 1) % 4;
+    });
+    final angle = _quarterTurns * 90;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('画面已旋转 $angle°'),
+        backgroundColor: const Color(0xFFFF2D55),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(milliseconds: 900),
+      ),
+    );
+    _startHideTimer();
+  }
+
+  /// Toggle device screen orientation (Portrait <-> Landscape)
+  void _toggleScreenOrientation() {
+    setState(() {
+      _isLandscape = !_isLandscape;
+    });
+    if (_isLandscape) {
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    } else {
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+      ]);
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    }
+    _startHideTimer();
+  }
+
+  /// Toggle aspect ratio fill mode
+  void _toggleFillMode() {
+    setState(() {
+      _isFillMode = !_isFillMode;
+    });
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(_isFillMode ? '已切换至：铺满全屏' : '已切换至：原始比例'),
+        backgroundColor: const Color(0xFFFF2D55),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(milliseconds: 900),
+      ),
+    );
+    _startHideTimer();
+  }
+
   String _formatDuration(Duration d) {
     final hours = d.inHours;
     final minutes = d.inMinutes.remainder(60).toString().padLeft(2, '0');
@@ -187,6 +246,15 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   @override
   void dispose() {
     _hideTimer?.cancel();
+    // Always restore system orientation & overlays when leaving player
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+
     if (_isInitialized) {
       _controller.removeListener(_onControllerUpdate);
       _controller.dispose();
@@ -202,7 +270,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
         value: SystemUiOverlayStyle.light,
         child: Stack(
           children: [
-            // Video Display
+            // Video Display with 90° Content Rotation & Aspect Ratio Options
             Center(
               child: _hasError
                   ? Padding(
@@ -236,11 +304,25 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                       ? GestureDetector(
                           onTap: _toggleControls,
                           behavior: HitTestBehavior.opaque,
-                          child: AspectRatio(
-                            aspectRatio: _controller.value.aspectRatio > 0
-                                ? _controller.value.aspectRatio
-                                : 16 / 9,
-                            child: VideoPlayer(_controller),
+                          child: RotatedBox(
+                            quarterTurns: _quarterTurns,
+                            child: _isFillMode
+                                ? SizedBox.expand(
+                                    child: FittedBox(
+                                      fit: BoxFit.cover,
+                                      child: SizedBox(
+                                        width: _controller.value.size.width > 0 ? _controller.value.size.width : 16,
+                                        height: _controller.value.size.height > 0 ? _controller.value.size.height : 9,
+                                        child: VideoPlayer(_controller),
+                                      ),
+                                    ),
+                                  )
+                                : AspectRatio(
+                                    aspectRatio: _controller.value.aspectRatio > 0
+                                        ? _controller.value.aspectRatio
+                                        : 16 / 9,
+                                    child: VideoPlayer(_controller),
+                                  ),
                           ),
                         )
                       : const Center(
@@ -250,7 +332,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
 
             // Controls Overlay
             if (_showControls) ...[
-              // Top Bar
+              // Top Bar with Title and Action Buttons (Rotation, Fullscreen, Aspect)
               Positioned(
                 top: 0,
                 left: 0,
@@ -271,6 +353,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                   ),
                   child: Row(
                     children: [
+                      // Back Button
                       BouncingButton(
                         onTap: () => Navigator.pop(context),
                         child: Container(
@@ -283,6 +366,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                         ),
                       ),
                       const SizedBox(width: 12),
+
+                      // Title & Author
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -294,7 +379,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 16,
+                                fontSize: 15,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -305,10 +390,75 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   color: Colors.white70,
-                                  fontSize: 12,
+                                  fontSize: 11.5,
                                 ),
                               ),
                           ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+
+                      // 1. 90° Content Rotate Button
+                      BouncingButton(
+                        onTap: _rotateVideoContent,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: _quarterTurns > 0 ? const Color(0xFFFF2D55) : Colors.white.withAlpha(40),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.white24, width: 0.5),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(CupertinoIcons.rotate_right, color: Colors.white, size: 16),
+                              if (_quarterTurns > 0) ...[
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${_quarterTurns * 90}°',
+                                  style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+
+                      // 2. Fit / Fill Toggle Button
+                      BouncingButton(
+                        onTap: _toggleFillMode,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: _isFillMode ? const Color(0xFFFF2D55) : Colors.white.withAlpha(40),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white24, width: 0.5),
+                          ),
+                          child: Icon(
+                            _isFillMode ? Icons.fit_screen : Icons.aspect_ratio,
+                            color: Colors.white,
+                            size: 17,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+
+                      // 3. Screen Orientation Switch (Portrait <-> Landscape)
+                      BouncingButton(
+                        onTap: _toggleScreenOrientation,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: _isLandscape ? const Color(0xFFFF2D55) : Colors.white.withAlpha(40),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white24, width: 0.5),
+                          ),
+                          child: Icon(
+                            _isLandscape ? CupertinoIcons.device_phone_portrait : CupertinoIcons.device_phone_landscape,
+                            color: Colors.white,
+                            size: 17,
+                          ),
                         ),
                       ),
                     ],
@@ -409,11 +559,11 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                         SliderTheme(
                           data: SliderThemeData(
                             trackHeight: 3.5,
-                            activeTrackColor: IosTheme.primaryPink,
+                            activeTrackColor: const Color(0xFFFF2D55),
                             inactiveTrackColor: Colors.white24,
                             thumbColor: Colors.white,
                             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                            overlayColor: IosTheme.primaryPink.withAlpha(40),
+                            overlayColor: const Color(0xFFFF2D55).withAlpha(40),
                             overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
                           ),
                           child: Slider(

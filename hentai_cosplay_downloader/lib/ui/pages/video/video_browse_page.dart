@@ -163,15 +163,18 @@ class _VideoBrowsePageState extends State<VideoBrowsePage> {
                               letterSpacing: -0.8,
                             ),
                           ),
-                          if (browseProv.totalPages > 1)
-                            Text(
-                              '共收录 ${browseProv.totalPages} 页视频',
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                color: isDark ? Colors.white54 : Colors.black45,
-                                fontWeight: FontWeight.w600,
-                              ),
+                          Text(
+                            browseProv.searchKeyword.isNotEmpty
+                                ? '搜索: "${browseProv.searchKeyword}" • 第 ${browseProv.currentPage} 页'
+                                : browseProv.currentTag != null
+                                    ? '标签: ${browseProv.currentTag} • 第 ${browseProv.currentPage} 页'
+                                    : '海量高清视频 • 第 ${browseProv.currentPage} 页',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: isDark ? Colors.white54 : Colors.black45,
+                              fontWeight: FontWeight.w600,
                             ),
+                          ),
                         ],
                       ),
                       const Spacer(),
@@ -181,7 +184,7 @@ class _VideoBrowsePageState extends State<VideoBrowsePage> {
                         onTap: () => VideoBatchDownloadDialog.show(
                           context,
                           initialStart: browseProv.currentPage,
-                          initialEnd: (browseProv.currentPage + 2).clamp(1, browseProv.totalPages),
+                          initialEnd: browseProv.currentPage + 4,
                           category: browseProv.category,
                           keyword: browseProv.searchKeyword.isNotEmpty ? browseProv.searchKeyword : null,
                           tag: browseProv.currentTag,
@@ -643,9 +646,7 @@ class _VideoBrowsePageState extends State<VideoBrowsePage> {
                             child: Row(
                               children: [
                                 Text(
-                                  browseProv.totalPages > browseProv.currentPage
-                                      ? '第 ${browseProv.currentPage} / ${browseProv.totalPages} 页'
-                                      : '第 ${browseProv.currentPage} 页',
+                                  '第 ${browseProv.currentPage} 页',
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w800,
                                     fontSize: 13.5,
