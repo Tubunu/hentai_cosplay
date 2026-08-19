@@ -12,7 +12,10 @@ class BrowseProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
 
+  BrowseCategory _category = BrowseCategory.latest;
   String _searchKeyword = '';
+  String? _currentTag;
+
   bool _isSelectionMode = false;
   final Set<String> _selectedSlugs = {};
 
@@ -23,7 +26,13 @@ class BrowseProvider extends ChangeNotifier {
   int get pageSize => _pageSize;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+
+  BrowseCategory get category => _category;
   String get searchKeyword => _searchKeyword;
+  String? get currentTag => _currentTag;
+  bool get isTagActive => _currentTag != null && _currentTag!.isNotEmpty;
+  bool get isSearchActive => _searchKeyword.isNotEmpty;
+
   bool get isSelectionMode => _isSelectionMode;
   Set<String> get selectedSlugs => _selectedSlugs;
   int get selectedCount => _selectedSlugs.length;
@@ -41,13 +50,39 @@ class BrowseProvider extends ChangeNotifier {
     }
   }
 
+  void setCategory(BrowseCategory newCat) {
+    _category = newCat;
+    _searchKeyword = '';
+    _currentTag = null;
+    loadPage(1);
+  }
+
   void setSearchKeyword(String keyword) {
     _searchKeyword = keyword.trim();
+    _currentTag = null;
+    loadPage(1);
+  }
+
+  void setTag(String tag) {
+    _currentTag = tag.trim();
+    _searchKeyword = '';
     loadPage(1);
   }
 
   void clearSearch() {
     _searchKeyword = '';
+    loadPage(1);
+  }
+
+  void clearTag() {
+    _currentTag = null;
+    loadPage(1);
+  }
+
+  void resetToLatest() {
+    _category = BrowseCategory.latest;
+    _searchKeyword = '';
+    _currentTag = null;
     loadPage(1);
   }
 
@@ -101,8 +136,10 @@ class BrowseProvider extends ChangeNotifier {
 
     try {
       final res = await HCApiService.fetchPageData(
-        page: page,
+        category: _category,
         keyword: _searchKeyword.isNotEmpty ? _searchKeyword : null,
+        tag: _currentTag != null && _currentTag!.isNotEmpty ? _currentTag : null,
+        page: page,
       );
 
       if (res != null) {

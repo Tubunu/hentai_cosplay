@@ -7,35 +7,119 @@ import 'package:hentai_cosplay_downloader/services/hc_api_service.dart';
 
 void main() {
   group('HCApiService URL and Parser Tests', () {
-    test('buildSearchUrl generates correct URLs', () {
+    test('buildBrowseUrl and buildSearchUrl generate correct URLs', () {
+      // Latest Category (默认最新)
       expect(
-        HCApiService.buildSearchUrl(page: 1),
-        'https://hentai-cosplay-xxx.com/search/',
+        HCApiService.buildBrowseUrl(category: BrowseCategory.latest, page: 1),
+        'https://zh.hentai-cosplay-xxx.com/search/',
       );
       expect(
-        HCApiService.buildSearchUrl(page: 2),
-        'https://hentai-cosplay-xxx.com/search/page/2/',
+        HCApiService.buildBrowseUrl(category: BrowseCategory.latest, page: 2),
+        'https://zh.hentai-cosplay-xxx.com/search/page/2/',
+      );
+
+      // Ranking Category (热门文章)
+      expect(
+        HCApiService.buildBrowseUrl(category: BrowseCategory.ranking, page: 1),
+        'https://zh.hentai-cosplay-xxx.com/ranking/',
       );
       expect(
-        HCApiService.buildSearchUrl(page: 15),
-        'https://hentai-cosplay-xxx.com/search/page/15/',
+        HCApiService.buildBrowseUrl(category: BrowseCategory.ranking, page: 2),
+        'https://zh.hentai-cosplay-xxx.com/ranking/page/2/',
+      );
+
+      // Download Ranking (下载排行)
+      expect(
+        HCApiService.buildBrowseUrl(category: BrowseCategory.rankingDownload, page: 1),
+        'https://zh.hentai-cosplay-xxx.com/ranking-download/',
       );
       expect(
-        HCApiService.buildSearchUrl(page: 1, keyword: 'byoru'),
-        'https://hentai-cosplay-xxx.com/search/keyword/byoru/',
+        HCApiService.buildBrowseUrl(category: BrowseCategory.rankingDownload, page: 3),
+        'https://zh.hentai-cosplay-xxx.com/ranking-download/page/3/',
+      );
+
+      // Bookmark Ranking (收藏排行)
+      expect(
+        HCApiService.buildBrowseUrl(category: BrowseCategory.rankingBookmark, page: 1),
+        'https://zh.hentai-cosplay-xxx.com/ranking-bookmark/',
       );
       expect(
-        HCApiService.buildSearchUrl(page: 3, keyword: 'byoru'),
-        'https://hentai-cosplay-xxx.com/search/keyword/byoru/page/3/',
+        HCApiService.buildBrowseUrl(category: BrowseCategory.rankingBookmark, page: 4),
+        'https://zh.hentai-cosplay-xxx.com/ranking-bookmark/page/4/',
+      );
+
+      // Like Ranking (点赞排行)
+      expect(
+        HCApiService.buildBrowseUrl(category: BrowseCategory.rankingLike, page: 1),
+        'https://zh.hentai-cosplay-xxx.com/ranking-like/',
       );
       expect(
-        HCApiService.buildSearchUrl(page: 1, keyword: '焖焖碳'),
-        'https://hentai-cosplay-xxx.com/search/keyword/%E7%84%96%E7%84%96%E7%A2%B3/',
+        HCApiService.buildBrowseUrl(category: BrowseCategory.rankingLike, page: 5),
+        'https://zh.hentai-cosplay-xxx.com/ranking-like/page/5/',
+      );
+
+      // Tag Search (标签浏览)
+      expect(
+        HCApiService.buildBrowseUrl(tag: 'cosplay', page: 1),
+        'https://zh.hentai-cosplay-xxx.com/search/tag/cosplay/',
       );
       expect(
-        HCApiService.buildSearchUrl(page: 2, keyword: '焖焖碳'),
-        'https://hentai-cosplay-xxx.com/search/keyword/%E7%84%96%E7%84%96%E7%A2%B3/page/2/',
+        HCApiService.buildBrowseUrl(tag: 'cosplay', page: 2),
+        'https://zh.hentai-cosplay-xxx.com/search/tag/cosplay/page/2/',
       );
+
+      // Keyword Search (搜索词)
+      expect(
+        HCApiService.buildBrowseUrl(keyword: '焖焖碳', page: 1),
+        'https://zh.hentai-cosplay-xxx.com/search/keyword/%E7%84%96%E7%84%96%E7%A2%B3/',
+      );
+      expect(
+        HCApiService.buildBrowseUrl(keyword: '焖焖碳', page: 2),
+        'https://zh.hentai-cosplay-xxx.com/search/keyword/%E7%84%96%E7%84%96%E7%A2%B3/page/2/',
+      );
+
+      // Ranking Tags & Keywords URLs
+      expect(
+        HCApiService.buildRankingTagsUrl(isTag: true, page: 1),
+        'https://zh.hentai-cosplay-xxx.com/ranking-tag/',
+      );
+      expect(
+        HCApiService.buildRankingTagsUrl(isTag: true, page: 2),
+        'https://zh.hentai-cosplay-xxx.com/ranking-tag/page/2/',
+      );
+      expect(
+        HCApiService.buildRankingTagsUrl(isTag: false, page: 1),
+        'https://zh.hentai-cosplay-xxx.com/ranking-keyword/',
+      );
+      expect(
+        HCApiService.buildRankingTagsUrl(isTag: false, page: 3),
+        'https://zh.hentai-cosplay-xxx.com/ranking-keyword/page/3/',
+      );
+    });
+
+    test('parseRankingTags parses tags and search keywords with counts', () {
+      const mockTagsHtml = '''
+<div id="display_area_tag">
+  <ul>
+    <li>
+      <a href="https://zh.hentai-cosplay-xxx.com/search/tag/cosplay/">cosplay</a>
+      <span>(15,420)</span>
+    </li>
+    <li>
+      <a href="/search/tag/genshin-impact/">原神</a>
+      <span>(3280)</span>
+    </li>
+  </ul>
+</div>
+      ''';
+
+      final tags = HCApiService.parseRankingTags(mockTagsHtml, true);
+      expect(tags.length, 2);
+      expect(tags[0].name, 'cosplay');
+      expect(tags[0].count, '15420');
+      expect(tags[0].targetUrl, 'https://zh.hentai-cosplay-xxx.com/search/tag/cosplay/');
+      expect(tags[1].name, '原神');
+      expect(tags[1].count, '3280');
     });
 
     test('parseAlbumList extracts items from HTML snippet', () {
@@ -84,7 +168,7 @@ void main() {
 
       expect(items[0].title, 'Byoru – Zenith Maid');
       expect(items[0].slug, 'byoru-zenith-maid');
-      expect(items[0].detailUrl, 'https://hentai-cosplay-xxx.com/image/byoru-zenith-maid/');
+      expect(items[0].detailUrl, 'https://zh.hentai-cosplay-xxx.com/image/byoru-zenith-maid/');
       expect(items[0].coverUrl, 'https://static17.hentai-cosplay-xxx.com/upload/20260404/436/446230/p=160x200/31.jpg');
       expect(items[0].author, 'Byoru');
       expect(items[0].date, '2026/08/15');

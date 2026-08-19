@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../models/album_item.dart';
 import '../../../providers/browse_provider.dart';
 import '../../../providers/download_provider.dart';
 import '../../theme/ios_theme.dart';
@@ -8,6 +9,7 @@ import '../../widgets/album_card.dart';
 import '../../widgets/batch_download_dialog.dart';
 import '../../widgets/bouncing_button.dart';
 import '../../widgets/frosted_glass.dart';
+import '../../widgets/ranking_tags_sheet.dart';
 import 'album_detail_page.dart';
 
 class BrowsePage extends StatefulWidget {
@@ -228,10 +230,230 @@ class _BrowsePageState extends State<BrowsePage> {
                 ),
               ),
 
+              // Category Dropdown and Hot Tags / Hot Keywords Toolbar
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 2, 20, 6),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    child: Row(
+                      children: [
+                        // Category Dropdown (分类排行)
+                        PopupMenuButton<BrowseCategory>(
+                          initialValue: browseProv.category,
+                          tooltip: '选择分类与排行',
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                          color: isDark ? const Color(0xFF2C2C2E) : Colors.white,
+                          onSelected: (cat) {
+                            _searchController.clear();
+                            browseProv.setCategory(cat);
+                            _scrollToTop();
+                          },
+                          itemBuilder: (context) => BrowseCategory.values.map((cat) {
+                            final isSelected = browseProv.category == cat && !browseProv.isTagActive && !browseProv.isSearchActive;
+                            return PopupMenuItem<BrowseCategory>(
+                              value: cat,
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    cat == BrowseCategory.latest
+                                        ? CupertinoIcons.sparkles
+                                        : cat == BrowseCategory.ranking
+                                            ? CupertinoIcons.flame_fill
+                                            : cat == BrowseCategory.rankingDownload
+                                                ? CupertinoIcons.arrow_down_circle_fill
+                                                : cat == BrowseCategory.rankingBookmark
+                                                    ? CupertinoIcons.bookmark_fill
+                                                    : CupertinoIcons.hand_thumbsup_fill,
+                                    size: 16,
+                                    color: isSelected ? IosTheme.primaryPink : (isDark ? Colors.white70 : Colors.black87),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    cat.label,
+                                    style: TextStyle(
+                                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                                      color: isSelected ? IosTheme.primaryPink : (isDark ? Colors.white : Colors.black87),
+                                    ),
+                                  ),
+                                  if (isSelected) ...[
+                                    const Spacer(),
+                                    const Icon(CupertinoIcons.checkmark, size: 14, color: IosTheme.primaryPink),
+                                  ],
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                          child: FrostedGlass(
+                            borderRadius: 14,
+                            blur: 15,
+                            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                            backgroundColor: browseProv.isTagActive || browseProv.isSearchActive
+                                ? (isDark ? const Color(0x6624242A) : const Color(0xBBFFFFFF))
+                                : IosTheme.primaryPink.withValues(alpha: 0.15),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  CupertinoIcons.slider_horizontal_3,
+                                  size: 13,
+                                  color: browseProv.isTagActive || browseProv.isSearchActive
+                                      ? (isDark ? Colors.white70 : Colors.black87)
+                                      : IosTheme.primaryPink,
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  browseProv.isTagActive
+                                      ? '分类: ${browseProv.category.label}'
+                                      : browseProv.category.label,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    color: browseProv.isTagActive || browseProv.isSearchActive
+                                        ? (isDark ? Colors.white : Colors.black87)
+                                        : IosTheme.primaryPink,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Icon(
+                                  CupertinoIcons.chevron_down,
+                                  size: 11,
+                                  color: browseProv.isTagActive || browseProv.isSearchActive
+                                      ? Colors.grey
+                                      : IosTheme.primaryPink,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+
+                        // Hot Tags Button (热门标签)
+                        BouncingButton(
+                          onTap: () {
+                            RankingTagsSheet.show(
+                              context,
+                              isTag: true,
+                              onSelect: (tag) {
+                                _searchController.clear();
+                                browseProv.setTag(tag.name);
+                                _scrollToTop();
+                              },
+                            );
+                          },
+                          child: FrostedGlass(
+                            borderRadius: 14,
+                            blur: 15,
+                            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                            backgroundColor: isDark ? const Color(0x9924242A) : const Color(0xDDFFFFFF),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(CupertinoIcons.tag_fill, size: 13, color: IosTheme.primaryPink),
+                                SizedBox(width: 5),
+                                Text(
+                                  '热门标签',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: IosTheme.primaryPink,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+
+                        // Hot Search Keywords Button (热门搜索词)
+                        BouncingButton(
+                          onTap: () {
+                            RankingTagsSheet.show(
+                              context,
+                              isTag: false,
+                              onSelect: (kw) {
+                                _searchController.text = kw.name;
+                                browseProv.setSearchKeyword(kw.name);
+                                _scrollToTop();
+                              },
+                            );
+                          },
+                          child: FrostedGlass(
+                            borderRadius: 14,
+                            blur: 15,
+                            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                            backgroundColor: isDark ? const Color(0x9924242A) : const Color(0xDDFFFFFF),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(CupertinoIcons.flame_fill, size: 13, color: Colors.orange),
+                                SizedBox(width: 5),
+                                Text(
+                                  '热门搜索词',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.orange,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              // Active Tag Filter Chip (if filtering by tag)
+              if (browseProv.isTagActive)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 2, 20, 4),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: IosTheme.primaryPink.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: IosTheme.primaryPink.withValues(alpha: 0.3)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(CupertinoIcons.tag_fill, size: 12, color: IosTheme.primaryPink),
+                              const SizedBox(width: 5),
+                              Text(
+                                '标签: ${browseProv.currentTag}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  color: IosTheme.primaryPink,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              BouncingButton(
+                                onTap: () {
+                                  browseProv.clearTag();
+                                  _scrollToTop();
+                                },
+                                child: const Icon(CupertinoIcons.xmark_circle_fill, size: 14, color: IosTheme.primaryPink),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
               // Search Bar
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
                   child: Row(
                     children: [
                       Expanded(

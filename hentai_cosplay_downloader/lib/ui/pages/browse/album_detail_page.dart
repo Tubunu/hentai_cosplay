@@ -7,6 +7,7 @@ import 'package:photo_view/photo_view_gallery.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../models/album_item.dart';
+import '../../../providers/browse_provider.dart';
 import '../../../providers/download_provider.dart';
 import '../../../services/hc_api_service.dart';
 import '../../theme/ios_theme.dart';
@@ -354,6 +355,57 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
               ),
             ),
           ),
+
+          // Album Tags Chips (if loaded)
+          if (_item.tags.isNotEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  child: Row(
+                    children: _item.tags.map((tag) {
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: BouncingButton(
+                          onTap: () {
+                            context.read<BrowseProvider>().setTag(tag);
+                            Navigator.pop(context);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isDark ? Colors.white12 : Colors.black12,
+                                width: 0.5,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(CupertinoIcons.tag_fill, size: 11, color: IosTheme.primaryPink),
+                                const SizedBox(width: 4),
+                                Text(
+                                  tag,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? Colors.white : Colors.black87,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+            ),
 
           // Loading or Error State
           if (_isLoading)

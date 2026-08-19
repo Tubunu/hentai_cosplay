@@ -21,8 +21,20 @@ class HCApiResponse {
   });
 }
 
+class RankingTagsResponse {
+  final List<RankingTagItem> items;
+  final int page;
+  final int totalPages;
+
+  RankingTagsResponse({
+    required this.items,
+    required this.page,
+    required this.totalPages,
+  });
+}
+
 class HCApiService {
-  static const String kBaseUrl = 'https://hentai-cosplay-xxx.com';
+  static const String kBaseUrl = 'https://zh.hentai-cosplay-xxx.com';
   static const String kSearchBaseUrl = '$kBaseUrl/search/';
 
   static String? _configuredProxy;
@@ -75,24 +87,57 @@ class HCApiService {
     return true;
   }();
 
-  /// Build page URL
-  static String buildSearchUrl({int page = 1, String? keyword}) {
+  /// Build page URL supporting categories, keywords, and tags
+  static String buildBrowseUrl({
+    BrowseCategory category = BrowseCategory.latest,
+    String? keyword,
+    String? tag,
+    int page = 1,
+  }) {
     if (!_initialized) _recreateDio();
 
     final cleanKeyword = keyword?.trim() ?? '';
-    if (cleanKeyword.isEmpty) {
-      if (page <= 1) {
-        return '$kBaseUrl/search/';
-      } else {
-        return '$kBaseUrl/search/page/$page/';
-      }
-    } else {
+    if (cleanKeyword.isNotEmpty) {
       final encoded = Uri.encodeComponent(cleanKeyword);
       if (page <= 1) {
         return '$kBaseUrl/search/keyword/$encoded/';
       } else {
         return '$kBaseUrl/search/keyword/$encoded/page/$page/';
       }
+    }
+
+    final cleanTag = tag?.trim() ?? '';
+    if (cleanTag.isNotEmpty) {
+      final encoded = Uri.encodeComponent(cleanTag);
+      if (page <= 1) {
+        return '$kBaseUrl/search/tag/$encoded/';
+      } else {
+        return '$kBaseUrl/search/tag/$encoded/page/$page/';
+      }
+    }
+
+    // Category / Ranking URL
+    final cleanPath = category.path.replaceAll(RegExp(r'^/|/$'), '');
+    if (page <= 1) {
+      return '$kBaseUrl/$cleanPath/';
+    } else {
+      return '$kBaseUrl/$cleanPath/page/$page/';
+    }
+  }
+
+  /// Backward-compatible buildSearchUrl
+  static String buildSearchUrl({int page = 1, String? keyword}) {
+    return buildBrowseUrl(category: BrowseCategory.latest, keyword: keyword, page: page);
+  }
+
+  /// Build ranking tags or keywords URL
+  static String buildRankingTagsUrl({required bool isTag, int page = 1}) {
+    if (!_initialized) _recreateDio();
+    final path = isTag ? 'ranking-tag' : 'ranking-keyword';
+    if (page <= 1) {
+      return '$kBaseUrl/$path/';
+    } else {
+      return '$kBaseUrl/$path/page/$page/';
     }
   }
 
@@ -337,15 +382,112 @@ class HCApiService {
     }
   }
 
-  /// Fetch page data (Search or Tag or Keyword)
-  static Future<HCApiResponse?> fetchPageData({
+  /// Parse ranking tags or keywords from HTML
+  static List<RankingTagItem> parseRankingTags(String html, bool isTag) {
+    final List<RankingTagItem> items = [];
+    final seen = <String>{};
+
+    // Regex to match tag items and counts e.g.:
+    // <li><a href="https://zh.hentai-cosplay-xxx.com/search/tag/xxx/">xxx</a> <span>(1234)</span></li>
+    // or <a href="/search/tag/xxx/">xxx</a> <span>(123)</span>
+    final tagRegex = RegExp(
+      r'<a\s+[^>]*href=["\x27]([^"\x27]*(?:/search/tag/|/search/keyword/|/search/|/tag/|/keyword/)[^"\x27]+)["\x27][^>]*>([\s\S]*?)</a>(?:[\s\S]*?(?:<span>\s*\(?\s*([0-9,]+)\s*\)?\s*</span>|\(\s*([0-9,]+)\s*\)))?',
+      caseSensitive: false,
+    );
+
+    final matches = tagRegex.allMatches(html);
+    for (final m in matches) {
+      final rawHref = m.group(1)?.trim() ?? '';
+      var rawName = m.group(2)?.replaceAll(RegExp(r'<[^>]+>'), '').trim() ?? '';
+      final count = (m.group(3) ?? m.group(4) ?? '').replaceAll(',', '').trim();
+
+      if (rawName.isEmpty ||
+          rawName == '首页' ||
+          rawName == '下一页' ||
+          rawName == '上一页' ||
+          rawName == '最后一页' ||
+          rawName.contains('Hentai') ||
+          rawName.contains('Cosplay')) {
+        continue;
+      }
+
+      rawName = rawName.replaceAll(RegExp(r'\s*\([0-9,]+\)\s*$'), '').trim();
+      final fullUrl = rawHref.startsWith('http') ? rawHref : '$kBaseUrl$rawHref';
+
+      if (!seen.contains(rawName) && rawName.isNotEmpty) {
+        seen.add(rawName);
+        items.add(
+          RankingTagItem(
+            name: rawName,
+            count: count,
+            targetUrl: fullUrl,
+            isTag: isTag,
+          ),
+        );
+      }
+    }
+
+    return items;
+  }
+
+  /// Fetch ranking tags or keywords with pagination
+  static Future<RankingTagsResponse?> fetchRankingTags({
+    required bool isTag,
     required int page,
-    String? keyword,
     int retryCount = 3,
   }) async {
     if (!_initialized) _recreateDio();
 
-    final url = buildSearchUrl(page: page, keyword: keyword);
+    final url = buildRankingTagsUrl(isTag: isTag, page: page);
+
+    for (int i = 0; i < retryCount; i++) {
+      try {
+        final response = await _dio.get(
+          url,
+          options: Options(
+            responseType: ResponseType.plain,
+            headers: {
+              'Referer': '$kBaseUrl/',
+            },
+          ),
+        );
+
+        if (response.statusCode == 200 && response.data != null) {
+          final html = response.data.toString();
+          final items = parseRankingTags(html, isTag);
+          final totalPages = parseTotalPages(html, items.length);
+
+          return RankingTagsResponse(
+            items: items,
+            page: page,
+            totalPages: totalPages > 0 ? totalPages : 1,
+          );
+        }
+      } catch (e) {
+        if (i < retryCount - 1) {
+          await Future.delayed(const Duration(milliseconds: 1500));
+        }
+      }
+    }
+    return null;
+  }
+
+  /// Fetch page data (Category Ranking, Search Keyword, or Tag)
+  static Future<HCApiResponse?> fetchPageData({
+    BrowseCategory category = BrowseCategory.latest,
+    String? keyword,
+    String? tag,
+    required int page,
+    int retryCount = 3,
+  }) async {
+    if (!_initialized) _recreateDio();
+
+    final url = buildBrowseUrl(
+      category: category,
+      keyword: keyword,
+      tag: tag,
+      page: page,
+    );
 
     for (int i = 0; i < retryCount; i++) {
       try {

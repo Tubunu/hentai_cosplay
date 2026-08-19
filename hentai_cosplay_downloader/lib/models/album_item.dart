@@ -175,3 +175,32 @@ class AlbumItem {
   String toRawJson() => jsonEncode(toJson());
   factory AlbumItem.fromRawJson(String str) => AlbumItem.fromJson(jsonDecode(str));
 }
+
+/// Browse category ranking modes
+enum BrowseCategory {
+  latest('最新', '/search/'),
+  ranking('热门文章', '/ranking/'),
+  rankingDownload('下载排行', '/ranking-download/'),
+  rankingBookmark('收藏排行', '/ranking-bookmark/'),
+  rankingLike('点赞排行', '/ranking-like/');
+
+  final String label;
+  final String path;
+  const BrowseCategory(this.label, this.path);
+}
+
+/// Represents a tag or search keyword item with count
+class RankingTagItem {
+  final String name;
+  final String count;
+  final String targetUrl;
+  final bool isTag;
+
+  RankingTagItem({
+    required this.name,
+    required this.count,
+    required this.targetUrl,
+    required this.isTag,
+  });
+}
+
