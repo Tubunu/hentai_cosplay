@@ -126,101 +126,91 @@ class VideoApiService {
     final List<VideoItem> items = [];
     final seen = <String>{};
 
-    // Target main video list area first
-    String targetHtml = html;
-    final listMatch = RegExp(
-      r'<(?:ul|div)[^>]*id=["\x27](?:video-list|display_area_video|post-list|main)["\x27][\s\S]*?(?:<div class="wp-pagenavi"|<footer>|$)',
+    // 1. Identify distinct card blocks (li data-grid-item / board-item / video-list-item)
+    var cardBlockMatches = RegExp(
+      r'<li[^>]*data-(?:grid-item|select-item)[^>]*>[\s\S]*?</li>',
       caseSensitive: false,
-    ).firstMatch(html);
+    ).allMatches(html);
 
-    if (listMatch != null) {
-      targetHtml = listMatch.group(0) ?? html;
-    }
-
-    // Match individual item blocks
-    final cardBlockRegex = RegExp(
-      r'<(?:div|li)[^>]*class=["\x27][^"\x27]*(?:video-list-item|post-item|image-list-item|card)[^"\x27]*["\x27][\s\S]*?</(?:div|li)>',
-      caseSensitive: false,
-    );
-
-    final cardMatches = cardBlockRegex.allMatches(targetHtml);
-    for (final cardMatch in cardMatches) {
-      final cardHtml = cardMatch.group(0) ?? '';
-
-      // Extract href
-      final hrefMatch = RegExp(r'<a\s+[^>]*href=["\x27]([^"\x27]+)["\x27]', caseSensitive: false).firstMatch(cardHtml);
-      final rawHref = hrefMatch?.group(1)?.trim() ?? '';
-      if (rawHref.isEmpty) continue;
-
-      final fullDetailUrl = rawHref.startsWith('http') ? rawHref : '$kBaseUrl$rawHref';
-      final slugMatch = RegExp(r'/(?:video|post|image)/([^/]+)/').firstMatch(fullDetailUrl);
-      final slug = slugMatch?.group(1) ?? fullDetailUrl.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
-
-      if (seen.contains(slug)) continue;
-
-      // Extract cover image and alt
-      final imgMatch = RegExp(r'<img\s+[^>]*src=["\x27]([^"\x27]+)["\x27](?:[^>]*alt=["\x27]([^"\x27]*)["\x27])?', caseSensitive: false).firstMatch(cardHtml);
-      final rawImg = imgMatch?.group(1)?.trim() ?? '';
-      final alt = imgMatch?.group(2)?.trim() ?? '';
-
-      // Extract title
-      final titleMatch = RegExp(r'<(?:p|h2|h3|span)[^>]*class=["\x27][^"\x27]*(?:title|name)[^"\x27]*["\x27][^>]*>[\s\S]*?<a[^>]*>([^<]+)</a>', caseSensitive: false).firstMatch(cardHtml);
-      var title = titleMatch?.group(1)?.trim() ?? alt;
-      if (title.isEmpty) title = slug;
-
-      // Extract duration
-      final durationMatch = RegExp(r'<(?:span|div)[^>]*class=["\x27][^"\x27]*(?:duration|time)[^"\x27]*["\x27][^>]*>([^<]+)</(?:span|div)>', caseSensitive: false).firstMatch(cardHtml);
-      final duration = durationMatch?.group(1)?.trim() ?? '';
-
-      // Extract date
-      final dateMatch = RegExp(r'<(?:span|div)[^>]*class=["\x27][^"\x27]*(?:regist-date|date)[^"\x27]*["\x27][^>]*>([^<]+)</(?:span|div)>', caseSensitive: false).firstMatch(cardHtml);
-      final date = dateMatch?.group(1)?.trim() ?? '';
-
-      seen.add(slug);
-      final author = VideoItem.inferAuthor(title);
-
-      items.add(
-        VideoItem(
-          title: title,
-          slug: slug,
-          detailUrl: fullDetailUrl,
-          coverUrl: rawImg.startsWith('http') ? rawImg : '$kBaseUrl$rawImg',
-          duration: duration,
-          date: date,
-          author: author,
-        ),
-      );
-    }
-
-    // Fallback: match any video links with thumbnails if main parser produced fewer results
-    if (items.isEmpty) {
-      final fallbackRegex = RegExp(
-        r'<a\s+[^>]*href=["\x27]([^"\x27]*(?:/video/|/post/)[^"\x27]+)["\x27][^>]*>[\s\S]*?<img\s+[^>]*src=["\x27]([^"\x27]+)["\x27](?:[^>]*alt=["\x27]([^"\x27]*)["\x27])?[\s\S]*?</a>',
+    if (cardBlockMatches.isEmpty) {
+      cardBlockMatches = RegExp(
+        r'<(?:div|li)[^>]*class=["\x27][^"\x27]*(?:board-item|video-list-item|post-item|image-list-item|card)[^"\x27]*["\x27][\s\S]*?</(?:div|li)>',
         caseSensitive: false,
-      );
-      final fallbackMatches = fallbackRegex.allMatches(html);
-      for (final m in fallbackMatches) {
-        final href = m.group(1)?.trim() ?? '';
-        final img = m.group(2)?.trim() ?? '';
-        final title = m.group(3)?.trim() ?? '';
+      ).allMatches(html);
+    }
 
-        final fullUrl = href.startsWith('http') ? href : '$kBaseUrl$href';
-        final slugMatch = RegExp(r'/(?:video|post)/([^/]+)/').firstMatch(fullUrl);
-        final slug = slugMatch?.group(1) ?? fullUrl;
+    if (cardBlockMatches.isNotEmpty) {
+      for (final cardMatch in cardBlockMatches) {
+        final cardHtml = cardMatch.group(0) ?? '';
 
-        if (!seen.contains(slug)) {
-          seen.add(slug);
-          items.add(
-            VideoItem(
-              title: title.isNotEmpty ? title : slug,
-              slug: slug,
-              detailUrl: fullUrl,
-              coverUrl: img.startsWith('http') ? img : '$kBaseUrl$img',
-              date: '',
-              author: VideoItem.inferAuthor(title),
-            ),
-          );
+        // Extract detail href (must be a /video/ or /post/ link)
+        final hrefMatch = RegExp(
+          r'<a\s+[^>]*href=["\x27]([^"\x27]*(?:/video/|/post/)[^"\x27]+)["\x27]',
+          caseSensitive: false,
+        ).firstMatch(cardHtml);
+        final rawHref = hrefMatch?.group(1)?.trim() ?? '';
+        if (rawHref.isEmpty) continue;
+
+        final fullDetailUrl = rawHref.startsWith('http') ? rawHref : '$kBaseUrl$rawHref';
+        final slugMatch = RegExp(r'/(?:video|post)/([^/]+)/').firstMatch(fullDetailUrl);
+        final slug = slugMatch?.group(1) ?? fullDetailUrl.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
+
+        if (seen.contains(slug)) continue;
+
+        // Extract cover image
+        final imgMatch = RegExp(r'<img\s+[^>]*src=["\x27]([^"\x27]+)["\x27]', caseSensitive: false).firstMatch(cardHtml);
+        final rawImg = imgMatch?.group(1)?.trim() ?? '';
+        final fullCoverUrl = rawImg.isEmpty
+            ? ''
+            : (rawImg.startsWith('http') ? rawImg : '$kBaseUrl$rawImg');
+
+        // Extract title: from h1/h2/h3/h4/p/span with class title/name/value OR img alt
+        final titleMatch = RegExp(
+          r'<(?:h1|h2|h3|h4|p|span)[^>]*class=["\x27][^"\x27]*(?:title|name|value)[^"\x27]*["\x27][^>]*>[\s\S]*?([^<>]+)(?:</h3>|</h2>|</h1>|</p>|</span>|</a>)',
+          caseSensitive: false,
+        ).firstMatch(cardHtml);
+        var title = titleMatch?.group(1)?.trim() ?? '';
+        if (title.isEmpty) {
+          final altMatch = RegExp(r'<img\s+[^>]*alt=["\x27]([^"\x27]+)["\x27]', caseSensitive: false).firstMatch(cardHtml);
+          title = altMatch?.group(1)?.trim() ?? '';
         }
+        if (title.isEmpty) {
+          title = slug;
+        }
+
+        // Extract tags
+        final tagMatches = RegExp(r'<a\s+[^>]*href=["\x27][^"\x27]*/search/tag/[^"\x27]+["\x27][^>]*>([^<]+)</a>', caseSensitive: false).allMatches(cardHtml);
+        final tags = <String>[];
+        for (final tm in tagMatches) {
+          final tagText = tm.group(1)?.trim() ?? '';
+          if (tagText.isNotEmpty && !tags.contains(tagText)) {
+            tags.add(tagText);
+          }
+        }
+
+        // Extract duration
+        final durMatch = RegExp(r'<(?:span|div|p)[^>]*class=["\x27][^"\x27]*(?:duration|time)[^"\x27]*["\x27][^>]*>([^<]+)</', caseSensitive: false).firstMatch(cardHtml);
+        final duration = durMatch?.group(1)?.trim() ?? '';
+
+        // Extract date
+        final dateMatch = RegExp(r'<(?:span|div|p)[^>]*class=["\x27][^"\x27]*(?:regist-date|date)[^"\x27]*["\x27][^>]*>([^<]+)</', caseSensitive: false).firstMatch(cardHtml);
+        final date = dateMatch?.group(1)?.trim() ?? '';
+
+        final author = VideoItem.inferAuthor(title);
+        seen.add(slug);
+
+        items.add(
+          VideoItem(
+            title: title,
+            slug: slug,
+            detailUrl: fullDetailUrl,
+            coverUrl: fullCoverUrl.isNotEmpty ? fullCoverUrl : null,
+            duration: duration,
+            date: date,
+            author: author,
+            tags: tags,
+          ),
+        );
       }
     }
 

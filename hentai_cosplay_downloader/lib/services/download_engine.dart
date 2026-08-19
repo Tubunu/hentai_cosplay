@@ -320,9 +320,10 @@ class DownloadEngine {
 
     // 3. Resolve video direct URL if needed
     String? directUrl = task.videoUrl;
+    VideoItem? vDetail;
     if (directUrl == null || directUrl.isEmpty) {
       onLog('正在解析视频播放地址: ${item.title}', 'info');
-      final vDetail = await VideoApiService.fetchVideoDetail(
+      vDetail = await VideoApiService.fetchVideoDetail(
         VideoItem(
           title: item.title,
           slug: item.slug,
@@ -413,25 +414,30 @@ class DownloadEngine {
       task.status = TaskStatus.completed;
       task.finishTime = DateTime.now();
 
-      // Save companion cover and metadata
+      // Save companion cover and metadata strictly matching the video
       try {
-        if (item.coverUrl != null && item.coverUrl!.isNotEmpty) {
+        final detail = vDetail;
+        final coverToDownload = (detail?.coverUrl != null && detail!.coverUrl!.isNotEmpty)
+            ? detail.coverUrl!
+            : (item.coverUrl ?? '');
+
+        if (coverToDownload.isNotEmpty) {
           await _dio.download(
-            item.coverUrl!,
+            coverToDownload,
             coverFilePath,
             options: Options(headers: {'Referer': '${VideoApiService.kBaseUrl}/'}),
           );
         }
 
         final metaPayload = {
-          'title': item.title,
+          'title': (detail != null && detail.title.isNotEmpty) ? detail.title : item.title,
           'slug': item.slug,
-          'author': item.author,
+          'author': (detail != null && detail.author.isNotEmpty) ? detail.author : item.author,
           'date': item.date,
-          'duration': task.duration ?? '',
+          'duration': (detail != null && detail.duration.isNotEmpty) ? detail.duration : (task.duration ?? ''),
           'sourceUrl': item.detailUrl,
           'videoUrl': directUrl,
-          'tags': item.tags,
+          'tags': (detail != null && detail.tags.isNotEmpty) ? detail.tags : item.tags,
           'saved_at': DateTime.now().toIso8601String(),
         };
         await File(metaFilePath).writeAsString(

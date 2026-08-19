@@ -470,5 +470,56 @@ void main() {
       expect(detailed.videoUrl, 'https://stream.pv.com/videos/alice_bunny/video.m3u8');
       expect(detailed.tags, containsAll(['cosplay', 'bunny']));
     });
+
+    test('parseVideoList accurately aligns covers with links in complex board-item structures', () {
+      const multiCardHtml = '''
+<ul class="list-container flex-list">
+  <li data-select-item="1" data-grid-item="1">
+    <div class="board-item">
+      <a href="/video/video-one/" target="_blank">
+        <p class="board-item--img"><img src="https://static.pv.com/video1.jpg" alt="Video One Title"/></p>
+      </a>
+      <div class="board-item--right">
+        <section>
+          <a class="board-item--value" href="/video/video-one/" target="_blank">
+            <h3 class="board-item--title">Video One Title</h3>
+          </a>
+          <div class="board-item--comment">
+            <a href="/search/tag/tag1/">tag1</a>
+          </div>
+        </section>
+      </div>
+    </div>
+  </li>
+  <li data-select-item="2" data-grid-item="2">
+    <div class="board-item">
+      <a href="/video/video-two/" target="_blank">
+        <p class="board-item--img"><img src="https://static.pv.com/video2.jpg" alt="Video Two Title"/></p>
+      </a>
+      <div class="board-item--right">
+        <section>
+          <a class="board-item--value" href="/video/video-two/" target="_blank">
+            <h3 class="board-item--title">Video Two Title</h3>
+          </a>
+          <div class="board-item--comment">
+            <a href="/search/tag/tag2/">tag2</a>
+          </div>
+        </section>
+      </div>
+    </div>
+  </li>
+</ul>
+      ''';
+
+      final items = VideoApiService.parseVideoList(multiCardHtml);
+      expect(items.length, 2);
+      expect(items[0].slug, 'video-one');
+      expect(items[0].coverUrl, 'https://static.pv.com/video1.jpg');
+      expect(items[0].title, 'Video One Title');
+
+      expect(items[1].slug, 'video-two');
+      expect(items[1].coverUrl, 'https://static.pv.com/video2.jpg');
+      expect(items[1].title, 'Video Two Title');
+    });
   });
 }
