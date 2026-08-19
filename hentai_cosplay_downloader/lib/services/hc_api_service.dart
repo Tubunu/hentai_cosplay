@@ -82,9 +82,9 @@ class HCApiService {
     final cleanKeyword = keyword?.trim() ?? '';
     if (cleanKeyword.isEmpty) {
       if (page <= 1) {
-        return '$kBaseUrl/search/';
+        return '$kBaseUrl/';
       } else {
-        return '$kBaseUrl/search/page/$page/';
+        return '$kBaseUrl/page/$page/';
       }
     } else {
       final encoded = Uri.encodeComponent(cleanKeyword);
@@ -102,21 +102,26 @@ class HCApiService {
 
     // Target the main display area first to avoid including "最近下载", "热门文章" etc.
     String targetHtml = html;
-    final displayAreaMatch = RegExp(
-      r'<div id="display_area_image"[\s\S]*?</ul>',
-      caseSensitive: false,
-    ).firstMatch(html) ?? RegExp(
+    final imageListMatch = RegExp(
       r'<ul id="image-list"[\s\S]*?</ul>',
       caseSensitive: false,
     ).firstMatch(html);
 
-    if (displayAreaMatch != null) {
-      targetHtml = displayAreaMatch.group(0) ?? html;
+    if (imageListMatch != null) {
+      targetHtml = imageListMatch.group(0) ?? html;
     } else {
-      // Fallback: take content before wp-pagenavi or secondary sections
-      final cutoff = html.indexOf('wp-pagenavi');
-      if (cutoff != -1) {
-        targetHtml = html.substring(0, cutoff);
+      final displayAreaMatch = RegExp(
+        r'<div id="display_area_image"[\s\S]*?(?:<div class="wp-pagenavi"|</ul>|$)',
+        caseSensitive: false,
+      ).firstMatch(html);
+      if (displayAreaMatch != null) {
+        targetHtml = displayAreaMatch.group(0) ?? html;
+      } else {
+        // Fallback: take content before wp-pagenavi or secondary sections
+        final cutoff = html.indexOf('wp-pagenavi');
+        if (cutoff != -1) {
+          targetHtml = html.substring(0, cutoff);
+        }
       }
     }
 
@@ -154,8 +159,11 @@ class HCApiService {
 
   /// Parse total items count or last page number from HTML
   static int parseTotalPages(String html, int itemCount) {
-    // 1. Try to find last page in wp-pagenavi: href="/search/page/18339/"
-    final lastPageMatch = RegExp(r'class="last"\s+href="[^"]*?/page/(\d+)/?"', caseSensitive: false).firstMatch(html);
+    // 1. Try to find last page in wp-pagenavi: href="/page/18339/" or href="/search/page/18339/"
+    final lastPageMatch = RegExp(
+      r'class="last"[^>]*?href="[^"]*?/page/(\d+)/?"',
+      caseSensitive: false,
+    ).firstMatch(html);
     if (lastPageMatch != null) {
       final p = int.tryParse(lastPageMatch.group(1) ?? '');
       if (p != null && p > 0) return p;

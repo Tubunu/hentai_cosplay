@@ -10,15 +10,15 @@ void main() {
     test('buildSearchUrl generates correct URLs', () {
       expect(
         HCApiService.buildSearchUrl(page: 1),
-        'https://zh.hentai-cosplay-xxx.com/search/',
+        'https://zh.hentai-cosplay-xxx.com/',
       );
       expect(
         HCApiService.buildSearchUrl(page: 2),
-        'https://zh.hentai-cosplay-xxx.com/search/page/2/',
+        'https://zh.hentai-cosplay-xxx.com/page/2/',
       );
       expect(
         HCApiService.buildSearchUrl(page: 15),
-        'https://zh.hentai-cosplay-xxx.com/search/page/15/',
+        'https://zh.hentai-cosplay-xxx.com/page/15/',
       );
       expect(
         HCApiService.buildSearchUrl(page: 1, keyword: 'byoru'),
