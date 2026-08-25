@@ -1,13 +1,19 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:hentai_cosplay_downloader/models/album_item.dart';
 import 'package:hentai_cosplay_downloader/models/app_config.dart';
 import 'package:hentai_cosplay_downloader/models/download_task.dart';
 import 'package:hentai_cosplay_downloader/models/history_record.dart';
 import 'package:hentai_cosplay_downloader/models/video_item.dart';
+import 'package:hentai_cosplay_downloader/providers/download_provider.dart';
+import 'package:hentai_cosplay_downloader/providers/gallery_provider.dart';
+import 'package:hentai_cosplay_downloader/providers/local_video_provider.dart';
 import 'package:hentai_cosplay_downloader/services/hc_api_service.dart';
 import 'package:hentai_cosplay_downloader/services/video_api_service.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  SharedPreferences.setMockInitialValues({});
   group('HCApiService URL and Parser Tests', () {
     test('buildBrowseUrl and buildSearchUrl generate correct URLs', () {
       // Latest Category (默认最新)
@@ -520,6 +526,138 @@ void main() {
       expect(items[1].slug, 'video-two');
       expect(items[1].coverUrl, 'https://static.pv.com/video2.jpg');
       expect(items[1].title, 'Video Two Title');
+    });
+
+    test('VideoItem online streaming detail parsing handles mp4 direct streams and tags', () {
+      final baseItem = VideoItem(
+        title: 'Coser Online Dance',
+        slug: 'coser-online-dance',
+        detailUrl: 'https://porn-video-xxx.com/video/coser-online-dance/',
+        date: '2026/08/20',
+        author: 'DanceGirl',
+      );
+
+      const htmlWithMp4 = '''
+<div id="video-wrapper">
+  <video poster="https://static.pv.com/poster/dance.jpg">
+    <source src="https://media.pv.com/stream/dance_1080p.mp4" type="video/mp4"/>
+  </video>
+</div>
+<div class="video-info">
+  <span>时长: 15:20</span>
+</div>
+<div class="tags">
+  <a href="/search/tag/dance/">dance</a>
+  <a href="/search/tag/cosplay/">cosplay</a>
+</div>
+      ''';
+
+      final detailed = VideoApiService.parseVideoDetail(htmlWithMp4, baseItem);
+      expect(detailed.videoUrl, 'https://media.pv.com/stream/dance_1080p.mp4');
+      expect(detailed.coverUrl, 'https://static.pv.com/poster/dance.jpg');
+      expect(detailed.isDetailLoaded, isTrue);
+      expect(detailed.duration, '15:20');
+      expect(detailed.tags, containsAll(['dance', 'cosplay']));
+    });
+
+    test('HistoryRecord correctly stores online watched video records', () {
+      final record = HistoryRecord(
+        id: 'online_123456789',
+        title: 'Online Streaming Cosplay',
+        author: 'Coser Star',
+        targetFolder: '在线播放流',
+        imageCount: 1,
+        downloadedBytes: 0,
+        completedAt: DateTime.now(),
+        detailUrl: 'https://media.pv.com/stream/video.mp4',
+        isVideo: true,
+      );
+
+      expect(record.isVideo, isTrue);
+      expect(record.detailUrl, 'https://media.pv.com/stream/video.mp4');
+      final json = record.toJson();
+      final restored = HistoryRecord.fromJson(json);
+      expect(restored.isVideo, isTrue);
+      expect(restored.title, 'Online Streaming Cosplay');
+    });
+  });
+
+  group('Provider Fixes Verification Tests (#7, #8, #11, #12, #14)', () {
+    test('#12: Batch adding tasks generates unique taskIds without collision', () {
+      final downloadProv = DownloadProvider();
+      final items = List.generate(
+        100,
+        (i) => AlbumItem(
+          title: 'Duplicate Title Test',
+          slug: 'test-slug-$i',
+          detailUrl: 'https://zh.hentai-cosplay-xxx.com/image/test-$i/',
+          date: '2026/08/20',
+          author: 'Test Author',
+        ),
+      );
+
+      downloadProv.addBatchAlbumTasks(items);
+      final taskIds = downloadProv.allTasks.map((t) => t.id).toSet();
+      expect(taskIds.length, 100, reason: 'All 100 generated taskIds must be unique despite identical titles');
+      downloadProv.dispose();
+    });
+
+    test('#8: GalleryProvider caches sorted results until invalidate', () {
+      final galleryProv = GalleryProvider();
+      expect(galleryProv.localAlbums, isEmpty);
+      galleryProv.setSortMode(GallerySortMode.titleAsc);
+      expect(galleryProv.sortMode, GallerySortMode.titleAsc);
+      galleryProv.setSearchQuery('test');
+      expect(galleryProv.localAlbums, isEmpty);
+    });
+
+    test('#8: LocalVideoProvider caches sorted videos until invalidate', () {
+      final videoProv = LocalVideoProvider();
+      expect(videoProv.videos, isEmpty);
+      videoProv.setSortOption(VideoSortOption.nameAsc);
+      expect(videoProv.sortOption, VideoSortOption.nameAsc);
+      videoProv.setSearchQuery('test_video');
+      expect(videoProv.videos, isEmpty);
+    });
+
+    test('Round 2: inferAuthor correctly ignores page counts and generic words', () {
+      expect(AlbumItem.inferAuthor('[45P] Byoru - Zenith Maid'), 'Byoru');
+      expect(AlbumItem.inferAuthor('【100P】 Hoshilily – Shinano Swimsuit'), 'Hoshilily');
+      expect(AlbumItem.inferAuthor('12张 - Kitaro - Cosplay'), 'Kitaro');
+      expect(AlbumItem.inferAuthor('[VIP] [Network] Megumin Explosion'), 'Megumin Explosion');
+    });
+
+    test('Round 2: DownloadTask progress returns clean clamped values without NaN', () {
+      final item = AlbumItem(
+        title: 'Task Progress Test',
+        slug: 'progress-test',
+        detailUrl: 'https://zh.hentai-cosplay-xxx.com/image/test/',
+        date: '2026/08/20',
+        author: 'Test',
+      );
+      final task = AlbumDownloadTask(albumItem: item, totalImages: 0);
+      expect(task.progress, 0.0);
+
+      task.totalImages = 10;
+      task.downloadedImages = 5;
+      expect(task.progress, 0.5);
+
+      task.downloadedImages = 15;
+      expect(task.progress, 1.0);
+    });
+
+    test('Round 2: AppConfig clamps worker counts and opacity within safe ranges', () {
+      final rawJson = {
+        'packWorkers': 999,
+        'imgWorkers': 0,
+        'retryCount': -5,
+        'navBarOpacity': 2.5,
+      };
+      final cfg = AppConfig.fromJson(rawJson);
+      expect(cfg.packWorkers, 10);
+      expect(cfg.imgWorkers, 1);
+      expect(cfg.retryCount, 1);
+      expect(cfg.navBarOpacity, 1.0);
     });
   });
 }

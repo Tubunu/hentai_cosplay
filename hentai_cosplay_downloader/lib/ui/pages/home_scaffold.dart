@@ -4,13 +4,15 @@ import 'package:provider/provider.dart';
 import '../../providers/download_provider.dart';
 import '../../providers/gallery_provider.dart';
 import '../../providers/history_provider.dart';
+import '../../providers/jable_download_provider.dart';
+import '../../providers/local_jable_provider.dart';
 import '../../providers/local_video_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../theme/ios_theme.dart';
 import '../widgets/bouncing_button.dart';
 import '../widgets/liquid_glass.dart';
 import '../widgets/mini_download_bar.dart';
-import 'history/history_page.dart';
+import 'jable/jable_browse_page.dart';
 import 'resources/local_resources_page.dart';
 import 'resources/online_resources_page.dart';
 import 'settings/settings_page.dart';
@@ -25,40 +27,80 @@ class HomeScaffold extends StatefulWidget {
 
 class _HomeScaffoldState extends State<HomeScaffold> {
   int _currentIndex = 0;
+  bool _jableActivated = false;
+  DownloadProvider? _downloadProv;
+  JableDownloadProvider? _jableDownloadProv;
 
-  final List<Widget> _pages = const [
-    OnlineResourcesPage(),
-    DownloadTasksPage(),
-    HistoryPage(),
-    LocalResourcesPage(),
-    SettingsPage(),
+  List<Widget> get _pages => [
+    const OnlineResourcesPage(),                                          // 0: 在线资源
+    _jableActivated ? const JableBrowsePage() : const SizedBox.shrink(), // 1: Jable 专区 (仅在点击激活后挂载)
+    const DownloadTasksPage(),                                            // 2: 下载任务 (内置历史与三分类)
+    const LocalResourcesPage(),                                           // 3: 本地资源 (图片、视频、Jable)
+    const SettingsPage(),                                                 // 4: 系统设置
   ];
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final downloadProv = context.read<DownloadProvider>();
+      if (!mounted) return;
+      _downloadProv = context.read<DownloadProvider>();
+      _jableDownloadProv = context.read<JableDownloadProvider>();
+
       final historyProv = context.read<HistoryProvider>();
       final galleryProv = context.read<GalleryProvider>();
       final localVideoProv = context.read<LocalVideoProvider>();
+      final localJableProv = context.read<LocalJableProvider>();
       final settingsProv = context.read<SettingsProvider>();
 
-      downloadProv.onAlbumCompleted = (record) {
+      _downloadProv?.onAlbumCompleted = (record) {
         historyProv.addRecord(record);
       };
-      downloadProv.onAlbumsChanged = () {
+      _downloadProv?.onAlbumsChanged = () {
         galleryProv.scanLocalDirectory(settingsProv.config.savePath);
         localVideoProv.scanLocalVideos(settingsProv.config.savePath);
+      };
+
+      _jableDownloadProv?.onTasksChanged = () {
+        localJableProv.scanLocalVideos();
       };
     });
   }
 
   @override
+  void dispose() {
+    _downloadProv?.onAlbumCompleted = null;
+    _downloadProv?.onAlbumsChanged = null;
+    _downloadProv = null;
+    _jableDownloadProv?.onTasksChanged = null;
+    _jableDownloadProv = null;
+    super.dispose();
+  }
+
+  void _switchIndex(int index) {
+    if (index == 1 && !_jableActivated) {
+      setState(() {
+        _jableActivated = true;
+        _currentIndex = index;
+      });
+      return;
+    }
+    setState(() => _currentIndex = index);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final downloadProv = context.watch<DownloadProvider>();
-    final settingsProv = context.watch<SettingsProvider>();
+    final totalBadgeCount = context.select<DownloadProvider, int>(
+          (p) => p.activeTasks.length + p.queuedTasks.length,
+        ) +
+        context.select<JableDownloadProvider, int>(
+          (p) => p.activeTasks.length + p.queuedTasks.length,
+        );
+
+    final navBarOpacity = context.select<SettingsProvider, double>(
+      (p) => p.config.navBarOpacity,
+    );
 
     return Scaffold(
       extendBody: true,
@@ -74,18 +116,16 @@ class _HomeScaffoldState extends State<HomeScaffold> {
             children: [
               // 1. Floating Mini Download Player Bar
               MiniDownloadBar(
-                onTap: () {
-                  setState(() => _currentIndex = 1);
-                },
+                onTap: () => _switchIndex(2), // Switch to Download Tasks
               ),
 
-              // 2. Next-Gen Liquid Glass Bottom Navigation Bar Capsule
+              // 2. Next-Gen Liquid Glass Bottom Navigation Bar Capsule (5 Items)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                 child: LiquidGlass(
                   borderRadius: 28,
                   blur: 20,
-                  opacity: settingsProv.config.navBarOpacity,
+                  opacity: navBarOpacity,
                   padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
                   fluidAuraColor: IosTheme.primaryPink,
                   child: Row(
@@ -100,17 +140,17 @@ class _HomeScaffoldState extends State<HomeScaffold> {
                       ),
                       _buildNavItem(
                         index: 1,
-                        icon: CupertinoIcons.arrow_down_circle,
-                        activeIcon: CupertinoIcons.arrow_down_circle_fill,
-                        label: '下载任务',
-                        badgeCount: downloadProv.activeTasks.length + downloadProv.queuedTasks.length,
+                        icon: CupertinoIcons.play_rectangle,
+                        activeIcon: CupertinoIcons.play_rectangle_fill,
+                        label: 'Jable',
                         isDark: isDark,
                       ),
                       _buildNavItem(
                         index: 2,
-                        icon: CupertinoIcons.clock,
-                        activeIcon: CupertinoIcons.clock_fill,
-                        label: '下载历史',
+                        icon: CupertinoIcons.arrow_down_circle,
+                        activeIcon: CupertinoIcons.arrow_down_circle_fill,
+                        label: '下载任务',
+                        badgeCount: totalBadgeCount,
                         isDark: isDark,
                       ),
                       _buildNavItem(
@@ -149,9 +189,7 @@ class _HomeScaffoldState extends State<HomeScaffold> {
     final isSelected = _currentIndex == index;
 
     return BouncingButton(
-      onTap: () {
-        setState(() => _currentIndex = index);
-      },
+      onTap: () => _switchIndex(index),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
         child: Column(
@@ -181,7 +219,7 @@ class _HomeScaffoldState extends State<HomeScaffold> {
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: IosTheme.primaryPink.withValues(alpha: 0.6),
+                            color: IosTheme.primaryPink.withAlpha(150),
                             blurRadius: 4,
                           ),
                         ],

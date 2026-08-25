@@ -75,6 +75,16 @@ class _BatchDownloadDialogState extends State<BatchDownloadDialog> {
       return;
     }
 
+    if (end - start + 1 > 50) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('单次批量抓取最多支持 50 页，请缩小页码范围'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSubmitting = true);
     final downloadProv = context.read<DownloadProvider>();
     final browseProv = context.read<BrowseProvider>();

@@ -7,6 +7,20 @@ import '../services/storage_service.dart';
 class HistoryProvider extends ChangeNotifier {
   static const String _kHistoryKey = 'hentai_cosplay_history_records';
   List<HistoryRecord> _records = [];
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) {
+      super.notifyListeners();
+    }
+  }
 
   List<HistoryRecord> get records => List.unmodifiable(_records);
 
@@ -37,8 +51,10 @@ class HistoryProvider extends ChangeNotifier {
 
       // Recalculate zero bytes asynchronously from disk
       bool hasUpdates = false;
-      for (final r in _records) {
-        if (r.downloadedBytes == 0 && r.targetFolder.isNotEmpty) {
+      final copyToScan = List<HistoryRecord>.from(_records);
+      for (final r in copyToScan) {
+        if (_disposed) return;
+        if (r.downloadedBytes == 0 && r.targetFolder.isNotEmpty && !r.isVideo) {
           final size = await StorageService.getFolderSize(r.targetFolder);
           if (size > 0) {
             r.downloadedBytes = size;
@@ -46,7 +62,7 @@ class HistoryProvider extends ChangeNotifier {
           }
         }
       }
-      if (hasUpdates) {
+      if (hasUpdates && !_disposed) {
         notifyListeners();
         await _saveHistory();
       }
@@ -54,14 +70,17 @@ class HistoryProvider extends ChangeNotifier {
   }
 
   Future<void> addRecord(HistoryRecord record) async {
-    if (record.downloadedBytes == 0 && record.targetFolder.isNotEmpty) {
+    if (record.downloadedBytes == 0 && record.targetFolder.isNotEmpty && !record.isVideo) {
       final size = await StorageService.getFolderSize(record.targetFolder);
       if (size > 0) {
         record.downloadedBytes = size;
       }
     }
 
-    _records.removeWhere((r) => r.id == record.id || r.detailUrl == record.detailUrl);
+    _records.removeWhere((r) =>
+        r.id == record.id ||
+        (record.detailUrl.isNotEmpty && r.detailUrl == record.detailUrl) ||
+        (record.id.isEmpty && r.title == record.title));
     _records.insert(0, record);
     notifyListeners();
     await _saveHistory();
@@ -79,9 +98,19 @@ class HistoryProvider extends ChangeNotifier {
     await _saveHistory();
   }
 
+  Future<void> clearByType({required bool isVideo}) async {
+    _records.removeWhere((r) => r.isVideo == isVideo);
+    notifyListeners();
+    await _saveHistory();
+  }
+
   Future<void> _saveHistory() async {
-    final prefs = await SharedPreferences.getInstance();
-    final listStr = _records.map((r) => r.toRawJson()).toList();
-    await prefs.setStringList(_kHistoryKey, listStr);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final listStr = _records.map((r) => r.toRawJson()).toList();
+      await prefs.setStringList(_kHistoryKey, listStr);
+    } catch (e) {
+      debugPrint('Error saving history: $e');
+    }
   }
 }

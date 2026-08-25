@@ -9,6 +9,17 @@ class IosTheme {
   static const Color primaryGreen = Color(0xFF34C759);
   static const Color primaryOrange = Color(0xFFFF9500);
 
+  // Signatures & Gradients
+  static const LinearGradient musicGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [
+      Color(0xFFFF2D55),
+      Color(0xFFFF375F),
+      Color(0xFFFA2D55),
+    ],
+  );
+
   // Backgrounds & Surface (Light)
   static const Color lightBg = Color(0xFFF2F2F7);
   static const Color lightSurface = Colors.white;

@@ -11,6 +11,7 @@ import '../models/video_item.dart';
 import '../services/config_service.dart';
 import '../services/download_engine.dart';
 import '../services/hc_api_service.dart';
+import '../services/mzt_api_service.dart';
 import '../services/notification_service.dart';
 import '../services/storage_service.dart';
 import '../services/video_api_service.dart';
@@ -40,6 +41,10 @@ class DownloadProvider extends ChangeNotifier {
   int _bytesSinceLastTick = 0;
   double _currentSpeedBps = 0.0;
   DateTime? _batchStartTime;
+
+  int _taskSequenceCounter = 0;
+  DateTime _lastProgressNotifyTime = DateTime.fromMillisecondsSinceEpoch(0);
+  Timer? _progressThrottleTimer;
 
   void Function(HistoryRecord record)? onAlbumCompleted;
   void Function()? onAlbumsChanged;
@@ -97,9 +102,53 @@ class DownloadProvider extends ChangeNotifier {
     NotificationService.requestNotificationPermission();
   }
 
+  String _generateTaskId(String title) {
+    _taskSequenceCounter++;
+    return '${DateTime.now().microsecondsSinceEpoch}_${_taskSequenceCounter}_${title.hashCode.abs()}';
+  }
+
+  bool _isDisposed = false;
+
+  void _throttledProgressNotify() {
+    if (_isDisposed) return;
+    final now = DateTime.now();
+    final elapsed = now.difference(_lastProgressNotifyTime).inMilliseconds;
+    if (elapsed >= 200) {
+      _progressThrottleTimer?.cancel();
+      _progressThrottleTimer = null;
+      _lastProgressNotifyTime = now;
+      notifyListeners();
+      _updateNotification();
+    } else {
+      if (_progressThrottleTimer == null || !_progressThrottleTimer!.isActive) {
+        final delay = Duration(milliseconds: 200 - elapsed);
+        _progressThrottleTimer = Timer(delay, () {
+          if (_isDisposed) return;
+          _lastProgressNotifyTime = DateTime.now();
+          _progressThrottleTimer = null;
+          notifyListeners();
+          _updateNotification();
+        });
+      }
+    }
+  }
+
+  @override
+  void notifyListeners() {
+    if (_isDisposed) return;
+    super.notifyListeners();
+  }
+
   @override
   void dispose() {
+    _isDisposed = true;
     _stopSpeedTimer();
+    _progressThrottleTimer?.cancel();
+    _progressThrottleTimer = null;
+    for (final engine in _activeEngines.values) {
+      engine.cancel();
+    }
+    _activeEngines.clear();
     super.dispose();
   }
 
@@ -188,7 +237,7 @@ class DownloadProvider extends ChangeNotifier {
       return;
     }
 
-    final taskId = '${DateTime.now().millisecondsSinceEpoch}_${item.title.hashCode.abs()}';
+    final taskId = _generateTaskId(item.title);
     final task = AlbumDownloadTask(
       id: taskId,
       albumItem: item,
@@ -226,7 +275,7 @@ class DownloadProvider extends ChangeNotifier {
         continue;
       }
 
-      final taskId = '${DateTime.now().millisecondsSinceEpoch}_${item.title.hashCode.abs()}';
+      final taskId = _generateTaskId(item.title);
       final task = AlbumDownloadTask(
         id: taskId,
         albumItem: item,
@@ -265,6 +314,27 @@ class DownloadProvider extends ChangeNotifier {
     }
   }
 
+  /// Fetch and add MZT page range (e.g. from page 1 to 5) to batch download queue
+  Future<void> addMztPageRange(int startPage, int endPage) async {
+    _config = ConfigService.loadConfig();
+    final List<AlbumItem> allItems = [];
+
+    for (int p = startPage; p <= endPage; p++) {
+      try {
+        final pageData = await MztApiService.fetchPageData(page: p, pageSize: 12);
+        if (pageData != null && pageData.items.isNotEmpty) {
+          allItems.addAll(pageData.items);
+        }
+      } catch (e) {
+        debugPrint('Error fetching MZT page $p during batch range download: $e');
+      }
+    }
+
+    if (allItems.isNotEmpty) {
+      addBatchAlbumTasks(allItems);
+    }
+  }
+
   /// Add a single video task
   void addVideoTask(VideoItem video) {
     addBatchVideoTasks([video]);
@@ -291,7 +361,7 @@ class DownloadProvider extends ChangeNotifier {
         continue;
       }
 
-      final taskId = '${DateTime.now().millisecondsSinceEpoch}_${video.title.hashCode.abs()}';
+      final taskId = _generateTaskId(video.title);
       final albumItem = AlbumItem(
         title: video.title,
         slug: video.slug,
@@ -482,6 +552,7 @@ class DownloadProvider extends ChangeNotifier {
 
   /// Dynamic reactive task scheduler (Producer-Consumer worker pool)
   void _scheduleNextTasks() {
+    if (_isDisposed) return;
     _startSpeedTimer();
     _batchStartTime ??= DateTime.now();
 
@@ -489,6 +560,7 @@ class DownloadProvider extends ChangeNotifier {
     final maxPackWorkers = _config.packWorkers.clamp(1, 20);
 
     while (_runningTasks.length < maxPackWorkers) {
+      if (_isDisposed) break;
       final queuedList = _allTasks.where((t) => t.status == TaskStatus.queued).toList();
       if (queuedList.isEmpty) break;
 
@@ -509,12 +581,12 @@ class DownloadProvider extends ChangeNotifier {
   }
 
   Future<void> _executeSingleTask(AlbumDownloadTask task) async {
+    if (_isDisposed) return;
     final engine = DownloadEngine(
       config: _config,
       onLog: (msg, level) {},
       onTaskProgress: (t) {
-        notifyListeners();
-        _updateNotification();
+        _throttledProgressNotify();
       },
     );
     _activeEngines[task.id] = engine;
@@ -536,7 +608,9 @@ class DownloadProvider extends ChangeNotifier {
       if (task.status == TaskStatus.completed) {
         final diskBytes = task.downloadedBytes > 0
             ? task.downloadedBytes
-            : await StorageService.getFolderSize(task.targetFolder);
+            : (task.isVideo
+                ? 0
+                : await StorageService.getFolderSize(task.targetFolder));
 
         final record = HistoryRecord(
           id: task.albumItem.slug.isNotEmpty ? task.albumItem.slug : task.id,
@@ -571,13 +645,14 @@ class DownloadProvider extends ChangeNotifier {
   }
 
   void _finishBatchIfNeeded() {
+    if (_currentBatchTaskIds.isEmpty) return;
     _setIosBackgroundKeeper(false);
     final duration = _batchStartTime != null
         ? DateTime.now().difference(_batchStartTime!).inMilliseconds / 1000.0
         : 1.0;
 
     final batchTasks = _allTasks
-        .where((t) => _currentBatchTaskIds.isEmpty || _currentBatchTaskIds.contains(t.id))
+        .where((t) => _currentBatchTaskIds.contains(t.id))
         .toList();
     final finishedBatch = batchTasks.where((t) => t.status == TaskStatus.completed).toList();
 

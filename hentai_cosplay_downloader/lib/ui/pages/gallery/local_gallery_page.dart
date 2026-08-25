@@ -6,6 +6,7 @@ import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../../models/album_item.dart';
 import '../../../providers/gallery_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../services/storage_service.dart';
@@ -148,87 +149,11 @@ class _LocalGalleryPageState extends State<LocalGalleryPage> {
                           ),
                         ),
                       ),
-                      const Spacer(),
-
-                      // Random Pick Button
-                      BouncingButton(
-                        onTap: () => _openRandomAlbum(context, albums),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFFFF2D55), Color(0xFFFF5E3A)],
-                            ),
-                            borderRadius: BorderRadius.circular(14),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFFFF2D55).withValues(alpha: 0.3),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: const Row(
-                            children: [
-                              Text('🎲', style: TextStyle(fontSize: 13)),
-                              SizedBox(width: 4),
-                              Text(
-                                '随机图包',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-
-                      // Sort Mode Button
-                      BouncingButton(
-                        onTap: () => _showSortSheet(context, galleryProv),
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            CupertinoIcons.arrow_up_arrow_down,
-                            size: 16,
-                            color: isDark ? Colors.white70 : Colors.black87,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-
-                      // Scan / Refresh Button
-                      BouncingButton(
-                        onTap: galleryProv.isScanning
-                            ? null
-                            : () => galleryProv.scanLocalDirectory(settingsProv.config.savePath),
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
-                            shape: BoxShape.circle,
-                          ),
-                          child: galleryProv.isScanning
-                              ? const CupertinoActivityIndicator(radius: 8)
-                              : Icon(
-                                  CupertinoIcons.refresh,
-                                  size: 16,
-                                  color: isDark ? Colors.white70 : Colors.black87,
-                                ),
-                        ),
-                      ),
                     ],
                   ),
                   const SizedBox(height: 10),
 
-                  // Search Bar & Current Sort Status
+                  // Search Bar & Action Buttons (Random, Sort, Refresh)
                   Row(
                     children: [
                       Expanded(
@@ -242,25 +167,115 @@ class _LocalGalleryPageState extends State<LocalGalleryPage> {
                         ),
                       ),
                       const SizedBox(width: 8),
+
+                      // Random Pick Button
                       BouncingButton(
-                        onTap: () => _showSortSheet(context, galleryProv),
+                        onTap: () => _openRandomAlbum(context, albums),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
                           decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF1C1C1E) : const Color(0xFFE5E5EA),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            galleryProv.sortMode.label.split(' ').first,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: isDark ? Colors.white60 : Colors.black54,
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFFFF2D55), Color(0xFFFF5E3A)],
                             ),
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFFFF2D55).withValues(alpha: 0.3),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Row(
+                            children: [
+                              Text('🎲', style: TextStyle(fontSize: 12)),
+                              SizedBox(width: 3),
+                              Text(
+                                '随机',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
+                      const SizedBox(width: 6),
+
+                      // Sort Mode Button
+                      BouncingButton(
+                        onTap: () => _showSortSheet(context, galleryProv),
+                        child: Container(
+                          padding: const EdgeInsets.all(7.5),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            CupertinoIcons.arrow_up_arrow_down,
+                            size: 15,
+                            color: isDark ? Colors.white70 : Colors.black87,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+
+                      // Scan / Refresh Button
+                      BouncingButton(
+                        onTap: galleryProv.isScanning
+                            ? null
+                            : () => galleryProv.scanLocalDirectory(settingsProv.config.savePath),
+                        child: Container(
+                          padding: const EdgeInsets.all(7.5),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
+                            shape: BoxShape.circle,
+                          ),
+                          child: galleryProv.isScanning
+                              ? const CupertinoActivityIndicator(radius: 7.5)
+                              : Icon(
+                                  CupertinoIcons.refresh,
+                                  size: 15,
+                                  color: isDark ? Colors.white70 : Colors.black87,
+                                ),
+                        ),
+                      ),
                     ],
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Source Filter Segmented Capsule (All / HC / MZT)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(3.5),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1E1E22) : const Color(0xFFE5E5EA),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      children: [
+                        _buildFilterSegment(
+                          GallerySourceFilter.all,
+                          '全部 (${galleryProv.albumCount})',
+                          galleryProv,
+                          isDark,
+                        ),
+                        _buildFilterSegment(
+                          GallerySourceFilter.hc,
+                          'HC (${galleryProv.hcCount})',
+                          galleryProv,
+                          isDark,
+                        ),
+                        _buildFilterSegment(
+                          GallerySourceFilter.mzt,
+                          'MZT (${galleryProv.mztCount})',
+                          galleryProv,
+                          isDark,
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -318,6 +333,53 @@ class _LocalGalleryPageState extends State<LocalGalleryPage> {
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
     if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+  }
+
+  Widget _buildFilterSegment(
+    GallerySourceFilter filter,
+    String label,
+    GalleryProvider galleryProv,
+    bool isDark,
+  ) {
+    final isSelected = galleryProv.sourceFilter == filter;
+
+    return Expanded(
+      child: BouncingButton(
+        onTap: () => galleryProv.setSourceFilter(filter),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          decoration: BoxDecoration(
+            color: isSelected ? IosTheme.primaryPink : Colors.transparent,
+            borderRadius: BorderRadius.circular(11),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: IosTheme.primaryPink.withValues(alpha: 0.35),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Center(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                color: isSelected
+                    ? Colors.white
+                    : (isDark ? Colors.white60 : Colors.black87),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildLocalAlbumCard(LocalAlbumFolder album, int index, bool isDark, GalleryProvider galleryProv) {
@@ -378,6 +440,35 @@ class _LocalGalleryPageState extends State<LocalGalleryPage> {
                           errorBuilder: (_, __, ___) => const Icon(CupertinoIcons.photo, color: Colors.grey),
                         )
                       : const Icon(CupertinoIcons.photo, color: Colors.grey),
+                  // Source badge at top left of cover
+                  Positioned(
+                    left: 8,
+                    top: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: album.sourceType == MediaSourceType.mzt
+                            ? IosTheme.primaryPink
+                            : IosTheme.primaryPurple,
+                        borderRadius: BorderRadius.circular(5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.3),
+                            blurRadius: 4,
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        album.sourceType.badge,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ),
+
                   // Count & Size pill
                   Positioned(
                     right: 8,
@@ -506,9 +597,9 @@ class _LocalAlbumViewerState extends State<_LocalAlbumViewer> {
       );
     }
 
-    // Clamp index in case albums were deleted
-    _currentIndex = _currentIndex.clamp(0, albums.length - 1);
-    final album = albums[_currentIndex];
+    // Safe index in case albums were deleted
+    final safeIndex = _currentIndex.clamp(0, albums.length - 1);
+    final album = albums[safeIndex];
 
     return Scaffold(
       appBar: AppBar(
@@ -522,7 +613,7 @@ class _LocalAlbumViewerState extends State<_LocalAlbumViewer> {
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
             Text(
-              '${album.author} • 第 ${_currentIndex + 1}/${albums.length} 套 (${album.imageCount}张 • ${_LocalGalleryPageState.formatBytes(album.totalBytes)})',
+              '${album.author} • 第 ${safeIndex + 1}/${albums.length} 套 (${album.imageCount}张 • ${_LocalGalleryPageState.formatBytes(album.totalBytes)})',
               style: TextStyle(
                 fontSize: 11.5,
                 fontWeight: FontWeight.w500,
@@ -736,6 +827,12 @@ class _LocalPhotoGalleryViewerState extends State<_LocalPhotoGalleryViewer> {
     super.initState();
     _currentIndex = widget.initialIndex;
     _pageController = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
   }
 
   @override

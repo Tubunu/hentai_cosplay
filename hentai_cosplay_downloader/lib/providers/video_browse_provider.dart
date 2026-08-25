@@ -11,6 +11,21 @@ class VideoBrowseProvider extends ChangeNotifier {
 
   bool _isLoading = false;
   String? _errorMessage;
+  int _requestId = 0;
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) {
+      super.notifyListeners();
+    }
+  }
 
   VideoCategory _category = VideoCategory.latest;
   String _searchKeyword = '';
@@ -129,7 +144,7 @@ class VideoBrowseProvider extends ChangeNotifier {
   }
 
   Future<void> loadPage(int page) async {
-    if (_isLoading) return;
+    final currentReq = ++_requestId;
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -142,6 +157,8 @@ class VideoBrowseProvider extends ChangeNotifier {
         page: page,
       );
 
+      if (currentReq != _requestId || _disposed) return;
+
       if (res != null) {
         _items = res.items;
         _currentPage = res.page;
@@ -152,12 +169,15 @@ class VideoBrowseProvider extends ChangeNotifier {
         _errorMessage = '获取视频列表失败，请检查网络或在设置中配置代理。';
       }
     } catch (e) {
+      if (currentReq != _requestId || _disposed) return;
       _errorMessage = '加载出错: $e';
     } finally {
-      _isLoading = false;
-      _selectedSlugs.clear();
-      _isSelectionMode = false;
-      notifyListeners();
+      if (currentReq == _requestId && !_disposed) {
+        _isLoading = false;
+        _selectedSlugs.clear();
+        _isSelectionMode = false;
+        notifyListeners();
+      }
     }
   }
 

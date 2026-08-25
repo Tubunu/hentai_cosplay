@@ -14,6 +14,7 @@ class NotificationService {
   static const String _channelDesc = '实时展示图片图集的后台下载进度与速率通知';
 
   static bool _isInitialized = false;
+  static int _lastNotificationUpdateTime = 0;
 
   /// Initialize local notification settings for Android and iOS
   static Future<void> init() async {
@@ -33,7 +34,7 @@ class NotificationService {
     try {
       await _notificationsPlugin.initialize(initSettings);
       _isInitialized = true;
-      if (Platform.isIOS) {
+      if (Platform.isIOS || Platform.isAndroid) {
         await requestNotificationPermission();
       }
     } catch (e) {
@@ -75,6 +76,12 @@ class NotificationService {
     bool isPaused = false,
   }) async {
     if (!_isInitialized) await init();
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (!isPaused && progress < 1.0 && (now - _lastNotificationUpdateTime < 500)) {
+      return;
+    }
+    _lastNotificationUpdateTime = now;
 
     final percent = (progress * 100).toInt().clamp(0, 100);
     final statusPrefix = isPaused ? '[已暂停] ' : '';

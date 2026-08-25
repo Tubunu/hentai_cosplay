@@ -1,10 +1,11 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../browse/browse_page.dart';
-import '../../theme/ios_theme.dart';
+import '../mzt/mzt_browse_page.dart';
 import '../video/video_browse_page.dart';
+import '../../theme/ios_theme.dart';
 import '../../widgets/bouncing_button.dart';
-import '../../widgets/frosted_glass.dart';
+import '../../widgets/liquid_glass.dart';
 
 class OnlineResourcesPage extends StatefulWidget {
   const OnlineResourcesPage({super.key});
@@ -14,7 +15,7 @@ class OnlineResourcesPage extends StatefulWidget {
 }
 
 class _OnlineResourcesPageState extends State<OnlineResourcesPage> {
-  int _currentIndex = 0; // 0: 在线图片, 1: 在线视频
+  int _currentIndex = 0; // 0: Cosplay图集, 1: 在线视频, 2: 妹子图库
 
   @override
   Widget build(BuildContext context) {
@@ -30,27 +31,25 @@ class _OnlineResourcesPageState extends State<OnlineResourcesPage> {
             children: const [
               BrowsePage(),
               VideoBrowsePage(),
+              MztBrowsePage(),
             ],
           ),
 
-          // Floating Top Segmented Control Capsule
+          // Floating Top Segmented Control Liquid Glass Capsule
           Positioned(
             top: MediaQuery.of(context).padding.top + 8,
             right: 16,
-            child: FrostedGlass(
-              borderRadius: 22,
-              blur: 25,
-              padding: const EdgeInsets.all(3),
-              backgroundColor: isDark
-                  ? const Color(0xCC1E1E24)
-                  : const Color(0xCCFFFFFF),
-              borderColor: isDark ? Colors.white12 : Colors.black12,
-              borderWidth: 0.5,
+            child: LiquidGlass(
+              borderRadius: 24,
+              blur: 24,
+              padding: const EdgeInsets.all(4),
+              fluidAuraColor: IosTheme.primaryPink,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _buildSegmentItem(0, '在线图片', CupertinoIcons.photo_on_rectangle, isDark),
+                  _buildSegmentItem(0, 'Cosplay图集', CupertinoIcons.photo_on_rectangle, isDark),
                   _buildSegmentItem(1, '在线视频', CupertinoIcons.play_rectangle_fill, isDark),
+                  _buildSegmentItem(2, '妹子图库', CupertinoIcons.sparkles, isDark),
                 ],
               ),
             ),

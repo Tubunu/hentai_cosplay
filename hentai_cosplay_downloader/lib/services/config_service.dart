@@ -2,15 +2,26 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/app_config.dart';
 import 'hc_api_service.dart';
+import 'jable/api_client.dart';
+import 'mzt_api_service.dart';
+import 'video_api_service.dart';
 
 class ConfigService {
   static const String _kConfigKey = 'hentai_cosplay_app_config';
   static SharedPreferences? _prefs;
 
+  static void applyProxy(String? proxy) {
+    final p = proxy ?? '';
+    HCApiService.setProxy(p);
+    VideoApiService.setProxy(p);
+    MztApiService.setProxy(p);
+    ApiClient().setProxy(p);
+  }
+
   static Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
     final config = loadConfig();
-    HCApiService.setProxy(config.customProxy);
+    applyProxy(config.customProxy);
   }
 
   static AppConfig loadConfig() {
@@ -29,7 +40,7 @@ class ConfigService {
 
   static Future<bool> saveConfig(AppConfig config) async {
     _prefs ??= await SharedPreferences.getInstance();
-    HCApiService.setProxy(config.customProxy);
+    applyProxy(config.customProxy);
     return _prefs!.setString(_kConfigKey, config.toRawJson());
   }
 }

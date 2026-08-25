@@ -22,28 +22,29 @@ class AlbumCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final browseProv = context.watch<BrowseProvider>();
-    final downloadProv = context.watch<DownloadProvider>();
-
-    final isSelected = browseProv.isAlbumSelected(item);
-    final isSelectionMode = browseProv.isSelectionMode;
+    final isSelected = context.select<BrowseProvider, bool>((p) => p.isAlbumSelected(item));
+    final isSelectionMode = context.select<BrowseProvider, bool>((p) => p.isSelectionMode);
 
     // Check if album is in download queue or completed
-    final existingTask = downloadProv.allTasks.cast<AlbumDownloadTask?>().firstWhere(
-      (t) => t?.albumItem.slug == item.slug || t?.albumItem.detailUrl == item.detailUrl,
-      orElse: () => null,
-    );
+    final existingTask = context.select<DownloadProvider, AlbumDownloadTask?>((p) {
+      for (final t in p.allTasks) {
+        if (t.albumItem.slug == item.slug || t.albumItem.detailUrl == item.detailUrl) {
+          return t;
+        }
+      }
+      return null;
+    });
 
     return BouncingButton(
       onTap: () {
         if (isSelectionMode) {
-          browseProv.toggleAlbumSelection(item);
+          context.read<BrowseProvider>().toggleAlbumSelection(item);
         } else {
           onTap();
         }
       },
       onLongPress: () {
-        browseProv.toggleAlbumSelection(item);
+        context.read<BrowseProvider>().toggleAlbumSelection(item);
       },
       child: Container(
         decoration: BoxDecoration(
@@ -78,6 +79,7 @@ class AlbumCard extends StatelessWidget {
                       ? CachedNetworkImage(
                           imageUrl: item.coverUrl!,
                           fit: BoxFit.cover,
+                          memCacheWidth: 450,
                           httpHeaders: const {
                             'Referer': 'https://hentai-cosplay-xxx.com/',
                           },
@@ -222,7 +224,7 @@ class AlbumCard extends StatelessWidget {
                       if (!isSelectionMode)
                         BouncingButton(
                           onTap: () {
-                            downloadProv.addAlbumTask(item);
+                            context.read<DownloadProvider>().addAlbumTask(item);
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text('已加入下载队列: ${item.title}'),

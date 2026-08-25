@@ -32,7 +32,7 @@ class HistoryRecord {
       id: json['id'] ?? '',
       title: json['title'] ?? '',
       author: json['author'] ?? '',
-      coverUrl: json['coverUrl'],
+      coverUrl: json['coverUrl'] as String?,
       targetFolder: json['targetFolder'] ?? '',
       imageCount: (json['imageCount'] as num?)?.toInt() ?? 0,
       downloadedBytes: (json['downloadedBytes'] as num?)?.toInt() ?? 0,

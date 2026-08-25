@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
+import 'package:html/parser.dart' as html_parser;
+import 'package:html/dom.dart' as dom;
 import '../models/album_item.dart';
 
 class HCApiResponse {
@@ -69,8 +71,12 @@ class HCApiService {
       client.badCertificateCallback = (cert, host, port) => true;
 
       if (_configuredProxy != null && _configuredProxy!.isNotEmpty) {
-        final clean = _configuredProxy!.replaceAll('http://', '').replaceAll('https://', '');
-        client.findProxy = (uri) => 'PROXY $clean; DIRECT';
+        final clean = _configuredProxy!.replaceAll(RegExp(r'https?://|socks5?://'), '');
+        if (_configuredProxy!.startsWith('socks')) {
+          client.findProxy = (uri) => 'SOCKS5 $clean; DIRECT';
+        } else {
+          client.findProxy = (uri) => 'PROXY $clean; DIRECT';
+        }
       } else {
         // Direct connection avoids system-level broken proxy interference
         client.findProxy = (uri) => 'DIRECT';
@@ -141,47 +147,32 @@ class HCApiService {
     }
   }
 
-  /// Parse album items strictly from the main "新到图像列表" / search results display area
+  /// Parse album items strictly from the main "新到图像列表" / search results display area using DOM parser
   static List<AlbumItem> parseAlbumList(String html) {
     final List<AlbumItem> items = [];
+    final doc = html_parser.parse(html);
 
-    // Target the main display area first to avoid including "最近下载", "热门文章" etc.
-    String targetHtml = html;
-    final imageListMatch = RegExp(
-      r'<ul id="image-list"[\s\S]*?</ul>',
-      caseSensitive: false,
-    ).firstMatch(html);
+    // Target the main display area to avoid including sidebar "最近下载", "热门文章" etc.
+    final targetContainer = doc.querySelector('#image-list') ??
+        doc.querySelector('#display_area_image') ??
+        doc.body;
+    if (targetContainer == null) return items;
 
-    if (imageListMatch != null) {
-      targetHtml = imageListMatch.group(0) ?? html;
-    } else {
-      final displayAreaMatch = RegExp(
-        r'<div id="display_area_image"[\s\S]*?(?:<div class="wp-pagenavi"|</ul>|$)',
-        caseSensitive: false,
-      ).firstMatch(html);
-      if (displayAreaMatch != null) {
-        targetHtml = displayAreaMatch.group(0) ?? html;
-      } else {
-        // Fallback: take content before wp-pagenavi or secondary sections
-        final cutoff = html.indexOf('wp-pagenavi');
-        if (cutoff != -1) {
-          targetHtml = html.substring(0, cutoff);
-        }
-      }
-    }
+    final itemElements = targetContainer.querySelectorAll('.image-list-item');
+    for (final el in itemElements) {
+      final linkEl = el.querySelector('.image-list-item-image a') ?? el.querySelector('a');
+      final imgEl = el.querySelector('.image-list-item-image img') ?? el.querySelector('img');
+      final titleEl = el.querySelector('.image-list-item-title a') ?? el.querySelector('.image-list-item-title');
+      final dateEl = el.querySelector('.image-list-item-regist-date span') ?? el.querySelector('.image-list-item-regist-date');
 
-    // Match image-list-item block within the target area
-    final itemRegex = RegExp(
-      r'<div class="image-list-item">[\s\S]*?<div class="image-list-item-image">\s*<a href="([^"]+)">[\s\S]*?<img src="([^"]+)" alt="([^"]*)"[\s\S]*?<p class="image-list-item-title">\s*<a[^>]*>([^<]+)</a>[\s\S]*?<p class="image-list-item-regist-date">\s*<span>([^<]+)</span>',
-      caseSensitive: false,
-    );
+      final rawPath = linkEl?.attributes['href']?.trim() ?? '';
+      final coverUrl = imgEl?.attributes['src']?.trim() ?? '';
+      final rawTitle = (titleEl?.text.trim().isNotEmpty == true)
+          ? titleEl!.text.trim()
+          : (imgEl?.attributes['alt']?.trim() ?? '未命名图包');
+      final date = dateEl?.text.trim() ?? '';
 
-    final matches = itemRegex.allMatches(targetHtml);
-    for (final m in matches) {
-      final rawPath = m.group(1)?.trim() ?? '';
-      final coverUrl = m.group(2)?.trim() ?? '';
-      final rawTitle = m.group(4)?.trim() ?? m.group(3)?.trim() ?? '未命名图包';
-      final date = m.group(5)?.trim() ?? '';
+      if (rawPath.isEmpty && coverUrl.isEmpty) continue;
 
       final fullDetailUrl = rawPath.startsWith('http') ? rawPath : '$kBaseUrl$rawPath';
       final slug = rawPath.replaceAll(RegExp(r'^/image/|/$'), '');
@@ -202,32 +193,35 @@ class HCApiService {
     return items;
   }
 
-  /// Parse total items count or last page number from HTML
+  /// Parse total items count or last page number from HTML using DOM parser
   static int parseTotalPages(String html, int itemCount) {
-    // 1. Try to find last page in wp-pagenavi: href="/page/18339/" or href="/search/page/18339/"
-    final lastPageMatch = RegExp(
-      r'class="last"[^>]*?href="[^"]*?/page/(\d+)/?"',
-      caseSensitive: false,
-    ).firstMatch(html);
-    if (lastPageMatch != null) {
-      final p = int.tryParse(lastPageMatch.group(1) ?? '');
-      if (p != null && p > 0) return p;
+    final doc = html_parser.parse(html);
+
+    // 1. Try to find last page in wp-pagenavi: class="last"
+    final lastLink = doc.querySelector('.wp-pagenavi a.last') ?? doc.querySelector('a.last');
+    if (lastLink != null) {
+      final href = lastLink.attributes['href'] ?? '';
+      final match = RegExp(r'/page/(\d+)/?').firstMatch(href);
+      if (match != null) {
+        final p = int.tryParse(match.group(1) ?? '');
+        if (p != null && p > 0) return p;
+      }
     }
 
     // 2. Try to find all items count: <span class="immoral_all_items">366773</span>
-    final countMatch = RegExp(r'class="immoral_all_items">(\d+)<', caseSensitive: false).firstMatch(html);
-    if (countMatch != null) {
-      final count = int.tryParse(countMatch.group(1) ?? '');
+    final countSpan = doc.querySelector('.immoral_all_items');
+    if (countSpan != null) {
+      final count = int.tryParse(countSpan.text.trim());
       if (count != null && count > 0) {
         return (count + 31) ~/ 32;
       }
     }
 
     // 3. Fallback: check larger page buttons
-    final largerMatches = RegExp(r'class="page larger"\s+href="[^"]*?/page/(\d+)/?"', caseSensitive: false).allMatches(html);
+    final largerPageLinks = doc.querySelectorAll('.wp-pagenavi a.page.larger, a.page.larger');
     int maxP = 1;
-    for (final m in largerMatches) {
-      final p = int.tryParse(m.group(1) ?? '');
+    for (final l in largerPageLinks) {
+      final p = int.tryParse(l.text.trim());
       if (p != null && p > maxP) maxP = p;
     }
 
@@ -236,38 +230,37 @@ class HCApiService {
 
   /// Parse detail page total pages (handles multi-page albums with >100 images)
   static int parseDetailTotalPages(String html) {
+    final doc = html_parser.parse(html);
     int maxPage = 1;
 
-    // 1. Check wp-pagenavi last page link: class="last" href=".../page/3/"
-    final lastPageMatch = RegExp(
-      r'class="last"[^>]*?href="[^"]*?/page/(\d+)/?"',
-      caseSensitive: false,
-    ).firstMatch(html);
-    if (lastPageMatch != null) {
-      final p = int.tryParse(lastPageMatch.group(1) ?? '');
-      if (p != null && p > maxPage) maxPage = p;
+    // 1. Check wp-pagenavi last page link: class="last"
+    final lastLink = doc.querySelector('.wp-pagenavi a.last') ?? doc.querySelector('a.last');
+    if (lastLink != null) {
+      final href = lastLink.attributes['href'] ?? '';
+      final match = RegExp(r'/page/(\d+)/?').firstMatch(href);
+      if (match != null) {
+        final p = int.tryParse(match.group(1) ?? '');
+        if (p != null && p > maxPage) maxPage = p;
+      }
     }
 
-    // 2. Check all pagination page links: class="page larger" or href=".../page/N/"
-    final pageMatches = RegExp(
-      r'href="[^"]*?/page/(\d+)/?"',
-      caseSensitive: false,
-    ).allMatches(html);
-    for (final m in pageMatches) {
-      final p = int.tryParse(m.group(1) ?? '');
+    // 2. Check all pagination page links
+    final pageLinks = doc.querySelectorAll('.wp-pagenavi a.page, .wp-pagenavi a');
+    for (final l in pageLinks) {
+      final p = int.tryParse(l.text.trim());
       if (p != null && p > maxPage && p < 1000) {
         maxPage = p;
       }
     }
 
     // 3. Check page text indicators like "1/3" or "Page 1 of 3"
-    final pagesTextMatch = RegExp(
-      r'class=["\x27]pages["\x27][^>]*>[\s\S]*?(\d+)\s*[/／]\s*(\d+)',
-      caseSensitive: false,
-    ).firstMatch(html);
-    if (pagesTextMatch != null) {
-      final p = int.tryParse(pagesTextMatch.group(2) ?? '');
-      if (p != null && p > maxPage) maxPage = p;
+    final pagesTextEl = doc.querySelector('.wp-pagenavi .pages') ?? doc.querySelector('.pages');
+    if (pagesTextEl != null) {
+      final match = RegExp(r'(\d+)\s*[/／]\s*(\d+)').firstMatch(pagesTextEl.text);
+      if (match != null) {
+        final p = int.tryParse(match.group(2) ?? '');
+        if (p != null && p > maxPage) maxPage = p;
+      }
     }
 
     return maxPage;
@@ -308,65 +301,72 @@ class HCApiService {
     if (page1Html == null || page1Html.isEmpty) return null;
 
     try {
+      final doc1 = html_parser.parse(page1Html);
       // Extract title
-      final titleMatch = RegExp(r'<title>([^<]+)</title>', caseSensitive: false).firstMatch(page1Html);
-      final rawTitle = titleMatch?.group(1)?.replaceAll('- Hentai Cosplay', '').trim();
-      final title = (rawTitle != null && rawTitle.isNotEmpty) ? rawTitle : item.title;
-
-      // Image pattern
-      final imgPattern = RegExp(
-        r'<div class="icon-overlay">\s*<a href="([^"]+)"[^>]*>\s*<img src="([^"]+)"',
-        caseSensitive: false,
-      );
+      final titleTag = doc1.querySelector('title')?.text.replaceAll('- Hentai Cosplay', '').trim();
+      final title = (titleTag != null && titleTag.isNotEmpty) ? titleTag : item.title;
 
       final List<String> imageUrls = [];
       final List<String> previewUrls = [];
       final Set<String> seenUrls = {};
 
-      void addImagesFromHtml(String html) {
-        final matches = imgPattern.allMatches(html);
-        for (final m in matches) {
-          final full = m.group(1)?.trim();
-          final thumb = m.group(2)?.trim();
+      void addImagesFromDoc(dom.Document doc) {
+        final overlays = doc.querySelectorAll('.icon-overlay');
+        for (final el in overlays) {
+          final linkEl = el.querySelector('a');
+          final imgEl = el.querySelector('img');
+          final full = linkEl?.attributes['href']?.trim();
+          final thumb = imgEl?.attributes['src']?.trim();
           if (full != null && full.isNotEmpty && !seenUrls.contains(full)) {
             seenUrls.add(full);
             imageUrls.add(full);
             previewUrls.add(thumb ?? full);
           }
         }
+        // Fallback for direct image container
+        if (overlays.isEmpty) {
+          final imgs = doc.querySelectorAll('#display_area_image img, #image-list img');
+          for (final img in imgs) {
+            final src = img.attributes['src']?.trim();
+            if (src != null && src.isNotEmpty && !seenUrls.contains(src)) {
+              seenUrls.add(src);
+              imageUrls.add(src);
+              previewUrls.add(src);
+            }
+          }
+        }
       }
 
       // Add page 1 images
-      addImagesFromHtml(page1Html);
+      addImagesFromDoc(doc1);
 
       // Check if the album has multiple pages (e.g. >100 images)
       final totalPages = parseDetailTotalPages(page1Html);
       if (totalPages > 1) {
         final cleanBaseUrl = item.detailUrl.replaceAll(RegExp(r'/+$'), '');
-        final List<Future<String?>> subPageFutures = [];
-
-        for (int p = 2; p <= totalPages; p++) {
-          final subPageUrl = '$cleanBaseUrl/page/$p/';
-          subPageFutures.add(_fetchHtml(subPageUrl, retryCount: retryCount));
-        }
-
-        final subPagesHtml = await Future.wait(subPageFutures);
-        for (final subHtml in subPagesHtml) {
-          if (subHtml != null && subHtml.isNotEmpty) {
-            addImagesFromHtml(subHtml);
+        const batchSize = 4;
+        for (int pStart = 2; pStart <= totalPages; pStart += batchSize) {
+          final pEnd = (pStart + batchSize - 1) < totalPages ? (pStart + batchSize - 1) : totalPages;
+          final batchFutures = <Future<String?>>[];
+          for (int p = pStart; p <= pEnd; p++) {
+            final subPageUrl = '$cleanBaseUrl/page/$p/';
+            batchFutures.add(_fetchHtml(subPageUrl, retryCount: retryCount));
+          }
+          final batchHtmls = await Future.wait(batchFutures);
+          for (final subHtml in batchHtmls) {
+            if (subHtml != null && subHtml.isNotEmpty) {
+              addImagesFromDoc(html_parser.parse(subHtml));
+            }
           }
         }
       }
 
       // Extract tags if any
       final List<String> tags = [];
-      final tagMatches = RegExp(r'<p id="detail_tag">([\s\S]*?)</p>', caseSensitive: false).firstMatch(page1Html);
-      if (tagMatches != null) {
-        final tagLinks = RegExp(r'<a[^>]*>([^<]+)</a>').allMatches(tagMatches.group(1) ?? '');
-        for (final tm in tagLinks) {
-          final t = tm.group(1)?.trim();
-          if (t != null && t.isNotEmpty) tags.add(t);
-        }
+      final tagElements = doc1.querySelectorAll('#detail_tag a, .detail_tag a');
+      for (final el in tagElements) {
+        final t = el.text.trim();
+        if (t.isNotEmpty && !tags.contains(t)) tags.add(t);
       }
 
       return item.copyWith(
@@ -382,24 +382,16 @@ class HCApiService {
     }
   }
 
-  /// Parse ranking tags or keywords from HTML
+  /// Parse ranking tags or keywords from HTML using DOM parser
   static List<RankingTagItem> parseRankingTags(String html, bool isTag) {
     final List<RankingTagItem> items = [];
     final seen = <String>{};
+    final doc = html_parser.parse(html);
 
-    // Regex to match tag items and counts e.g.:
-    // <li><a href="https://zh.hentai-cosplay-xxx.com/search/tag/xxx/">xxx</a> <span>(1234)</span></li>
-    // or <a href="/search/tag/xxx/">xxx</a> <span>(123)</span>
-    final tagRegex = RegExp(
-      r'<a\s+[^>]*href=["\x27]([^"\x27]*(?:/search/tag/|/search/keyword/|/search/|/tag/|/keyword/)[^"\x27]+)["\x27][^>]*>([\s\S]*?)</a>(?:[\s\S]*?(?:<span>\s*\(?\s*([0-9,]+)\s*\)?\s*</span>|\(\s*([0-9,]+)\s*\)))?',
-      caseSensitive: false,
-    );
-
-    final matches = tagRegex.allMatches(html);
-    for (final m in matches) {
-      final rawHref = m.group(1)?.trim() ?? '';
-      var rawName = m.group(2)?.replaceAll(RegExp(r'<[^>]+>'), '').trim() ?? '';
-      final count = (m.group(3) ?? m.group(4) ?? '').replaceAll(',', '').trim();
+    final tagLinks = doc.querySelectorAll('a[href*="/search/tag/"], a[href*="/search/keyword/"], a[href*="/ranking-tag/"], a[href*="/tag/"]');
+    for (final el in tagLinks) {
+      final rawHref = el.attributes['href']?.trim() ?? '';
+      var rawName = el.text.trim();
 
       if (rawName.isEmpty ||
           rawName == '首页' ||
@@ -411,7 +403,19 @@ class HCApiService {
         continue;
       }
 
-      rawName = rawName.replaceAll(RegExp(r'\s*\([0-9,]+\)\s*$'), '').trim();
+      // Extract optional count e.g. (1234)
+      String count = '';
+      final countSpan = el.parent?.querySelector('span') ?? el.querySelector('span');
+      if (countSpan != null) {
+        count = countSpan.text.replaceAll(RegExp(r'[(),\s]'), '');
+      } else {
+        final match = RegExp(r'\(([\d,]+)\)').firstMatch(el.parent?.text ?? '');
+        if (match != null) {
+          count = match.group(1)?.replaceAll(',', '') ?? '';
+        }
+      }
+
+      rawName = rawName.replaceAll(RegExp(r'\s*\([\d,]+\)\s*$'), '').trim();
       final fullUrl = rawHref.startsWith('http') ? rawHref : '$kBaseUrl$rawHref';
 
       if (!seen.contains(rawName) && rawName.isNotEmpty) {

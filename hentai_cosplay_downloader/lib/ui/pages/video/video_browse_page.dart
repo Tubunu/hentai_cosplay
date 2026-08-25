@@ -687,7 +687,7 @@ class _VideoBrowsePageState extends State<VideoBrowsePage> {
               // Dynamic bottom spacer
               SliverToBoxAdapter(
                 child: SizedBox(
-                  height: context.watch<DownloadProvider>().isDownloading ? 210 : 130,
+                  height: context.select<DownloadProvider, bool>((p) => p.isDownloading) ? 210 : 130,
                 ),
               ),
             ],

@@ -16,6 +16,7 @@ class LocalAlbumFolder {
   final int totalBytes;
   final DateTime modifiedAt;
   final List<String> imagePaths;
+  final MediaSourceType sourceType;
   final Map<String, dynamic>? metadata;
 
   LocalAlbumFolder({
@@ -27,6 +28,7 @@ class LocalAlbumFolder {
     required this.totalBytes,
     required this.modifiedAt,
     required this.imagePaths,
+    this.sourceType = MediaSourceType.hc,
     this.metadata,
   });
 }
@@ -154,14 +156,18 @@ class StorageService {
         final List<String> imgFiles = [];
         int bytes = 0;
         Map<String, dynamic>? meta;
+        MediaSourceType detectedSource = MediaSourceType.hc;
 
         for (final e in entities) {
           if (e is File) {
             final filename = p.basename(e.path);
-            if (filename == kAlbumMetadataFilename) {
+            if (filename == kAlbumMetadataFilename || filename == kMztMetadataFilename) {
               try {
                 final content = await e.readAsString();
                 meta = jsonDecode(content) as Map<String, dynamic>?;
+                if (filename == kMztMetadataFilename || meta?['sourceType'] == 'mzt') {
+                  detectedSource = MediaSourceType.mzt;
+                }
               } catch (_) {}
             } else {
               final ext = p.extension(e.path).replaceAll('.', '').toLowerCase();
@@ -188,8 +194,9 @@ class StorageService {
         if (imgFiles.isNotEmpty) {
           final folderName = p.basename(dir.path);
           final stat = await dir.stat();
-          final title = meta?['title'] ?? folderName;
-          final author = meta?['author'] ?? defaultAuthor ?? AlbumItem.inferAuthor(title);
+          final title = meta?['title'] ?? meta?['item']?['title'] ?? folderName;
+          final itemData = (meta?['item'] as Map<String, dynamic>?) ?? {};
+          final author = meta?['author'] ?? defaultAuthor ?? AlbumItem.inferAuthor(title, itemData);
 
           albums.add(
             LocalAlbumFolder(
@@ -201,6 +208,7 @@ class StorageService {
               totalBytes: bytes,
               modifiedAt: stat.modified,
               imagePaths: imgFiles,
+              sourceType: detectedSource,
               metadata: meta,
             ),
           );

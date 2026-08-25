@@ -106,7 +106,7 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final downloadProv = context.watch<DownloadProvider>();
+    final downloadProv = context.read<DownloadProvider>();
 
     return Scaffold(
       body: CustomScrollView(
@@ -162,6 +162,7 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
                       ? CachedNetworkImage(
                           imageUrl: _item.coverUrl!,
                           fit: BoxFit.cover,
+                          memCacheWidth: 600,
                           httpHeaders: const {
                             'Referer': 'https://hentai-cosplay-xxx.com/',
                           },
@@ -492,6 +493,7 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
                               child: CachedNetworkImage(
                                 imageUrl: previewUrl,
                                 fit: BoxFit.cover,
+                                memCacheWidth: 350,
                                 httpHeaders: const {
                                   'Referer': 'https://hentai-cosplay-xxx.com/',
                                 },
@@ -583,6 +585,12 @@ class _PhotoGalleryViewerState extends State<_PhotoGalleryViewer> {
   }
 
   @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final images = widget.item.imageUrls;
 
@@ -609,7 +617,9 @@ class _PhotoGalleryViewerState extends State<_PhotoGalleryViewer> {
                 ),
                 minScale: PhotoViewComputedScale.contained,
                 maxScale: PhotoViewComputedScale.covered * 3.0,
-                heroAttributes: PhotoViewHeroAttributes(tag: 'img_$index'),
+                heroAttributes: PhotoViewHeroAttributes(
+                  tag: 'album_${widget.item.slug.isNotEmpty ? widget.item.slug : widget.item.title.hashCode}_$index',
+                ),
               );
             },
             loadingBuilder: (context, event) => const Center(

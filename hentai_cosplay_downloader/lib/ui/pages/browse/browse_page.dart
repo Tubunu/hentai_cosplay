@@ -723,7 +723,7 @@ class _BrowsePageState extends State<BrowsePage> {
               // Dynamic bottom spacer to prevent obstruction by bottom navigation & mini download bar
               SliverToBoxAdapter(
                 child: SizedBox(
-                  height: context.watch<DownloadProvider>().isDownloading ? 210 : 130,
+                  height: context.select<DownloadProvider, bool>((p) => p.isDownloading) ? 210 : 130,
                 ),
               ),
             ],

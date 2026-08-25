@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../models/album_item.dart';
 import '../services/storage_service.dart';
 
 enum GallerySortMode {
@@ -14,16 +15,57 @@ enum GallerySortMode {
   const GallerySortMode(this.label);
 }
 
+enum GallerySourceFilter {
+  all('全部'),
+  hc('Cosplay图集'),
+  mzt('妹子图库');
+
+  final String label;
+  const GallerySourceFilter(this.label);
+}
+
 class GalleryProvider extends ChangeNotifier {
   List<LocalAlbumFolder> _localAlbums = [];
   bool _isScanning = false;
   String _searchQuery = '';
   GallerySortMode _sortMode = GallerySortMode.dateDesc;
+  GallerySourceFilter _sourceFilter = GallerySourceFilter.all;
+  List<LocalAlbumFolder>? _cachedSortedAlbums;
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) {
+      super.notifyListeners();
+    }
+  }
 
   GallerySortMode get sortMode => _sortMode;
+  GallerySourceFilter get sourceFilter => _sourceFilter;
 
   List<LocalAlbumFolder> get localAlbums {
+    if (_cachedSortedAlbums != null) {
+      return _cachedSortedAlbums!;
+    }
+    _cachedSortedAlbums = _computeFilteredAndSortedAlbums();
+    return _cachedSortedAlbums!;
+  }
+
+  List<LocalAlbumFolder> _computeFilteredAndSortedAlbums() {
     List<LocalAlbumFolder> list = _localAlbums;
+
+    if (_sourceFilter == GallerySourceFilter.hc) {
+      list = list.where((alb) => alb.sourceType == MediaSourceType.hc).toList();
+    } else if (_sourceFilter == GallerySourceFilter.mzt) {
+      list = list.where((alb) => alb.sourceType == MediaSourceType.mzt).toList();
+    }
+
     if (_searchQuery.trim().isNotEmpty) {
       final q = _searchQuery.trim().toLowerCase();
       list = list.where((alb) {
@@ -62,13 +104,27 @@ class GalleryProvider extends ChangeNotifier {
   int get albumCount => _localAlbums.length;
   int get totalImages => _localAlbums.fold(0, (sum, a) => sum + a.imageCount);
 
+  int get hcCount => _localAlbums.where((a) => a.sourceType == MediaSourceType.hc).length;
+  int get mztCount => _localAlbums.where((a) => a.sourceType == MediaSourceType.mzt).length;
+
+  void setSourceFilter(GallerySourceFilter filter) {
+    if (_sourceFilter == filter) return;
+    _sourceFilter = filter;
+    _cachedSortedAlbums = null;
+    notifyListeners();
+  }
+
   void setSortMode(GallerySortMode mode) {
+    if (_sortMode == mode) return;
     _sortMode = mode;
+    _cachedSortedAlbums = null;
     notifyListeners();
   }
 
   void setSearchQuery(String query) {
+    if (_searchQuery == query) return;
     _searchQuery = query;
+    _cachedSortedAlbums = null;
     notifyListeners();
   }
 
@@ -85,6 +141,7 @@ class GalleryProvider extends ChangeNotifier {
         targetPath = await StorageService.resolveValidPath(targetPath);
       }
       _localAlbums = await StorageService.scanLocalAlbums(targetPath);
+      _cachedSortedAlbums = null;
     } catch (_) {}
 
     _isScanning = false;
@@ -95,6 +152,7 @@ class GalleryProvider extends ChangeNotifier {
     final success = await StorageService.deleteAlbumFolder(album.folderPath);
     if (success) {
       _localAlbums.removeWhere((a) => a.folderPath == album.folderPath);
+      _cachedSortedAlbums = null;
       notifyListeners();
     }
     return success;

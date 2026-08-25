@@ -10,6 +10,7 @@ class FrostedGlass extends StatelessWidget {
   final Color? backgroundColor;
   final Color? borderColor;
   final double borderWidth;
+  final double vibrancy;
 
   const FrostedGlass({
     super.key,
@@ -21,6 +22,7 @@ class FrostedGlass extends StatelessWidget {
     this.backgroundColor,
     this.borderColor,
     this.borderWidth = 0.5,
+    this.vibrancy = 1.0,
   });
 
   @override
@@ -56,3 +58,5 @@ class FrostedGlass extends StatelessWidget {
     );
   }
 }
+
+

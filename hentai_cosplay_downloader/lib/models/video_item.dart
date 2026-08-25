@@ -78,9 +78,21 @@ class VideoItem {
     );
   }
 
+  static final RegExp _invalidCharsRegex = RegExp(r'[\\/:*?"<>|]');
+  static final RegExp _windowsReservedRegex = RegExp(r'^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\..*)?$', caseSensitive: false);
+  static final RegExp _coserRegex = RegExp(r'(?:Coser|coser|网红COSER|网红Coser)[\s@:：]*([^\s\-:：_(\[\]】）]+)', caseSensitive: false);
+  static final RegExp _bracketRegex = RegExp(r'[\[【]([^\]】]+)[\]】]');
+  static final RegExp _dashRegex = RegExp(r'^([^\-]+)\s*-\s*');
+
   /// Clean filename for filesystem safety
   static String cleanFilename(String text) {
-    return text.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_').trim();
+    var cleaned = text.replaceAll(_invalidCharsRegex, '_').trim();
+    cleaned = cleaned.replaceAll(RegExp(r'\.{2,}'), '_');
+    cleaned = cleaned.replaceAll(RegExp(r'[\.\s]+$'), '');
+    if (_windowsReservedRegex.hasMatch(cleaned)) {
+      cleaned = '${cleaned}_safe';
+    }
+    return cleaned.isEmpty ? 'video_${DateTime.now().millisecondsSinceEpoch}' : cleaned;
   }
 
   /// Clean author / folder segment
@@ -88,16 +100,18 @@ class VideoItem {
     if (val == null || val.trim().isEmpty) {
       return fallback;
     }
-    String cleaned = val.trim();
-    for (final ch in [r'\', '/', ':', '*', '?', '"', '<', '>', '|']) {
-      cleaned = cleaned.replaceAll(ch, '_');
+    var cleaned = val.trim().replaceAll(_invalidCharsRegex, '_');
+    cleaned = cleaned.replaceAll(RegExp(r'\.{2,}'), '_');
+    cleaned = cleaned.replaceAll(RegExp(r'[\.\s]+$'), '');
+    if (_windowsReservedRegex.hasMatch(cleaned)) {
+      cleaned = '${cleaned}_safe';
     }
     return cleaned.isEmpty ? fallback : cleaned;
   }
 
   /// Infer author name from video title or tags
   static String inferAuthor(String title) {
-    final coserMatch = RegExp(r'(?:Coser|coser|网红COSER|网红Coser)[\s@:：]*([^\s\-:：_(\[\]】）]+)', caseSensitive: false).firstMatch(title);
+    final coserMatch = _coserRegex.firstMatch(title);
     if (coserMatch != null) {
       final name = coserMatch.group(1)?.trim();
       if (name != null && name.isNotEmpty) {
@@ -105,7 +119,7 @@ class VideoItem {
       }
     }
 
-    final bracketMatch = RegExp(r'[\[【]([^\]】]+)[\]】]').firstMatch(title);
+    final bracketMatch = _bracketRegex.firstMatch(title);
     if (bracketMatch != null) {
       var name = bracketMatch.group(1)?.trim();
       if (name != null && name.isNotEmpty && !name.contains('VIP') && !name.contains('HD') && !name.contains('1080P')) {
@@ -114,7 +128,7 @@ class VideoItem {
       }
     }
 
-    final dashMatch = RegExp(r'^([^\-]+)\s*-\s*').firstMatch(title);
+    final dashMatch = _dashRegex.firstMatch(title);
     if (dashMatch != null) {
       final name = dashMatch.group(1)?.trim();
       if (name != null && name.isNotEmpty && name.length <= 20) {
@@ -208,7 +222,7 @@ class LocalVideoItem {
       author: json['author'] as String? ?? '未知作者',
       filePath: json['filePath'] as String? ?? '',
       coverPath: json['coverPath'] as String?,
-      fileSizeBytes: json['fileSizeBytes'] as int? ?? 0,
+      fileSizeBytes: (json['fileSizeBytes'] as num?)?.toInt() ?? 0,
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'] as String) ?? DateTime.now()
           : DateTime.now(),

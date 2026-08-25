@@ -51,15 +51,15 @@ class ImageDownloadTask {
 
   factory ImageDownloadTask.fromJson(Map<String, dynamic> json) {
     return ImageDownloadTask(
-      index: json['index'] as int? ?? 1,
+      index: ((json['index'] ?? 1) as num).toInt(),
       originalUrl: json['originalUrl'] as String? ?? '',
       savePath: json['savePath'] as String? ?? '',
       status: ImageTaskStatus.values.firstWhere(
         (e) => e.name == json['status'],
         orElse: () => ImageTaskStatus.pending,
       ),
-      downloadedBytes: json['downloadedBytes'] as int? ?? 0,
-      totalBytes: json['totalBytes'] as int? ?? 0,
+      downloadedBytes: ((json['downloadedBytes'] ?? 0) as num).toInt(),
+      totalBytes: ((json['totalBytes'] ?? 0) as num).toInt(),
       error: json['error'] as String?,
     );
   }
@@ -111,7 +111,8 @@ class AlbumDownloadTask {
 
   double get progress {
     if (totalImages <= 0) return 0.0;
-    return (downloadedImages + skippedImages) / totalImages;
+    final val = (downloadedImages + skippedImages) / totalImages;
+    return val.isNaN ? 0.0 : val.clamp(0.0, 1.0);
   }
 
   bool get isDone =>
@@ -134,6 +135,7 @@ class AlbumDownloadTask {
     'totalBytes': totalBytes,
     'startTime': startTime?.toIso8601String(),
     'finishTime': finishTime?.toIso8601String(),
+    'imageTasks': imageTasks.map((e) => e.toJson()).toList(),
     'errorMessage': errorMessage,
     'isVideo': isVideo,
     'videoUrl': videoUrl,
@@ -143,6 +145,10 @@ class AlbumDownloadTask {
   factory AlbumDownloadTask.fromJson(Map<String, dynamic> json) {
     final rawAlbum = (json['albumItem'] as Map<String, dynamic>?) ?? {};
     final item = AlbumItem.fromJson(rawAlbum);
+    final rawImages = json['imageTasks'] as List<dynamic>?;
+    final imageTasks = rawImages != null
+        ? rawImages.map((e) => ImageDownloadTask.fromJson(e as Map<String, dynamic>)).toList()
+        : <ImageDownloadTask>[];
 
     return AlbumDownloadTask(
       id: json['id'] as String? ?? (item.slug.isNotEmpty ? item.slug : DateTime.now().millisecondsSinceEpoch.toString()),
@@ -152,14 +158,15 @@ class AlbumDownloadTask {
         (e) => e.name == json['status'],
         orElse: () => TaskStatus.queued,
       ),
-      totalImages: json['totalImages'] as int? ?? item.imageUrls.length,
-      downloadedImages: json['downloadedImages'] as int? ?? 0,
-      skippedImages: json['skippedImages'] as int? ?? 0,
-      failedImages: json['failedImages'] as int? ?? 0,
-      downloadedBytes: json['downloadedBytes'] as int? ?? 0,
-      totalBytes: json['totalBytes'] as int? ?? 0,
+      totalImages: ((json['totalImages'] ?? item.imageUrls.length) as num).toInt(),
+      downloadedImages: ((json['downloadedImages'] ?? 0) as num).toInt(),
+      skippedImages: ((json['skippedImages'] ?? 0) as num).toInt(),
+      failedImages: ((json['failedImages'] ?? 0) as num).toInt(),
+      downloadedBytes: ((json['downloadedBytes'] ?? 0) as num).toInt(),
+      totalBytes: ((json['totalBytes'] ?? 0) as num).toInt(),
       startTime: json['startTime'] != null ? DateTime.tryParse(json['startTime']) : null,
       finishTime: json['finishTime'] != null ? DateTime.tryParse(json['finishTime']) : null,
+      imageTasks: imageTasks,
       errorMessage: json['errorMessage'] as String?,
       isVideo: json['isVideo'] as bool? ?? false,
       videoUrl: json['videoUrl'] as String?,

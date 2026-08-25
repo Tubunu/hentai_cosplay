@@ -69,6 +69,8 @@ class _RankingTagsSheetState extends State<RankingTagsSheet> {
         page: page,
       );
 
+      if (!mounted) return;
+
       if (res != null) {
         setState(() {
           _items = res.items;
@@ -83,6 +85,7 @@ class _RankingTagsSheetState extends State<RankingTagsSheet> {
         });
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _errorMessage = '加载出错: $e';
         _isLoading = false;

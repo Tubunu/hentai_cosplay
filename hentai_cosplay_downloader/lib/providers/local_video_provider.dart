@@ -22,8 +22,26 @@ class LocalVideoProvider extends ChangeNotifier {
   String _searchQuery = '';
   VideoSortOption _sortOption = VideoSortOption.dateDesc;
   int _totalBytes = 0;
+  List<LocalVideoItem>? _cachedVideos;
+  bool _disposed = false;
 
-  List<LocalVideoItem> get videos => _getFilteredAndSortedVideos();
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) {
+      super.notifyListeners();
+    }
+  }
+
+  List<LocalVideoItem> get videos {
+    _cachedVideos ??= _getFilteredAndSortedVideos();
+    return _cachedVideos!;
+  }
   bool get isScanning => _isScanning;
   String get searchQuery => _searchQuery;
   VideoSortOption get sortOption => _sortOption;
@@ -42,12 +60,17 @@ class LocalVideoProvider extends ChangeNotifier {
   }
 
   void setSortOption(VideoSortOption option) {
+    if (_sortOption == option) return;
     _sortOption = option;
+    _cachedVideos = null;
     notifyListeners();
   }
 
   void setSearchQuery(String query) {
-    _searchQuery = query.trim().toLowerCase();
+    final clean = query.trim().toLowerCase();
+    if (_searchQuery == clean) return;
+    _searchQuery = clean;
+    _cachedVideos = null;
     notifyListeners();
   }
 
@@ -60,6 +83,7 @@ class LocalVideoProvider extends ChangeNotifier {
     if (!await videoDir.exists()) {
       _videos = [];
       _totalBytes = 0;
+      _cachedVideos = null;
       _isScanning = false;
       notifyListeners();
       return;
@@ -69,14 +93,14 @@ class LocalVideoProvider extends ChangeNotifier {
       final List<LocalVideoItem> found = [];
       int totalSize = 0;
 
-      final entities = videoDir.listSync(recursive: true, followLinks: false);
-      const videoExtensions = ['.mp4', '.mkv', '.webm', '.mov', '.avi', '.flv'];
+      final entities = await videoDir.list(recursive: true, followLinks: false).toList();
+      const videoExtensions = ['.mp4', '.mkv', '.webm', '.mov', '.avi', '.flv', '.ts'];
 
       for (final entity in entities) {
         if (entity is File) {
           final ext = p.extension(entity.path).toLowerCase();
           if (videoExtensions.contains(ext)) {
-            final stat = entity.statSync();
+            final stat = await entity.stat();
             totalSize += stat.size;
 
             final baseNameNoExt = p.basenameWithoutExtension(entity.path);
@@ -85,9 +109,10 @@ class LocalVideoProvider extends ChangeNotifier {
             // Check if companion metadata exists
             final metaFile = File(p.join(parentDir, '$baseNameNoExt.json'));
             Map<String, dynamic>? meta;
-            if (metaFile.existsSync()) {
+            if (await metaFile.exists()) {
               try {
-                meta = jsonDecode(metaFile.readAsStringSync()) as Map<String, dynamic>?;
+                final metaContent = await metaFile.readAsString();
+                meta = jsonDecode(metaContent) as Map<String, dynamic>?;
               } catch (_) {}
             }
 
@@ -95,9 +120,9 @@ class LocalVideoProvider extends ChangeNotifier {
             String? coverPath;
             final coverJpg = File(p.join(parentDir, '$baseNameNoExt.jpg'));
             final coverPng = File(p.join(parentDir, '$baseNameNoExt.png'));
-            if (coverJpg.existsSync()) {
+            if (await coverJpg.exists()) {
               coverPath = coverJpg.path;
-            } else if (coverPng.existsSync()) {
+            } else if (await coverPng.exists()) {
               coverPath = coverPng.path;
             }
 
@@ -127,6 +152,7 @@ class LocalVideoProvider extends ChangeNotifier {
 
       _videos = found;
       _totalBytes = totalSize;
+      _cachedVideos = null;
     } catch (e) {
       debugPrint('Error scanning local videos: $e');
     } finally {
@@ -148,11 +174,15 @@ class LocalVideoProvider extends ChangeNotifier {
       final metaFile = File(p.join(parentDir, '$baseNoExt.json'));
       if (await metaFile.exists()) await metaFile.delete();
 
-      final coverFile = File(p.join(parentDir, '$baseNoExt.jpg'));
-      if (await coverFile.exists()) await coverFile.delete();
+      final coverJpg = File(p.join(parentDir, '$baseNoExt.jpg'));
+      if (await coverJpg.exists()) await coverJpg.delete();
+
+      final coverPng = File(p.join(parentDir, '$baseNoExt.png'));
+      if (await coverPng.exists()) await coverPng.delete();
 
       _videos.removeWhere((v) => v.id == item.id);
       _totalBytes -= item.fileSizeBytes;
+      _cachedVideos = null;
       notifyListeners();
       return true;
     } catch (e) {

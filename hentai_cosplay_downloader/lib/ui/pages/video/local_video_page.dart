@@ -223,24 +223,47 @@ class _LocalVideoPageState extends State<LocalVideoPage> {
                           ),
                         ],
                       ),
-                      const Spacer(),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Search Bar & Action Buttons (Sort, Refresh)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: CupertinoSearchTextField(
+                          controller: _searchController,
+                          placeholder: '筛选本地视频...',
+                          style: TextStyle(color: isDark ? Colors.white : Colors.black),
+                          onChanged: (v) => videoProv.setSearchQuery(v),
+                          onSuffixTap: () {
+                            _searchController.clear();
+                            videoProv.setSearchQuery('');
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
 
                       // Sort Button
                       BouncingButton(
                         onTap: () => _showSortSheet(context, videoProv),
                         child: FrostedGlass(
-                          borderRadius: 16,
+                          borderRadius: 14,
                           blur: 15,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                           backgroundColor: isDark ? const Color(0x9924242A) : const Color(0xDDFFFFFF),
                           child: const Row(
                             children: [
                               Icon(CupertinoIcons.arrow_up_arrow_down, size: 14, color: IosTheme.primaryPink),
-                              SizedBox(width: 6),
+                              SizedBox(width: 4),
                               Text(
                                 '排序',
                                 style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 11.5,
                                   fontWeight: FontWeight.w700,
                                   color: IosTheme.primaryPink,
                                 ),
@@ -249,37 +272,20 @@ class _LocalVideoPageState extends State<LocalVideoPage> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
 
                       // Refresh Button
                       BouncingButton(
                         onTap: () => videoProv.scanLocalVideos(settingsProv.config.savePath),
                         child: FrostedGlass(
-                          borderRadius: 16,
+                          borderRadius: 14,
                           blur: 15,
-                          padding: const EdgeInsets.all(8),
+                          padding: const EdgeInsets.all(7.5),
                           backgroundColor: isDark ? const Color(0x9924242A) : const Color(0xDDFFFFFF),
-                          child: const Icon(CupertinoIcons.refresh, size: 18, color: IosTheme.primaryPink),
+                          child: const Icon(CupertinoIcons.refresh, size: 16, color: IosTheme.primaryPink),
                         ),
                       ),
                     ],
-                  ),
-                ),
-              ),
-
-              // Search Bar
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                  child: CupertinoSearchTextField(
-                    controller: _searchController,
-                    placeholder: '筛选本地视频名称、作者或标签...',
-                    style: TextStyle(color: isDark ? Colors.white : Colors.black),
-                    onChanged: (v) => videoProv.setSearchQuery(v),
-                    onSuffixTap: () {
-                      _searchController.clear();
-                      videoProv.setSearchQuery('');
-                    },
                   ),
                 ),
               ),
@@ -367,6 +373,7 @@ class _LocalVideoPageState extends State<LocalVideoPage> {
                                             ? Image.file(
                                                 File(video.coverPath!),
                                                 fit: BoxFit.cover,
+                                                cacheWidth: 480,
                                               )
                                             : Container(
                                                 color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
@@ -499,7 +506,7 @@ class _LocalVideoPageState extends State<LocalVideoPage> {
               // Bottom Spacer
               SliverToBoxAdapter(
                 child: SizedBox(
-                  height: context.watch<DownloadProvider>().isDownloading ? 210 : 130,
+                  height: context.select<DownloadProvider, bool>((p) => p.isDownloading) ? 210 : 130,
                 ),
               ),
             ],

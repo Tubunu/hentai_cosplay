@@ -8,12 +8,15 @@ import 'package:video_player/video_player.dart';
 import '../../../models/video_item.dart';
 import '../../theme/ios_theme.dart';
 import '../../widgets/bouncing_button.dart';
+import 'web_video_player_page.dart';
 
 class VideoPlayerPage extends StatefulWidget {
   final List<LocalVideoItem>? playlist;
   final int initialIndex;
   final String? localFilePath;
   final String? remoteVideoUrl;
+  final String? webPlayerUrl;
+  final Map<String, String>? httpHeaders;
   final String title;
   final String author;
 
@@ -23,6 +26,8 @@ class VideoPlayerPage extends StatefulWidget {
     this.initialIndex = 0,
     this.localFilePath,
     this.remoteVideoUrl,
+    this.webPlayerUrl,
+    this.httpHeaders,
     required this.title,
     this.author = '',
   });
@@ -55,12 +60,16 @@ class VideoPlayerPage extends StatefulWidget {
     required String url,
     required String title,
     String author = '',
+    Map<String, String>? headers,
+    String? webPlayerUrl,
   }) {
     Navigator.push(
       context,
       CupertinoPageRoute(
         builder: (_) => VideoPlayerPage(
           remoteVideoUrl: url,
+          webPlayerUrl: webPlayerUrl,
+          httpHeaders: headers,
           title: title,
           author: author,
         ),
@@ -88,6 +97,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   late String _currentAuthor;
   late String? _currentFilePath;
   late String? _currentRemoteUrl;
+  late String? _currentWebPlayerUrl;
+  late Map<String, String>? _currentHttpHeaders;
+  int _initGen = 0;
 
   // Rotation and Display Controls
   int _quarterTurns = 0; // 0 = 0°, 1 = 90°, 2 = 180°, 3 = 270°
@@ -100,44 +112,49 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
+    _currentTitle = widget.title;
+    _currentAuthor = widget.author;
+    _currentFilePath = widget.localFilePath;
+    _currentRemoteUrl = widget.remoteVideoUrl;
+    _currentWebPlayerUrl = widget.webPlayerUrl;
+    _currentHttpHeaders = widget.httpHeaders;
 
-    if (widget.playlist != null && widget.playlist!.isNotEmpty) {
-      final item = widget.playlist![_currentIndex.clamp(0, widget.playlist!.length - 1)];
-      _currentTitle = item.title;
-      _currentAuthor = item.author;
-      _currentFilePath = item.filePath;
-      _currentRemoteUrl = null;
-    } else {
-      _currentTitle = widget.title;
-      _currentAuthor = widget.author;
-      _currentFilePath = widget.localFilePath;
-      _currentRemoteUrl = widget.remoteVideoUrl;
+    if (widget.playlist != null && widget.playlist!.isNotEmpty && _currentIndex < widget.playlist!.length) {
+      final currentItem = widget.playlist![_currentIndex];
+      _currentTitle = currentItem.title;
+      _currentAuthor = currentItem.author;
+      _currentFilePath = currentItem.filePath;
     }
 
     _initPlayer();
   }
 
   Future<void> _initPlayer() async {
+    final currentGen = ++_initGen;
     try {
+      VideoPlayerController? newController;
       if (_currentFilePath != null && _currentFilePath!.isNotEmpty) {
         final file = File(_currentFilePath!);
         if (!await file.exists()) {
+          if (!mounted || currentGen != _initGen) return;
           setState(() {
             _hasError = true;
             _errorMessage = '本地视频文件不存在或已被移除';
           });
           return;
         }
-        _controller = VideoPlayerController.file(file);
+        newController = VideoPlayerController.file(file);
       } else if (_currentRemoteUrl != null && _currentRemoteUrl!.isNotEmpty) {
-        _controller = VideoPlayerController.networkUrl(
+        final headers = _currentHttpHeaders ?? {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36',
+          'Referer': 'https://porn-video-xxx.com/',
+        };
+        newController = VideoPlayerController.networkUrl(
           Uri.parse(_currentRemoteUrl!),
-          httpHeaders: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36',
-            'Referer': 'https://porn-video-xxx.com/',
-          },
+          httpHeaders: headers,
         );
       } else {
+        if (!mounted || currentGen != _initGen) return;
         setState(() {
           _hasError = true;
           _errorMessage = '未提供有效的视频源';
@@ -145,7 +162,13 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
         return;
       }
 
-      await _controller.initialize();
+      await newController.initialize();
+      if (!mounted || currentGen != _initGen) {
+        newController.dispose();
+        return;
+      }
+
+      _controller = newController;
       _controller.addListener(_onControllerUpdate);
       _controller.play();
 
@@ -155,6 +178,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
 
       _startHideTimer();
     } catch (e) {
+      if (!mounted || currentGen != _initGen) return;
       setState(() {
         _hasError = true;
         _errorMessage = '视频加载失败: $e';
@@ -163,15 +187,11 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   }
 
   void _onControllerUpdate() {
-    if (!mounted) return;
-    if (!_isSeeking && _controller.value.isInitialized) {
-      setState(() {
-        final duration = _controller.value.duration.inMilliseconds;
-        final position = _controller.value.position.inMilliseconds;
-        if (duration > 0) {
-          _sliderValue = (position / duration).clamp(0.0, 1.0);
-        }
-      });
+    if (!mounted || !_isInitialized) return;
+    if (_controller.value.position >= _controller.value.duration && _controller.value.duration > Duration.zero) {
+      if (_hasPlaylist && !_isSeeking) {
+        _playNext();
+      }
     }
   }
 
@@ -397,19 +417,43 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                           Text(
                             _errorMessage,
                             textAlign: TextAlign.center,
-                            style: const TextStyle(color: Colors.white70, fontSize: 14),
+                            style: const TextStyle(color: Colors.white70, fontSize: 13),
                           ),
-                          const SizedBox(height: 16),
-                          CupertinoButton.filled(
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                            onPressed: () {
-                              setState(() {
-                                _hasError = false;
-                                _errorMessage = '';
-                              });
-                              _initPlayer();
-                            },
-                            child: const Text('重试播放'),
+                          const SizedBox(height: 18),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              CupertinoButton.filled(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                onPressed: () {
+                                  setState(() {
+                                    _hasError = false;
+                                    _errorMessage = '';
+                                  });
+                                  _initPlayer();
+                                },
+                                child: const Text('重试播放', style: TextStyle(fontSize: 13)),
+                              ),
+                              if (_currentWebPlayerUrl != null && _currentWebPlayerUrl!.isNotEmpty) ...[
+                                const SizedBox(width: 12),
+                                CupertinoButton(
+                                  color: IosTheme.primaryPink,
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  onPressed: () {
+                                    Navigator.pop(context);
+                                    WebVideoPlayerPage.open(context, url: _currentWebPlayerUrl!, title: _currentTitle);
+                                  },
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(CupertinoIcons.globe, size: 16, color: Colors.white),
+                                      SizedBox(width: 6),
+                                      Text('网页极速播放', style: TextStyle(fontSize: 13, color: Colors.white)),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ],
                       ),
@@ -443,6 +487,30 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                           child: CupertinoActivityIndicator(color: Colors.white, radius: 16),
                         ),
             ),
+
+            // Live Buffering Spinner Overlay for Remote Video Streams
+            if (_isInitialized && _controller.value.isBuffering)
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white12, width: 0.5),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CupertinoActivityIndicator(color: Colors.white, radius: 9),
+                      SizedBox(width: 8),
+                      Text(
+                        '正在缓冲...',
+                        style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
 
             // Controls Overlay
             if (_showControls) ...[
@@ -675,12 +743,17 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                               ),
                             ],
                           ),
-                          child: Icon(
-                            _controller.value.isPlaying
-                                ? CupertinoIcons.pause_fill
-                                : CupertinoIcons.play_fill,
-                            color: Colors.white,
-                            size: 34,
+                          child: ValueListenableBuilder<VideoPlayerValue>(
+                            valueListenable: _controller,
+                            builder: (context, val, _) {
+                              return Icon(
+                                val.isPlaying
+                                    ? CupertinoIcons.pause_fill
+                                    : CupertinoIcons.play_fill,
+                                color: Colors.white,
+                                size: 34,
+                              );
+                            },
                           ),
                         ),
                       ),
@@ -740,55 +813,68 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                         colors: [Colors.black87, Colors.transparent],
                       ),
                     ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SliderTheme(
-                          data: SliderThemeData(
-                            trackHeight: 3.5,
-                            activeTrackColor: IosTheme.primaryPink,
-                            inactiveTrackColor: Colors.white24,
-                            thumbColor: Colors.white,
-                            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                            overlayColor: IosTheme.primaryPink.withAlpha(40),
-                            overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-                          ),
-                          child: Slider(
-                            value: _sliderValue,
-                            onChanged: (val) {
-                              setState(() {
-                                _isSeeking = true;
-                                _sliderValue = val;
-                              });
-                            },
-                            onChangeEnd: (val) {
-                              final totalMs = _controller.value.duration.inMilliseconds;
-                              final targetMs = (val * totalMs).toInt();
-                              _controller.seekTo(Duration(milliseconds: targetMs));
-                              setState(() {
-                                _isSeeking = false;
-                              });
-                              _startHideTimer();
-                            },
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                _formatDuration(_controller.value.position),
-                                style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
+                    child: ValueListenableBuilder<VideoPlayerValue>(
+                      valueListenable: _controller,
+                      builder: (context, videoVal, _) {
+                        final durationMs = videoVal.duration.inMilliseconds;
+                        final positionMs = videoVal.position.inMilliseconds;
+                        final currentProgress = (_isSeeking)
+                            ? _sliderValue
+                            : (durationMs > 0 ? (positionMs / durationMs).clamp(0.0, 1.0) : 0.0);
+
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SliderTheme(
+                              data: SliderThemeData(
+                                trackHeight: 3.5,
+                                activeTrackColor: IosTheme.primaryPink,
+                                inactiveTrackColor: Colors.white24,
+                                thumbColor: Colors.white,
+                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                                overlayColor: IosTheme.primaryPink.withAlpha(40),
+                                overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
                               ),
-                              Text(
-                                _formatDuration(_controller.value.duration),
-                                style: const TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.w600),
+                              child: Slider(
+                                value: currentProgress,
+                                onChanged: (val) {
+                                  setState(() {
+                                    _isSeeking = true;
+                                    _sliderValue = val;
+                                  });
+                                },
+                                onChangeEnd: (val) {
+                                  final totalMs = _controller.value.duration.inMilliseconds;
+                                  final targetMs = (val * totalMs).toInt();
+                                  _controller.seekTo(Duration(milliseconds: targetMs));
+                                  setState(() {
+                                    _isSeeking = false;
+                                  });
+                                  _startHideTimer();
+                                },
                               ),
-                            ],
-                          ),
-                        ),
-                      ],
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    _formatDuration(_isSeeking
+                                        ? Duration(milliseconds: (_sliderValue * durationMs).toInt())
+                                        : videoVal.position),
+                                    style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
+                                  ),
+                                  Text(
+                                    _formatDuration(videoVal.duration),
+                                    style: const TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.w600),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   ),
                 ),

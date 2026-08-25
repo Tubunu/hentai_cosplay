@@ -60,6 +60,8 @@ class _VideoTagsSheetState extends State<VideoTagsSheet> {
     try {
       final res = await VideoApiService.fetchVideoTags(page: page);
 
+      if (!mounted) return;
+
       if (res != null) {
         setState(() {
           _items = res.items;
@@ -74,6 +76,7 @@ class _VideoTagsSheetState extends State<VideoTagsSheet> {
         });
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _errorMessage = '加载出错: $e';
         _isLoading = false;
