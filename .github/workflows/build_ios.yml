@@ -81,22 +81,18 @@ jobs:
           cd hentai_cosplay_downloader
           flutter pub get
 
-      - name: Build Android Release APKs
+      - name: Build Android Release APK
         run: |
           cd hentai_cosplay_downloader
           flutter build apk --release --split-per-abi
           cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "$GITHUB_WORKSPACE/hentai_cosplay_downloader-arm64-v8a.apk"
-          flutter build apk --release
-          cp build/app/outputs/flutter-apk/app-release.apk "$GITHUB_WORKSPACE/hentai_cosplay_downloader-universal.apk"
           ls -lh "$GITHUB_WORKSPACE/"*.apk
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: hentai_cosplay_downloader-android-apk
-          path: |
-            hentai_cosplay_downloader-arm64-v8a.apk
-            hentai_cosplay_downloader-universal.apk
+          path: hentai_cosplay_downloader-arm64-v8a.apk
           if-no-files-found: error
           retention-days: 7
 
@@ -125,8 +121,7 @@ jobs:
           body: |
             ### 📱 安装包下载
             - **🍎 iOS (iPhone / iPad)**: 下载 `hentai_cosplay_downloader.ipa`，使用 **爱思助手** / **Sideloadly** / **TrollStore** / **AltStore** 签名安装。
-            - **🤖 Android (安卓 64位推荐)**: 下载 `hentai_cosplay_downloader-arm64-v8a.apk` (体积更小 ~64MB)，在安卓手机上直接点击安装即可。
-            - **🤖 Android (通用版)**: 下载 `hentai_cosplay_downloader-universal.apk`。
+            - **🤖 Android (安卓 64位推荐)**: 下载 `hentai_cosplay_downloader-arm64-v8a.apk` (体积仅 ~64MB)，在安卓手机上直接点击安装即可。
 
             ### 🚀 最新修复与功能更新
             - **画中画（PiP）后台保活**：支持 iOS 原生画中画浮窗保活，切到后台持续满速下载，可在任务管理页点击【画中画】开启。
@@ -139,7 +134,6 @@ jobs:
           files: |
             hentai_cosplay_downloader.ipa
             hentai_cosplay_downloader-arm64-v8a.apk
-            hentai_cosplay_downloader-universal.apk
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
