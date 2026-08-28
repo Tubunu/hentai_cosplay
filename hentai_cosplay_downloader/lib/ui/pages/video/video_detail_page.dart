@@ -11,6 +11,8 @@ import '../../theme/ios_theme.dart';
 import '../../widgets/bouncing_button.dart';
 import '../../widgets/frosted_glass.dart';
 import '../../widgets/liquid_glass.dart';
+import '../../widgets/random_action_button.dart';
+import '../../widgets/scroll_to_top_button.dart';
 import 'video_player_page.dart';
 
 class VideoDetailPage extends StatefulWidget {
@@ -23,10 +25,17 @@ class VideoDetailPage extends StatefulWidget {
 }
 
 class _VideoDetailPageState extends State<VideoDetailPage> {
+  final ScrollController _scrollController = ScrollController();
   late VideoItem _item;
   bool _isLoading = true;
   bool _isTriggeredPlayAfterLoad = false;
   String? _errorMessage;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -121,9 +130,12 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0C0C0E) : const Color(0xFFF2F2F7),
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
+      body: Stack(
+        children: [
+          CustomScrollView(
+            controller: _scrollController,
+            physics: const BouncingScrollPhysics(),
+            slivers: [
           // Collapsible App Bar with 16:9 Video Poster and Live Play Overlay
           SliverAppBar(
             expandedHeight: 270,
@@ -144,6 +156,11 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
               ),
             ),
             actions: [
+              const RandomActionButton.video(
+                videoSite: VideoSiteType.hcVideo,
+                replace: true,
+                color: IosTheme.primaryPink,
+              ),
               Padding(
                 padding: const EdgeInsets.only(right: 12),
                 child: FrostedGlass(
@@ -525,7 +542,14 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
           ),
         ],
       ),
-    );
+      ScrollToTopButton(
+        scrollController: _scrollController,
+        color: IosTheme.primaryPink,
+        bottomOffset: 24.0,
+      ),
+    ],
+  ),
+);
   }
 
   Widget _buildInfoRow(String label, String value, bool isDark) {

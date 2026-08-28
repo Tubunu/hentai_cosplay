@@ -11,6 +11,8 @@ import '../../../providers/settings_provider.dart';
 import '../../theme/ios_theme.dart';
 import '../../widgets/bouncing_button.dart';
 import '../../widgets/frosted_glass.dart';
+import '../../widgets/random_action_button.dart';
+import '../../widgets/scroll_to_top_button.dart';
 import 'mzt_detail_page.dart';
 
 class MztBrowsePage extends StatefulWidget {
@@ -229,19 +231,21 @@ class _MztBrowsePageState extends State<MztBrowsePage> {
       backgroundColor: isDark ? const Color(0xFF0C0C0E) : const Color(0xFFF2F2F7),
       body: SafeArea(
         bottom: false,
-        child: RefreshIndicator(
-          color: IosTheme.primaryPink,
-          onRefresh: () async {
-            await mztProv.loadPage(mztProv.currentPage);
-          },
-          child: CustomScrollView(
+        child: Stack(
+          children: [
+            RefreshIndicator(
+              color: IosTheme.primaryPink,
+              onRefresh: () async {
+                await mztProv.loadPage(mztProv.currentPage);
+              },
+              child: CustomScrollView(
             controller: _scrollController,
             physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
             slivers: [
               // Hero Header
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                  padding: const EdgeInsets.fromLTRB(20, 52, 20, 8),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
@@ -277,6 +281,14 @@ class _MztBrowsePageState extends State<MztBrowsePage> {
                         ],
                       ),
                       const Spacer(),
+
+                      // Random Discovery Button
+                      const RandomActionButton.album(
+                        albumSource: MediaSourceType.mzt,
+                        isCapsule: true,
+                        color: IosTheme.primaryPink,
+                      ),
+                      const SizedBox(width: 8),
 
                       // Batch Range Download Button
                       BouncingButton(
@@ -592,8 +604,14 @@ class _MztBrowsePageState extends State<MztBrowsePage> {
             ],
           ),
         ),
-      ),
-    );
+        ScrollToTopButton(
+          scrollController: _scrollController,
+          color: IosTheme.primaryPink,
+        ),
+      ],
+    ),
+  ),
+);
   }
 }
 

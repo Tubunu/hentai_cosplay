@@ -3,7 +3,14 @@ import 'dart:convert';
 /// Represents the source of the media album
 enum MediaSourceType {
   hc('Hentai Cosplay', 'HC'),
-  mzt('妹子图', 'MZT');
+  mzt('妹子图', 'MZT'),
+  misskon('MissKon', 'MK'),
+  coomer('Coomer', 'COOM'),
+  kuraa('Kuraa', 'KURAA'),
+  exhentai('ExHentai', 'EX'),
+  pixibb('PixiBB', 'PBB'),
+  cosplaytele('CosplayTele', 'CPT'),
+  nucosplay('NuCosplay', 'NCP');
 
   final String label;
   final String badge;
@@ -236,6 +243,88 @@ class AlbumItem {
     );
   }
 
+  /// Intelligently infer media source type from metadata, URLs, GID, tags, and directory names
+  static MediaSourceType inferSource({
+    String? sourceTypeName,
+    String? detailUrl,
+    String? coverUrl,
+    List<dynamic>? imageUrls,
+    Map<String, dynamic>? rawData,
+    String? folderName,
+  }) {
+    if (sourceTypeName != null && sourceTypeName.isNotEmpty) {
+      for (final s in MediaSourceType.values) {
+        if (s.name.toLowerCase() == sourceTypeName.toLowerCase()) {
+          // If explicit non-hc source type provided, trust it
+          if (s != MediaSourceType.hc) return s;
+        }
+      }
+    }
+
+    final combined = [
+      detailUrl ?? '',
+      coverUrl ?? '',
+      folderName ?? '',
+      if (imageUrls != null) ...imageUrls.take(5).map((e) => e.toString()),
+      if (rawData != null) rawData.toString(),
+    ].join(' ').toLowerCase();
+
+    // 1. ExHentai / E-Hentai / 810114 Mirror
+    if (combined.contains('810114') ||
+        combined.contains('exhentai') ||
+        combined.contains('e-hentai') ||
+        rawData?['gid'] != null ||
+        (rawData?['token'] != null && rawData?['category'] != null)) {
+      return MediaSourceType.exhentai;
+    }
+
+    // 2. PixiBB
+    if (combined.contains('pixibb')) {
+      return MediaSourceType.pixibb;
+    }
+
+    // 3. CosplayTele
+    if (combined.contains('cosplaytele')) {
+      return MediaSourceType.cosplaytele;
+    }
+
+    // 4. NuCosplay
+    if (combined.contains('nucosplay')) {
+      return MediaSourceType.nucosplay;
+    }
+
+    // 5. MissKon
+    if (combined.contains('misskon') || rawData?['unrarPassword'] != null) {
+      return MediaSourceType.misskon;
+    }
+
+    // 6. MZT (妹子图)
+    if (combined.contains('mzt') ||
+        combined.contains('111404.xyz') ||
+        combined.contains('1258012.xyz') ||
+        combined.contains('tgproxy')) {
+      return MediaSourceType.mzt;
+    }
+
+    // 7. Coomer
+    if (combined.contains('coomer') ||
+        combined.contains('c1.coomer.st') ||
+        combined.contains('c2.coomer.st')) {
+      return MediaSourceType.coomer;
+    }
+
+    // 8. Kuraa
+    if (combined.contains('kuraa') || combined.contains('185.207.153.226')) {
+      return MediaSourceType.kuraa;
+    }
+
+    if (sourceTypeName == 'hc' || sourceTypeName == 'hentai_cosplay') {
+      return MediaSourceType.hc;
+    }
+
+    return MediaSourceType.hc;
+  }
+
   factory AlbumItem.fromJson(Map<String, dynamic> json) {
     final title = (json['title'] ?? '未命名图包').toString();
     final slug = (json['slug'] ?? '').toString();
@@ -248,8 +337,14 @@ class AlbumItem {
     final previewUrls = (json['previewUrls'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
     final isDetailLoaded = json['isDetailLoaded'] == true;
     final rawData = (json['rawData'] as Map<String, dynamic>?) ?? {};
-    final sourceTypeName = json['sourceType']?.toString() ?? 'hc';
-    final sourceType = sourceTypeName == 'mzt' ? MediaSourceType.mzt : MediaSourceType.hc;
+    final sourceTypeName = json['sourceType']?.toString();
+    final sourceType = inferSource(
+      sourceTypeName: sourceTypeName,
+      detailUrl: detailUrl,
+      coverUrl: coverUrl,
+      imageUrls: imageUrls,
+      rawData: rawData,
+    );
 
     return AlbumItem(
       title: title,

@@ -13,6 +13,8 @@ import '../../../providers/settings_provider.dart';
 import '../../theme/ios_theme.dart';
 import '../../widgets/bouncing_button.dart';
 import '../../widgets/frosted_glass.dart';
+import '../../widgets/random_action_button.dart';
+import '../../widgets/scroll_to_top_button.dart';
 
 class MztDetailPage extends StatefulWidget {
   final AlbumItem item;
@@ -24,8 +26,15 @@ class MztDetailPage extends StatefulWidget {
 }
 
 class _MztDetailPageState extends State<MztDetailPage> {
+  final ScrollController _scrollController = ScrollController();
   bool _isSelectionMode = false;
   final Set<int> _selectedIndices = {};
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   List<String> _resolvePreviewUrls(List<String> proxyDomains) {
     final domain = proxyDomains.isNotEmpty
@@ -94,9 +103,12 @@ class _MztDetailPageState extends State<MztDetailPage> {
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0C0C0E) : const Color(0xFFF7F7FA),
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
+      body: Stack(
+        children: [
+          CustomScrollView(
+            controller: _scrollController,
+            physics: const BouncingScrollPhysics(),
+            slivers: [
           // Album Header with Parallax & Ambient Blur
           SliverAppBar(
             expandedHeight: 340,
@@ -116,6 +128,11 @@ class _MztDetailPageState extends State<MztDetailPage> {
               ),
             ),
             actions: [
+              const RandomActionButton.album(
+                albumSource: MediaSourceType.mzt,
+                replace: true,
+                color: IosTheme.primaryPink,
+              ),
               Builder(
                 builder: (btnCtx) => BouncingButton(
                   onTap: () {
@@ -443,7 +460,14 @@ class _MztDetailPageState extends State<MztDetailPage> {
           ),
         ],
       ),
-    );
+      ScrollToTopButton(
+        scrollController: _scrollController,
+        color: IosTheme.primaryPink,
+        bottomOffset: 24.0,
+      ),
+    ],
+  ),
+);
   }
 }
 

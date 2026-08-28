@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:path/path.dart' as p;
+import 'album_item.dart';
 
 /// Represents a video category ranking mode from porn-video-xxx.com
 enum VideoCategory {
@@ -75,6 +76,28 @@ class VideoItem {
       videoUrl: videoUrl ?? this.videoUrl,
       isDetailLoaded: isDetailLoaded ?? this.isDetailLoaded,
       rawData: rawData ?? this.rawData,
+    );
+  }
+
+  /// Convert VideoItem to AlbumItem representation for unified task processing
+  AlbumItem toAlbumItem() {
+    return AlbumItem(
+      title: title,
+      slug: slug,
+      detailUrl: detailUrl,
+      coverUrl: coverUrl,
+      date: date,
+      author: author,
+      tags: tags,
+      imageUrls: videoUrl != null && videoUrl!.isNotEmpty ? [videoUrl!] : [],
+      previewUrls: coverUrl != null && coverUrl!.isNotEmpty ? [coverUrl!] : [],
+      isDetailLoaded: isDetailLoaded,
+      sourceType: MediaSourceType.hc,
+      rawData: {
+        ...rawData,
+        'isVideo': true,
+        'videoUrl': videoUrl,
+      },
     );
   }
 

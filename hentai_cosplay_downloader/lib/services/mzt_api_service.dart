@@ -45,21 +45,23 @@ class MztApiService {
       ),
     );
 
-    if (_configuredProxy != null && _configuredProxy!.isNotEmpty) {
-      final adapter = IOHttpClientAdapter();
-      adapter.createHttpClient = () {
-        final client = HttpClient();
-        client.badCertificateCallback = (cert, host, port) => true;
+    final adapter = IOHttpClientAdapter();
+    adapter.createHttpClient = () {
+      final client = HttpClient();
+      client.badCertificateCallback = (cert, host, port) => true;
+      if (_configuredProxy != null && _configuredProxy!.isNotEmpty) {
         final clean = _configuredProxy!.replaceAll(RegExp(r'https?://|socks5?://'), '');
         if (_configuredProxy!.startsWith('socks')) {
           client.findProxy = (uri) => 'SOCKS5 $clean; DIRECT';
         } else {
           client.findProxy = (uri) => 'PROXY $clean; DIRECT';
         }
-        return client;
-      };
-      dio.httpClientAdapter = adapter;
-    }
+      } else {
+        client.findProxy = HttpClient.findProxyFromEnvironment;
+      }
+      return client;
+    };
+    dio.httpClientAdapter = adapter;
     return dio;
   }
 

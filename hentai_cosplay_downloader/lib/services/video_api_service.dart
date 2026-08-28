@@ -64,7 +64,7 @@ class VideoApiService {
           client.findProxy = (uri) => 'PROXY $clean; DIRECT';
         }
       } else {
-        client.findProxy = (uri) => 'DIRECT';
+        client.findProxy = HttpClient.findProxyFromEnvironment;
       }
       return client;
     };

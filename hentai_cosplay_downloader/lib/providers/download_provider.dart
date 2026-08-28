@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import '../services/exhentai/exhentai_api_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -9,11 +10,18 @@ import '../models/download_task.dart';
 import '../models/history_record.dart';
 import '../models/video_item.dart';
 import '../services/config_service.dart';
+import '../services/coomer/coomer_api_service.dart';
 import '../services/download_engine.dart';
 import '../services/hc_api_service.dart';
+import '../services/kuraa/kuraa_api_service.dart';
+import '../services/misskon/misskon_api_service.dart';
 import '../services/mzt_api_service.dart';
 import '../services/notification_service.dart';
+import '../services/pinse/pinse_api_service.dart';
+import '../services/pornbox/pornbox_api_service.dart';
 import '../services/storage_service.dart';
+import '../services/twitter_rankings/twitter_ranking_api_service.dart';
+import '../services/twitter_rankings/twitter_site_config.dart';
 import '../services/video_api_service.dart';
 
 const String _kTasksKey = 'hc_saved_download_tasks';
@@ -335,6 +343,263 @@ class DownloadProvider extends ChangeNotifier {
     }
   }
 
+  /// Fetch and add MissKon page range to batch download queue
+  Future<void> addMisskonPageRange(
+    int startPage,
+    int endPage, {
+    MisskonCategory category = MisskonCategory.latest,
+    String? tag,
+    String? keyword,
+  }) async {
+    _config = ConfigService.loadConfig();
+    final List<AlbumItem> allItems = [];
+
+    for (int p = startPage; p <= endPage; p++) {
+      try {
+        final pageData = await MisskonApiService.fetchPageData(
+          page: p,
+          category: category,
+          tag: tag,
+          keyword: keyword,
+        );
+        if (pageData != null && pageData.items.isNotEmpty) {
+          allItems.addAll(pageData.items);
+        }
+      } catch (e) {
+        debugPrint('Error fetching MissKon page $p during batch range download: $e');
+      }
+    }
+
+    if (allItems.isNotEmpty) {
+      addBatchAlbumTasks(allItems);
+    }
+  }
+
+  /// Fetch and add Coomer page range to batch download queue
+  Future<void> addCoomerPageRange(
+    int startPage,
+    int endPage, {
+    String? service,
+    String? query,
+    CoomerCreator? creator,
+  }) async {
+    _config = ConfigService.loadConfig();
+    final List<AlbumItem> allItems = [];
+
+    for (int p = startPage; p <= endPage; p++) {
+      try {
+        final offset = (p - 1) * 40;
+        CoomerApiResponse? pageData;
+        if (creator != null) {
+          pageData = await CoomerApiService.fetchCreatorPosts(
+            service: creator.service,
+            creatorId: creator.id,
+            offset: offset,
+            limit: 40,
+          );
+        } else {
+          pageData = await CoomerApiService.fetchRecentPosts(
+            offset: offset,
+            limit: 40,
+            service: service == 'all' ? null : service,
+            query: query,
+          );
+        }
+
+        if (pageData != null && pageData.items.isNotEmpty) {
+          allItems.addAll(pageData.items);
+        }
+      } catch (e) {
+        debugPrint('Error fetching Coomer page $p during batch range download: $e');
+      }
+    }
+
+    if (allItems.isNotEmpty) {
+      addBatchAlbumTasks(allItems);
+    }
+  }
+
+  /// Fetch and add 91品色 page range to batch download queue
+  Future<void> addPinsePageRange(
+    int startPage,
+    int endPage, {
+    PinseCategory category = PinseCategory.latest,
+    String? keyword,
+    String? author,
+  }) async {
+    _config = ConfigService.loadConfig();
+    final List<VideoItem> allVideos = [];
+
+    for (int p = startPage; p <= endPage; p++) {
+      try {
+        final pageData = await PinseApiService.fetchPageData(
+          page: p,
+          category: category,
+          keyword: keyword,
+          author: author,
+        );
+        if (pageData != null && pageData.items.isNotEmpty) {
+          allVideos.addAll(pageData.items);
+        }
+      } catch (e) {
+        debugPrint('Error fetching 91品色 page $p during batch range download: $e');
+      }
+    }
+
+    if (allVideos.isNotEmpty) {
+      addBatchVideoTasks(allVideos);
+    }
+  }
+
+  /// Fetch and add PornBox page range to batch download queue
+  Future<void> addPornboxPageRange(
+    int startPage,
+    int endPage, {
+    PornboxCategory category = PornboxCategory.latest,
+    String? keyword,
+    String? studio,
+  }) async {
+    _config = ConfigService.loadConfig();
+    final List<VideoItem> allVideos = [];
+
+    for (int p = startPage; p <= endPage; p++) {
+      try {
+        final pageData = await PornboxApiService.fetchPageData(
+          page: p,
+          category: category,
+          keyword: keyword,
+          studio: studio,
+        );
+        if (pageData != null && pageData.items.isNotEmpty) {
+          allVideos.addAll(pageData.items);
+        }
+      } catch (e) {
+        debugPrint('Error fetching PornBox page $p during batch range download: $e');
+      }
+    }
+
+    if (allVideos.isNotEmpty) {
+      addBatchVideoTasks(allVideos);
+    }
+  }
+
+  /// Fetch and add Kuraa album to download queue
+  Future<void> addKuraaAlbumTask(KuraaFileItem folderItem, {String? token}) async {
+    _config = ConfigService.loadConfig();
+    try {
+      final album = await KuraaApiService.fetchAlbumDetail(folderItem, token: token);
+      if (album != null && album.imageUrls.isNotEmpty) {
+        addBatchAlbumTasks([album]);
+      }
+    } catch (e) {
+      debugPrint('Error adding Kuraa album task: $e');
+    }
+  }
+
+  /// Fetch and add Kuraa page range to batch download queue
+  Future<void> addKuraaPageRange(
+    int startPage,
+    int endPage, {
+    required String storageLocationId,
+    String? parentId,
+    String? token,
+  }) async {
+    _config = ConfigService.loadConfig();
+    const pageSize = 50;
+
+    for (int p = startPage; p <= endPage; p++) {
+      try {
+        final offset = (p - 1) * pageSize;
+        final res = await KuraaApiService.fetchFiles(
+          storageLocationId: storageLocationId,
+          parentId: parentId,
+          offset: offset,
+          limit: pageSize,
+          sortBy: 'updatedAt',
+          sortOrder: 'desc',
+          token: token,
+        );
+
+        for (final item in res.items) {
+          if (item.isFolder) {
+            await addKuraaAlbumTask(item, token: token);
+          }
+        }
+      } catch (e) {
+        debugPrint('Error fetching Kuraa page $p during batch range download: $e');
+      }
+    }
+  }
+
+  /// Fetch and add Twitter page range to batch download queue
+  Future<void> addTwitterPageRange(
+    int startPage,
+    int endPage, {
+    required TwitterSiteConfig site,
+    String? range,
+    String? sort,
+  }) async {
+    _config = ConfigService.loadConfig();
+    final List<VideoItem> allVideos = [];
+
+    for (int p = startPage; p <= endPage; p++) {
+      try {
+        final pageData = await TwitterRankingApiService.fetchPageData(
+          site: site,
+          range: range,
+          sort: sort,
+          page: p,
+        );
+        if (pageData != null && pageData.items.isNotEmpty) {
+          for (var v in pageData.items) {
+            if (v.videoUrl == null || v.videoUrl!.isEmpty) {
+              v = await TwitterRankingApiService.resolveVideoDetail(site, v);
+            }
+            allVideos.add(v);
+          }
+        }
+      } catch (e) {
+        debugPrint('Error fetching Twitter page $p during batch range download: $e');
+      }
+    }
+
+    if (allVideos.isNotEmpty) {
+      addBatchVideoTasks(allVideos);
+    }
+  }
+
+  /// Fetch and add ExHentai page range to batch download queue
+  Future<void> addExHentaiPageRange(
+    int startPage,
+    int endPage, {
+    ExCategory category = ExCategory.all,
+    String? keyword,
+    bool isPopular = false,
+  }) async {
+    _config = ConfigService.loadConfig();
+    final List<AlbumItem> allAlbums = [];
+
+    for (int p = startPage; p <= endPage; p++) {
+      try {
+        final res = await ExHentaiApiService.fetchPageData(
+          page: p,
+          category: category,
+          keyword: keyword,
+          isPopular: isPopular,
+        );
+        if (res != null && res.items.isNotEmpty) {
+          allAlbums.addAll(res.items);
+        }
+      } catch (e) {
+        debugPrint('Error fetching ExHentai page $p during batch range download: $e');
+      }
+    }
+
+    if (allAlbums.isNotEmpty) {
+      addBatchAlbumTasks(allAlbums);
+    }
+  }
+
   /// Add a single video task
   void addVideoTask(VideoItem video) {
     addBatchVideoTasks([video]);
@@ -350,10 +615,29 @@ class DownloadProvider extends ChangeNotifier {
 
     for (final video in videos) {
       final key = video.slug.isNotEmpty ? video.slug : video.title;
-      final existingIndex = _allTasks.indexWhere((t) => t.albumItem.slug == key || t.albumItem.title == key);
+      final incomingCleanVideoUrl = video.videoUrl != null && video.videoUrl!.isNotEmpty
+          ? video.videoUrl!.split('?').first
+          : '';
+      final incomingTwId = _extractMediaIdentifier(video.videoUrl ?? video.detailUrl, video.slug);
+
+      final existingIndex = _allTasks.indexWhere((t) {
+        if (t.albumItem.slug == key || t.albumItem.title == key) return true;
+        if (incomingCleanVideoUrl.isNotEmpty && t.videoUrl != null && t.videoUrl!.isNotEmpty) {
+          if (t.videoUrl!.split('?').first == incomingCleanVideoUrl) return true;
+        }
+        if (incomingTwId != null && incomingTwId.isNotEmpty) {
+          final existingTwId = _extractMediaIdentifier(t.videoUrl ?? t.albumItem.detailUrl, t.albumItem.slug);
+          if (existingTwId != null && existingTwId == incomingTwId) return true;
+        }
+        return false;
+      });
 
       if (existingIndex != -1) {
         final existingTask = _allTasks[existingIndex];
+        if (existingTask.status == TaskStatus.completed) {
+          debugPrint('Skipping duplicate video: ${video.title} (already downloaded)');
+          continue;
+        }
         _currentBatchTaskIds.add(existingTask.id);
         if (existingTask.status == TaskStatus.paused || existingTask.status == TaskStatus.failed) {
           existingTask.status = TaskStatus.queued;
@@ -693,5 +977,21 @@ class DownloadProvider extends ChangeNotifier {
         isPaused: true,
       );
     }
+  }
+
+  String? _extractMediaIdentifier(String? url, String? slug) {
+    if (url != null && url.isNotEmpty) {
+      final statusMatch = RegExp(r'/status/(\d+)').firstMatch(url);
+      if (statusMatch != null) return statusMatch.group(1);
+      final twimgMatch = RegExp(r'/(?:ext_tw_video|amplify_video)/(\d+)').firstMatch(url);
+      if (twimgMatch != null) return twimgMatch.group(1);
+      final twimgDirectMatch = RegExp(r'video\.twimg\.com/[^/]+/[^/]+/([^/?#]+)').firstMatch(url);
+      if (twimgDirectMatch != null) return twimgDirectMatch.group(1);
+    }
+    if (slug != null && slug.isNotEmpty) {
+      final slugMatch = RegExp(r'(\d{15,22})').firstMatch(slug);
+      if (slugMatch != null) return slugMatch.group(1);
+    }
+    return null;
   }
 }

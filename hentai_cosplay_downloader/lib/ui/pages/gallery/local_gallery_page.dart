@@ -14,6 +14,7 @@ import '../../theme/ios_theme.dart';
 import '../../widgets/bouncing_button.dart';
 import '../../widgets/frosted_glass.dart';
 import '../../widgets/liquid_glass.dart';
+import '../../widgets/scroll_to_top_button.dart';
 
 class LocalGalleryPage extends StatefulWidget {
   const LocalGalleryPage({super.key});
@@ -23,6 +24,7 @@ class LocalGalleryPage extends StatefulWidget {
 }
 
 class _LocalGalleryPageState extends State<LocalGalleryPage> {
+  final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -36,6 +38,7 @@ class _LocalGalleryPageState extends State<LocalGalleryPage> {
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -246,80 +249,74 @@ class _LocalGalleryPageState extends State<LocalGalleryPage> {
                   ),
                   const SizedBox(height: 10),
 
-                  // Source Filter Segmented Capsule (All / HC / MZT)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(3.5),
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF1E1E22) : const Color(0xFFE5E5EA),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Row(
-                      children: [
-                        _buildFilterSegment(
-                          GallerySourceFilter.all,
-                          '全部 (${galleryProv.albumCount})',
-                          galleryProv,
-                          isDark,
-                        ),
-                        _buildFilterSegment(
-                          GallerySourceFilter.hc,
-                          'HC (${galleryProv.hcCount})',
-                          galleryProv,
-                          isDark,
-                        ),
-                        _buildFilterSegment(
-                          GallerySourceFilter.mzt,
-                          'MZT (${galleryProv.mztCount})',
-                          galleryProv,
-                          isDark,
-                        ),
-                      ],
+                  // Source Filter Segmented Capsule (Horizontal Scrollable)
+                  SizedBox(
+                    height: 38,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      itemCount: GallerySourceFilter.values.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 6),
+                      itemBuilder: (context, idx) {
+                        final filter = GallerySourceFilter.values[idx];
+                        final count = galleryProv.getSourceCount(filter);
+                        final label = '${filter.label} ($count)';
+                        return _buildFilterSegment(filter, label, galleryProv, isDark);
+                      },
                     ),
                   ),
                 ],
               ),
             ),
 
-            // Album Grid
+            // Album Grid with ScrollToTopButton
             Expanded(
-              child: albums.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            CupertinoIcons.photo_on_rectangle,
-                            size: 48,
-                            color: isDark ? Colors.white24 : Colors.black26,
+              child: Stack(
+                children: [
+                  albums.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                CupertinoIcons.photo_on_rectangle,
+                                size: 48,
+                                color: isDark ? Colors.white24 : Colors.black26,
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                galleryProv.isScanning ? '正在扫描本地相册...' : '暂无本地下载的相册',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: isDark ? Colors.white38 : Colors.black38,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 12),
-                          Text(
-                            galleryProv.isScanning ? '正在扫描本地相册...' : '暂无本地下载的相册',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: isDark ? Colors.white38 : Colors.black38,
-                              fontWeight: FontWeight.w600,
-                            ),
+                        )
+                      : GridView.builder(
+                          controller: _scrollController,
+                          physics: const BouncingScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 140),
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 10,
+                            mainAxisSpacing: 10,
+                            childAspectRatio: 0.76,
                           ),
-                        ],
-                      ),
-                    )
-                  : GridView.builder(
-                      physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 10,
-                        mainAxisSpacing: 10,
-                        childAspectRatio: 0.76,
-                      ),
-                      itemCount: albums.length,
-                      itemBuilder: (context, index) {
-                        final album = albums[index];
-                        return _buildLocalAlbumCard(album, index, isDark, galleryProv);
-                      },
-                    ),
+                          itemCount: albums.length,
+                          itemBuilder: (context, index) {
+                            final album = albums[index];
+                            return _buildLocalAlbumCard(album, index, isDark, galleryProv);
+                          },
+                        ),
+                  ScrollToTopButton(
+                    scrollController: _scrollController,
+                    color: IosTheme.primaryPink,
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -343,38 +340,38 @@ class _LocalGalleryPageState extends State<LocalGalleryPage> {
   ) {
     final isSelected = galleryProv.sourceFilter == filter;
 
-    return Expanded(
-      child: BouncingButton(
-        onTap: () => galleryProv.setSourceFilter(filter),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          decoration: BoxDecoration(
-            color: isSelected ? IosTheme.primaryPink : Colors.transparent,
-            borderRadius: BorderRadius.circular(11),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: IosTheme.primaryPink.withValues(alpha: 0.35),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Center(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                color: isSelected
-                    ? Colors.white
-                    : (isDark ? Colors.white60 : Colors.black87),
-              ),
+    return BouncingButton(
+      onTap: () => galleryProv.setSourceFilter(filter),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? IosTheme.primaryPink
+              : (isDark ? const Color(0xFF1E1E22) : const Color(0xFFE5E5EA)),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: IosTheme.primaryPink.withValues(alpha: 0.35),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Center(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+              color: isSelected
+                  ? Colors.white
+                  : (isDark ? Colors.white60 : Colors.black87),
             ),
           ),
         ),
@@ -534,12 +531,19 @@ class _LocalAlbumViewer extends StatefulWidget {
 }
 
 class _LocalAlbumViewerState extends State<_LocalAlbumViewer> {
+  final ScrollController _scrollController = ScrollController();
   late int _currentIndex;
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   void _prevAlbum(List<LocalAlbumFolder> albums) {
@@ -551,6 +555,7 @@ class _LocalAlbumViewerState extends State<_LocalAlbumViewer> {
         _currentIndex = albums.length - 1; // wrap around to last
       }
     });
+    if (_scrollController.hasClients) _scrollController.jumpTo(0);
   }
 
   void _nextAlbum(List<LocalAlbumFolder> albums) {
@@ -562,6 +567,7 @@ class _LocalAlbumViewerState extends State<_LocalAlbumViewer> {
         _currentIndex = 0; // wrap around to first
       }
     });
+    if (_scrollController.hasClients) _scrollController.jumpTo(0);
   }
 
   void _randomAlbum(List<LocalAlbumFolder> albums) {
@@ -574,6 +580,7 @@ class _LocalAlbumViewerState extends State<_LocalAlbumViewer> {
     setState(() {
       _currentIndex = nextIdx;
     });
+    if (_scrollController.hasClients) _scrollController.jumpTo(0);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -644,6 +651,7 @@ class _LocalAlbumViewerState extends State<_LocalAlbumViewer> {
         children: [
           // Image Grid
           GridView.builder(
+            controller: _scrollController,
             physics: const BouncingScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 90),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -798,6 +806,11 @@ class _LocalAlbumViewerState extends State<_LocalAlbumViewer> {
                 ),
               ),
             ),
+          ),
+          ScrollToTopButton(
+            scrollController: _scrollController,
+            color: IosTheme.primaryPink,
+            bottomOffset: 85.0,
           ),
         ],
       ),

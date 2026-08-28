@@ -16,12 +16,20 @@ enum GallerySortMode {
 }
 
 enum GallerySourceFilter {
-  all('全部'),
-  hc('Cosplay图集'),
-  mzt('妹子图库');
+  all('全部', null),
+  hc('HC图集', MediaSourceType.hc),
+  exhentai('ExHentai', MediaSourceType.exhentai),
+  mzt('妹子图库', MediaSourceType.mzt),
+  misskon('MissKon', MediaSourceType.misskon),
+  pixibb('PixiBB', MediaSourceType.pixibb),
+  cosplaytele('CosplayTele', MediaSourceType.cosplaytele),
+  nucosplay('NuCosplay', MediaSourceType.nucosplay),
+  coomer('Coomer', MediaSourceType.coomer),
+  kuraa('Kuraa', MediaSourceType.kuraa);
 
   final String label;
-  const GallerySourceFilter(this.label);
+  final MediaSourceType? sourceType;
+  const GallerySourceFilter(this.label, this.sourceType);
 }
 
 class GalleryProvider extends ChangeNotifier {
@@ -60,10 +68,8 @@ class GalleryProvider extends ChangeNotifier {
   List<LocalAlbumFolder> _computeFilteredAndSortedAlbums() {
     List<LocalAlbumFolder> list = _localAlbums;
 
-    if (_sourceFilter == GallerySourceFilter.hc) {
-      list = list.where((alb) => alb.sourceType == MediaSourceType.hc).toList();
-    } else if (_sourceFilter == GallerySourceFilter.mzt) {
-      list = list.where((alb) => alb.sourceType == MediaSourceType.mzt).toList();
+    if (_sourceFilter.sourceType != null) {
+      list = list.where((alb) => alb.sourceType == _sourceFilter.sourceType).toList();
     }
 
     if (_searchQuery.trim().isNotEmpty) {
@@ -104,8 +110,22 @@ class GalleryProvider extends ChangeNotifier {
   int get albumCount => _localAlbums.length;
   int get totalImages => _localAlbums.fold(0, (sum, a) => sum + a.imageCount);
 
+  int getSourceCount(GallerySourceFilter filter) {
+    if (filter == GallerySourceFilter.all || filter.sourceType == null) {
+      return _localAlbums.length;
+    }
+    return _localAlbums.where((a) => a.sourceType == filter.sourceType).length;
+  }
+
   int get hcCount => _localAlbums.where((a) => a.sourceType == MediaSourceType.hc).length;
+  int get exhentaiCount => _localAlbums.where((a) => a.sourceType == MediaSourceType.exhentai).length;
   int get mztCount => _localAlbums.where((a) => a.sourceType == MediaSourceType.mzt).length;
+  int get misskonCount => _localAlbums.where((a) => a.sourceType == MediaSourceType.misskon).length;
+  int get pixibbCount => _localAlbums.where((a) => a.sourceType == MediaSourceType.pixibb).length;
+  int get cosplayteleCount => _localAlbums.where((a) => a.sourceType == MediaSourceType.cosplaytele).length;
+  int get nucosplayCount => _localAlbums.where((a) => a.sourceType == MediaSourceType.nucosplay).length;
+  int get coomerCount => _localAlbums.where((a) => a.sourceType == MediaSourceType.coomer).length;
+  int get kuraaCount => _localAlbums.where((a) => a.sourceType == MediaSourceType.kuraa).length;
 
   void setSourceFilter(GallerySourceFilter filter) {
     if (_sourceFilter == filter) return;

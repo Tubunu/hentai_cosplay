@@ -13,6 +13,8 @@ import '../../../services/hc_api_service.dart';
 import '../../theme/ios_theme.dart';
 import '../../widgets/bouncing_button.dart';
 import '../../widgets/frosted_glass.dart';
+import '../../widgets/random_action_button.dart';
+import '../../widgets/scroll_to_top_button.dart';
 
 class AlbumDetailPage extends StatefulWidget {
   final AlbumItem initialItem;
@@ -24,12 +26,19 @@ class AlbumDetailPage extends StatefulWidget {
 }
 
 class _AlbumDetailPageState extends State<AlbumDetailPage> {
+  final ScrollController _scrollController = ScrollController();
   late AlbumItem _item;
   bool _isLoading = true;
   String? _errorMessage;
 
   bool _isSelectionMode = false;
   final Set<int> _selectedIndices = {};
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -109,9 +118,12 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
     final downloadProv = context.read<DownloadProvider>();
 
     return Scaffold(
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
+      body: Stack(
+        children: [
+          CustomScrollView(
+            controller: _scrollController,
+            physics: const BouncingScrollPhysics(),
+            slivers: [
           // Parallax Header
           SliverAppBar(
             expandedHeight: 320,
@@ -130,6 +142,11 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
               ),
             ),
             actions: [
+              const RandomActionButton.album(
+                albumSource: MediaSourceType.hc,
+                replace: true,
+                color: IosTheme.primaryPink,
+              ),
               Builder(
                 builder: (btnCtx) => BouncingButton(
                   onTap: () {
@@ -554,9 +571,16 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
                 ),
               ),
             ),
-        ],
-      ),
-    );
+          ],
+        ),
+        ScrollToTopButton(
+          scrollController: _scrollController,
+          color: IosTheme.primaryPink,
+          bottomOffset: 30.0,
+        ),
+      ],
+    ),
+  );
   }
 }
 
@@ -576,18 +600,61 @@ class _PhotoGalleryViewer extends StatefulWidget {
 class _PhotoGalleryViewerState extends State<_PhotoGalleryViewer> {
   late int _currentIndex;
   late PageController _pageController;
+  final Set<int> _precachedIndices = {};
+  bool _isDisposed = false;
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
     _pageController = PageController(initialPage: widget.initialIndex);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_isDisposed) {
+        _preloadSurroundingImages(_currentIndex);
+      }
+    });
   }
 
   @override
   void dispose() {
+    _isDisposed = true;
     _pageController.dispose();
     super.dispose();
+  }
+
+  void _preloadSurroundingImages(int centerIndex) {
+    if (_isDisposed) return;
+    final images = widget.item.imageUrls;
+    for (int step = 0; step <= 5; step++) {
+      final forward = centerIndex + step;
+      if (forward < images.length && !_precachedIndices.contains(forward)) {
+        _precachedIndices.add(forward);
+        precacheImage(
+          CachedNetworkImageProvider(
+            images[forward],
+            headers: const {
+              'Referer': 'https://hentai-cosplay-xxx.com/',
+            },
+          ),
+          context,
+        ).catchError((_) {});
+      }
+    }
+    for (int step = 1; step <= 2; step++) {
+      final backward = centerIndex - step;
+      if (backward >= 0 && !_precachedIndices.contains(backward)) {
+        _precachedIndices.add(backward);
+        precacheImage(
+          CachedNetworkImageProvider(
+            images[backward],
+            headers: const {
+              'Referer': 'https://hentai-cosplay-xxx.com/',
+            },
+          ),
+          context,
+        ).catchError((_) {});
+      }
+    }
   }
 
   @override
@@ -605,6 +672,7 @@ class _PhotoGalleryViewerState extends State<_PhotoGalleryViewer> {
             pageController: _pageController,
             onPageChanged: (idx) {
               setState(() => _currentIndex = idx);
+              _preloadSurroundingImages(idx);
             },
             builder: (context, index) {
               final url = images[index];

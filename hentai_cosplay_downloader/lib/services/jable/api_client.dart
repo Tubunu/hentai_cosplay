@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
+import '../app_logger.dart';
 import '../config_service.dart';
 import 'cf_cookie_harvester.dart';
 import 'persistent_chromium_tunnel.dart';
@@ -17,6 +18,8 @@ class ApiClient {
     'MissAV': 'missav.ws',
     'JableTV': 'jable.tv',
     'SupJav': 'supjav.com',
+    'Hanime1': 'hanime1.me',
+    '91PinSe': '91pinse.com',
   };
 
   ApiClient._internal() : _dio = Dio() {
@@ -82,7 +85,7 @@ class ApiClient {
   /// Returns current active host for site
   String getActiveHost(String siteName) {
     return _activeHost[siteName] ?? 
-        (siteName == 'MissAV' ? 'missav.ws' : (siteName == 'JableTV' ? 'jable.tv' : 'supjav.com'));
+        (siteName == 'MissAV' ? 'missav.ws' : (siteName == 'JableTV' ? 'jable.tv' : (siteName == 'Hanime1' ? 'hanime1.me' : (siteName == '91PinSe' ? '91pinse.com' : 'supjav.com'))));
   }
 
   /// Retrieves customized headers for a specific site, injecting bypass tokens if harvested.
@@ -107,7 +110,9 @@ class ApiClient {
     final bool isSiteDomain = targetHost.contains('missav') || 
                               targetHost.contains('jable') || 
                               targetHost.contains('fs1.app') || 
-                              targetHost.contains('supjav');
+                              targetHost.contains('supjav') ||
+                              targetHost.contains('hanime1') ||
+                              targetHost.contains('91pinse');
 
     if (isSiteDomain) {
       headers['Referer'] = "https://$targetHost/";
@@ -134,6 +139,10 @@ class ApiClient {
       mirrors = ['jable.tv', 'fs1.app'];
     } else if (siteName == 'SupJav') {
       mirrors = ['supjav.com', 'supremejav.com'];
+    } else if (siteName == 'Hanime1') {
+      mirrors = ['hanime1.me'];
+    } else if (siteName == '91PinSe') {
+      mirrors = ['91pinse.com', 'www.91pinse.com'];
     }
 
     final targetUri = Uri.tryParse(url) ?? Uri.parse(Uri.encodeFull(url));
@@ -225,43 +234,43 @@ class ApiClient {
       }
       
       return html;
-    } on DioException catch (e) {
-      final status = e.response?.statusCode;
-      final responseHtml = e.response?.data?.toString();
-      final isChallengeHtml = responseHtml != null && !CfCookieHarvester.isValidPage(siteName, responseHtml, isDetailPage: isDetailPage);
-      
-      if (status == 403 || status == 503 || isChallengeHtml) {
-        try {
-          final harvested = await CfCookieHarvester.harvest(url, siteName: siteName);
-          setSiteHeaders(siteName, harvested);
-          
-          if (harvested['targetUrl'] == url && harvested['html'] != null && harvested['html']!.isNotEmpty && CfCookieHarvester.isValidPage(siteName, harvested['html']!, isDetailPage: isDetailPage)) {
-            return harvested['html']!;
-          }
-
-          try {
-            final freshHeaders = getHeadersForSite(siteName, url);
-            final retryResp = await _dio.get(
-              url,
-              options: Options(
-                headers: freshHeaders,
-                responseType: ResponseType.plain,
-                validateStatus: (status) => status != null && status < 400,
-              ),
-            );
-            final retryHtml = retryResp.data as String;
-            if (CfCookieHarvester.isValidPage(siteName, retryHtml, isDetailPage: isDetailPage)) {
-              return retryHtml;
-            }
-          } catch (_) {}
-          
-          final webViewHtml = await CfCookieHarvester.fetchContentViaWebView(url, siteName: siteName);
-          if (webViewHtml.isNotEmpty && CfCookieHarvester.isValidPage(siteName, webViewHtml, isDetailPage: isDetailPage)) {
-            return webViewHtml;
-          }
-        } catch (_) {
-          rethrow;
+    } catch (e) {
+      AppLogger.w('ApiClient', '网络请求失败 [$siteName] URL: $url ($e). 尝试 Chromium WebView 回退...');
+      try {
+        final webViewHtml = await CfCookieHarvester.fetchContentViaWebView(url, siteName: siteName);
+        if (webViewHtml.isNotEmpty && CfCookieHarvester.isValidPage(siteName, webViewHtml, isDetailPage: isDetailPage)) {
+          AppLogger.s('ApiClient', 'Chromium WebView 回退成功 [$siteName]');
+          return webViewHtml;
         }
+      } catch (e2) {
+        AppLogger.w('ApiClient', 'Chromium WebView 回退异常: $e2');
+      }
+
+      try {
+        final harvested = await CfCookieHarvester.harvest(url, siteName: siteName);
+        setSiteHeaders(siteName, harvested);
+        
+        if (harvested['html'] != null && harvested['html']!.isNotEmpty && CfCookieHarvester.isValidPage(siteName, harvested['html']!, isDetailPage: isDetailPage)) {
+          return harvested['html']!;
+        }
+
+        try {
+          final freshHeaders = getHeadersForSite(siteName, url);
+          final retryResp = await _dio.get(
+            url,
+            options: Options(
+              headers: freshHeaders,
+              responseType: ResponseType.plain,
+              validateStatus: (status) => status != null && status < 400,
+            ),
+          );
+          final retryHtml = retryResp.data as String;
+          if (CfCookieHarvester.isValidPage(siteName, retryHtml, isDetailPage: isDetailPage)) {
+            return retryHtml;
+          }
+        } catch (_) {}
+      } catch (harvestErr) {
+        AppLogger.e('ApiClient', 'Harvest 回退失败: $harvestErr');
       }
       rethrow;
     }

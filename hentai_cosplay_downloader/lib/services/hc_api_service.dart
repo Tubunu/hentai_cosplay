@@ -78,8 +78,7 @@ class HCApiService {
           client.findProxy = (uri) => 'PROXY $clean; DIRECT';
         }
       } else {
-        // Direct connection avoids system-level broken proxy interference
-        client.findProxy = (uri) => 'DIRECT';
+        client.findProxy = HttpClient.findProxyFromEnvironment;
       }
       return client;
     };
@@ -551,7 +550,7 @@ class HCApiService {
           final clean = proxy.replaceAll('http://', '').replaceAll('https://', '');
           client.findProxy = (uri) => 'PROXY $clean; DIRECT';
         } else {
-          client.findProxy = (uri) => 'DIRECT';
+          client.findProxy = HttpClient.findProxyFromEnvironment;
         }
         return client;
       };

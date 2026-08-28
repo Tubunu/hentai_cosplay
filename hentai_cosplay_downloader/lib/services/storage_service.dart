@@ -156,7 +156,6 @@ class StorageService {
         final List<String> imgFiles = [];
         int bytes = 0;
         Map<String, dynamic>? meta;
-        MediaSourceType detectedSource = MediaSourceType.hc;
 
         for (final e in entities) {
           if (e is File) {
@@ -165,9 +164,6 @@ class StorageService {
               try {
                 final content = await e.readAsString();
                 meta = jsonDecode(content) as Map<String, dynamic>?;
-                if (filename == kMztMetadataFilename || meta?['sourceType'] == 'mzt') {
-                  detectedSource = MediaSourceType.mzt;
-                }
               } catch (_) {}
             } else {
               final ext = p.extension(e.path).replaceAll('.', '').toLowerCase();
@@ -197,6 +193,16 @@ class StorageService {
           final title = meta?['title'] ?? meta?['item']?['title'] ?? folderName;
           final itemData = (meta?['item'] as Map<String, dynamic>?) ?? {};
           final author = meta?['author'] ?? defaultAuthor ?? AlbumItem.inferAuthor(title, itemData);
+
+          // Infer exact source from metadata, rawData, urls, and directory
+          final detectedSource = AlbumItem.inferSource(
+            sourceTypeName: meta?['sourceType']?.toString(),
+            detailUrl: meta?['detailUrl']?.toString() ?? meta?['item']?['detailUrl']?.toString(),
+            coverUrl: meta?['coverUrl']?.toString(),
+            imageUrls: (meta?['imageUrls'] as List?) ?? (meta?['item']?['imageUrls'] as List?),
+            rawData: meta?['rawData'] as Map<String, dynamic>? ?? meta?['item'] as Map<String, dynamic>?,
+            folderName: folderName,
+          );
 
           albums.add(
             LocalAlbumFolder(

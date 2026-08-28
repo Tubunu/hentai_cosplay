@@ -11,8 +11,17 @@ import '../models/album_item.dart';
 import '../models/app_config.dart';
 import '../models/download_task.dart';
 import '../models/video_item.dart';
+import 'coomer/coomer_api_service.dart';
+import 'exhentai/exhentai_api_service.dart';
 import 'hc_api_service.dart';
 import 'jable/decryptor.dart';
+import 'misskon/misskon_api_service.dart';
+import 'pinse/pinse_api_service.dart';
+import 'pornbox/pornbox_api_service.dart';
+import 'pixibb/pixibb_api_service.dart';
+import 'cosplaytele/cosplaytele_api_service.dart';
+import 'nucosplay/nucosplay_api_service.dart';
+import 'hanime1/hanime1_api_service.dart';
 import 'storage_service.dart';
 import 'video_api_service.dart';
 
@@ -62,7 +71,7 @@ class DownloadEngine {
           client.findProxy = (uri) => 'PROXY $clean; DIRECT';
         }
       } else {
-        client.findProxy = (uri) => 'DIRECT';
+        client.findProxy = HttpClient.findProxyFromEnvironment;
       }
       return client;
     };
@@ -260,9 +269,20 @@ class DownloadEngine {
       return ImageTaskStatus.failed;
     }
 
-    // 2. Build candidate URLs (handling MZT relative paths with proxy domains)
+    // 2. Build candidate URLs (handling MZT relative paths and ExHentai viewer pages)
     final List<String> candidateUrls = [];
-    if (originalUrl.startsWith('/')) {
+    if (originalUrl.contains('/s/') &&
+        (originalUrl.contains('ex.810114.xyz') ||
+            originalUrl.contains('exhentai.org') ||
+            originalUrl.contains('e-hentai.org') ||
+            originalUrl.contains('810114'))) {
+      final direct = await ExHentaiApiService.resolveDirectImageUrl(originalUrl);
+      if (direct != null && direct.isNotEmpty) {
+        candidateUrls.add(direct);
+      } else {
+        candidateUrls.add(originalUrl);
+      }
+    } else if (originalUrl.startsWith('/')) {
       for (final domain in config.mztProxyDomains) {
         final cleanDomain = domain.trim().replaceAll(RegExp(r'/+$'), '');
         candidateUrls.add('$cleanDomain$originalUrl');
@@ -306,6 +326,12 @@ class DownloadEngine {
               headers: {
                 if (targetUrl.contains('tgproxy') || targetUrl.contains('111404.xyz'))
                   'Referer': 'https://mzt.111404.xyz/'
+                else if (targetUrl.contains('misskon.com'))
+                  'Referer': 'https://misskon.com/'
+                else if (targetUrl.contains('coomer.st') || targetUrl.contains('coomer.su') || targetUrl.contains('coomer.party'))
+                  'Referer': 'https://coomer.st/'
+                else if (targetUrl.contains('ex.810114.xyz') || targetUrl.contains('exhentai.org') || targetUrl.contains('hath.network') || targetUrl.contains('ehgt.org'))
+                  'Referer': 'https://ex.810114.xyz/'
                 else
                   'Referer': '${HCApiService.kBaseUrl}/',
               },
@@ -411,17 +437,56 @@ class DownloadEngine {
     VideoItem? vDetail;
     if (directUrl == null || directUrl.isEmpty) {
       onLog('正在解析视频播放地址: ${item.title}', 'info');
-      vDetail = await VideoApiService.fetchVideoDetail(
-        VideoItem(
-          title: item.title,
-          slug: item.slug,
-          detailUrl: item.detailUrl,
-          coverUrl: item.coverUrl,
-          date: item.date,
-          author: item.author,
-          tags: item.tags,
-        ),
-      );
+      if (item.detailUrl.contains('hanime1.me')) {
+        vDetail = await Hanime1ApiService.fetchVideoDetail(
+          VideoItem(
+            title: item.title,
+            slug: item.slug,
+            detailUrl: item.detailUrl,
+            coverUrl: item.coverUrl,
+            date: item.date,
+            author: item.author,
+            tags: item.tags,
+            rawData: item.rawData,
+          ),
+        );
+      } else if (item.detailUrl.contains('91pinse.com')) {
+        vDetail = await PinseApiService.fetchVideoDetail(
+          VideoItem(
+            title: item.title,
+            slug: item.slug,
+            detailUrl: item.detailUrl,
+            coverUrl: item.coverUrl,
+            date: item.date,
+            author: item.author,
+            tags: item.tags,
+          ),
+        );
+      } else if (item.detailUrl.contains('pornbox.com')) {
+        vDetail = await PornboxApiService.fetchVideoDetail(
+          VideoItem(
+            title: item.title,
+            slug: item.slug,
+            detailUrl: item.detailUrl,
+            coverUrl: item.coverUrl,
+            date: item.date,
+            author: item.author,
+            tags: item.tags,
+          ),
+        );
+      } else {
+        vDetail = await VideoApiService.fetchVideoDetail(
+          VideoItem(
+            title: item.title,
+            slug: item.slug,
+            detailUrl: item.detailUrl,
+            coverUrl: item.coverUrl,
+            date: item.date,
+            author: item.author,
+            tags: item.tags,
+          ),
+        );
+      }
 
       directUrl = vDetail?.videoUrl;
     }
@@ -774,7 +839,25 @@ class DownloadEngine {
     // 1. If detail is not loaded, fetch it now to get full imageUrls
     if (!item.isDetailLoaded || item.imageUrls.isEmpty) {
       onLog('正在解析图集详情: ${item.title}', 'info');
-      final detailedItem = await HCApiService.fetchAlbumDetail(item);
+      AlbumItem? detailedItem;
+      if (item.sourceType == MediaSourceType.misskon) {
+        detailedItem = await MisskonApiService.fetchAlbumDetail(item);
+      } else if (item.sourceType == MediaSourceType.coomer) {
+        detailedItem = await CoomerApiService.fetchPostDetail(item);
+      } else if (item.sourceType == MediaSourceType.exhentai) {
+        detailedItem = await ExHentaiApiService.fetchGalleryDetail(item);
+      } else if (item.sourceType == MediaSourceType.pixibb) {
+        detailedItem = await PixibbApiService.fetchAlbumDetail(item);
+      } else if (item.sourceType == MediaSourceType.cosplaytele) {
+        detailedItem = await CosplayteleApiService.fetchAlbumDetail(item);
+      } else if (item.sourceType == MediaSourceType.nucosplay) {
+        detailedItem = await NucosplayApiService.fetchAlbumDetail(item);
+      } else if (item.sourceType == MediaSourceType.hc) {
+        detailedItem = await HCApiService.fetchAlbumDetail(item);
+      } else {
+        detailedItem = item;
+      }
+
       if (detailedItem != null && detailedItem.imageUrls.isNotEmpty) {
         item = detailedItem;
       } else {

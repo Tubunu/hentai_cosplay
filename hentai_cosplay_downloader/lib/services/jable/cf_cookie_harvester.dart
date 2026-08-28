@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import '../app_logger.dart';
 import 'api_client.dart';
 import 'navigator_service.dart';
 
@@ -9,7 +10,7 @@ class CfCookieHarvester {
   static final Map<String, Future<Map<String, String>>> _activeHarvestFutures = {};
 
   /// Helper to check if the loaded HTML is a valid target page or a Cloudflare block page.
-  static bool isValidPage(String siteName, String html, {bool isDetailPage = false}) {
+  static bool isValidPage(String? siteName, String html, {bool isDetailPage = false}) {
     if (html.isEmpty) return false;
     final lower = html.toLowerCase();
     
@@ -55,6 +56,31 @@ class CfCookieHarvester {
              lower.contains('board') ||
              lower.contains('btn-server') ||
              lower.contains('navbar');
+    } else if (siteName == 'Hanime1') {
+      return lower.contains('watch?v=') ||
+             lower.contains('home-rows-videos') ||
+             lower.contains('search-result') ||
+             lower.contains('single-video-tag') ||
+             lower.contains('video-details') ||
+             lower.contains('player') ||
+             lower.contains('hanime1');
+    } else if (siteName == '91PinSe') {
+      if (isDetailPage) {
+        return (lower.contains('player') ||
+                lower.contains('video') ||
+                lower.contains('playback') ||
+                lower.contains('.m3u8') ||
+                lower.contains('.mp4')) &&
+            html.length > 3000;
+      }
+      final hasCards = lower.contains('video-card') ||
+          lower.contains('video-item') ||
+          lower.contains('myui-vodlist') ||
+          lower.contains('video-title') ||
+          lower.contains('col-video') ||
+          RegExp(r'/v/\d+').hasMatch(lower);
+      final hasEmpty = lower.contains('暂无数据') || lower.contains('没有找到') || lower.contains('empty');
+      return (hasCards || hasEmpty) && html.length > 3500;
     }
     
     return lower.contains('navbar') || lower.contains('logo') || lower.contains('footer') || lower.contains('og:title');
@@ -320,57 +346,109 @@ class CfCookieHarvester {
   }
 
   /// Fetches content via Headless Chromium WebView
-  static Future<String> fetchContentViaWebView(String url, {String? siteName}) async {
+  static Future<String> fetchContentViaWebView(String url, {String? siteName, bool isDetailPage = false}) async {
+    if (url.contains('.m3u8')) {
+      try {
+        return await fetchTextViaJs(url, siteName: siteName);
+      } catch (_) {}
+    }
+
+    final completer = Completer<String>();
+    HeadlessInAppWebView? headless;
+    Timer? timeoutTimer;
+    Timer? pollTimer;
+    String lastObtainedHtml = "";
+    final activeHost = ApiClient().getActiveHost(siteName ?? '91PinSe');
+    final uri = WebUri(url);
+
     try {
-      return await fetchTextViaJs(url, siteName: siteName);
-    } catch (_) {
-      final completer = Completer<String>();
-      HeadlessInAppWebView? headless;
-      Timer? timeoutTimer;
-      final activeHost = ApiClient().getActiveHost(siteName ?? 'MissAV');
-      
-      headless = HeadlessInAppWebView(
-        initialUrlRequest: URLRequest(
-          url: WebUri(url),
-          headers: {
-            'Referer': 'https://$activeHost/',
-            'Origin': 'https://$activeHost',
-            'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
-          },
-        ),
-        initialSettings: InAppWebViewSettings(
-          javaScriptEnabled: true,
-          domStorageEnabled: true,
-          databaseEnabled: true,
-          useShouldOverrideUrlLoading: true,
-        ),
-        onLoadStop: (controller, currentUrl) async {
+      await CookieManager.instance().setCookie(
+        url: uri,
+        name: "jj_age_ok",
+        value: "1",
+        domain: uri.host.contains('91pinse') ? ".91pinse.com" : uri.host,
+        path: "/",
+        isSecure: true,
+      );
+    } catch (_) {}
+
+    headless = HeadlessInAppWebView(
+      initialUrlRequest: URLRequest(
+        url: uri,
+        headers: {
+          'Referer': 'https://$activeHost/',
+          'Origin': 'https://$activeHost',
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
+          'Cookie': 'jj_age_ok=1',
+        },
+      ),
+      initialSettings: InAppWebViewSettings(
+        javaScriptEnabled: true,
+        domStorageEnabled: true,
+        databaseEnabled: true,
+        useShouldOverrideUrlLoading: true,
+      ),
+      onWebViewCreated: (controller) {
+        pollTimer = Timer.periodic(const Duration(milliseconds: 500), (t) async {
+          if (completer.isCompleted) {
+            t.cancel();
+            return;
+          }
           try {
-            final text = await controller.evaluateJavascript(
-              source: "document.body.innerText || document.documentElement.outerHTML"
+            final html = await controller.evaluateJavascript(
+              source: "document.documentElement ? document.documentElement.outerHTML : ''"
             ) as String? ?? "";
-            if (text.isNotEmpty && !completer.isCompleted) {
-              completer.complete(text);
+            if (html.isNotEmpty) {
+              lastObtainedHtml = html;
+              if (isValidPage(siteName, html, isDetailPage: isDetailPage)) {
+                t.cancel();
+                if (!completer.isCompleted) {
+                  completer.complete(html);
+                }
+              }
             }
           } catch (_) {}
-        },
-      );
-      
-      await headless.run();
-      timeoutTimer = Timer(const Duration(seconds: 15), () {
-        if (!completer.isCompleted) completer.completeError("WebView fetch timeout for: $url");
-      });
-      
-      try {
-        final res = await completer.future;
-        timeoutTimer.cancel();
-        await headless.dispose();
-        return res;
-      } catch (e) {
-        timeoutTimer.cancel();
-        await headless.dispose();
-        rethrow;
+        });
+      },
+      onLoadStop: (controller, currentUrl) async {
+        try {
+          final html = await controller.evaluateJavascript(
+            source: "document.documentElement ? document.documentElement.outerHTML : (document.body ? document.body.outerHTML : '')"
+          ) as String? ?? "";
+          if (html.isNotEmpty) {
+            lastObtainedHtml = html;
+            if (isValidPage(siteName, html, isDetailPage: isDetailPage)) {
+              if (!completer.isCompleted) {
+                completer.complete(html);
+              }
+            }
+          }
+        } catch (_) {}
+      },
+    );
+    
+    await headless.run();
+    timeoutTimer = Timer(const Duration(seconds: 18), () {
+      if (!completer.isCompleted) {
+        if (lastObtainedHtml.isNotEmpty) {
+          completer.complete(lastObtainedHtml);
+        } else {
+          completer.completeError("WebView fetch timeout for: $url");
+        }
       }
+    });
+    
+    try {
+      final res = await completer.future;
+      timeoutTimer.cancel();
+      pollTimer?.cancel();
+      await headless.dispose();
+      return res;
+    } catch (e) {
+      timeoutTimer.cancel();
+      pollTimer?.cancel();
+      await headless.dispose();
+      rethrow;
     }
   }
 
@@ -380,21 +458,53 @@ class CfCookieHarvester {
       finalSiteName = "MissAV";
     } else if (url.contains("supjav")) {
       finalSiteName = "SupJav";
+    } else if (url.contains("hanime1")) {
+      finalSiteName = "Hanime1";
+    } else if (url.contains("91pinse")) {
+      finalSiteName = "91PinSe";
     }
+
+    AppLogger.i('CfHarvester', 'Starting harvest for [$finalSiteName] URL: $url');
 
     // 1. First attempt headless background harvesting without showing any UI modal
+    Map<String, String> headlessResult = {};
     try {
-      final headlessResult = await _harvestHeadless(finalSiteName, url);
-      if (headlessResult.isNotEmpty && headlessResult['cookie'] != null && headlessResult['cookie']!.isNotEmpty) {
+      headlessResult = await _harvestHeadless(finalSiteName, url);
+      if (headlessResult.isNotEmpty &&
+          (headlessResult['cookie']?.isNotEmpty == true ||
+              (headlessResult['html'] != null && isValidPage(finalSiteName, headlessResult['html']!)))) {
+        AppLogger.s('CfHarvester', 'Headless harvest succeeded for [$finalSiteName]');
         return headlessResult;
       }
-    } catch (_) {}
+    } catch (e) {
+      AppLogger.w('CfHarvester', 'Headless harvest exception for [$finalSiteName]: $e');
+    }
 
-    // 2. If headless fails, check if an interactive context is available
+    // Never show modal for 91PinSe
+    if (finalSiteName == '91PinSe') {
+      if (headlessResult.isNotEmpty) return headlessResult;
+      throw Exception('91品色 Headless 加载未获取到有效内容');
+    }
+
+    // Check if HTML genuinely requires human interaction (Turnstile/Challenge)
+    final rawHtml = (headlessResult['html'] ?? '').toLowerCase();
+    final isExplicitCfChallenge = rawHtml.contains('cf-turnstile') ||
+        rawHtml.contains('challenge-running') ||
+        rawHtml.contains('just a moment') ||
+        rawHtml.contains('attention required') ||
+        rawHtml.contains('security check');
+
+    if (!isExplicitCfChallenge && headlessResult.isNotEmpty) {
+      return headlessResult;
+    }
+
+    // 2. If genuine challenge exists, check if interactive UI context is available
     final context = navigatorKey.currentContext;
     if (context == null) {
-      return _harvestHeadless(finalSiteName, url);
+      return headlessResult.isNotEmpty ? headlessResult : await _harvestHeadless(finalSiteName, url);
     }
+
+    AppLogger.w('CfHarvester', 'Prompting user interactive Cloudflare verification for [$finalSiteName]');
 
     final completer = Completer<Map<String, String>>();
     bool resolved = false;
