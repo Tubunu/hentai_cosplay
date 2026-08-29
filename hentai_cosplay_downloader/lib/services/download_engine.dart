@@ -18,6 +18,7 @@ import 'jable/decryptor.dart';
 import 'misskon/misskon_api_service.dart';
 import 'pinse/pinse_api_service.dart';
 import 'pornbox/pornbox_api_service.dart';
+import 'pornhub/pornhub_api_service.dart';
 import 'pixibb/pixibb_api_service.dart';
 import 'cosplaytele/cosplaytele_api_service.dart';
 import 'nucosplay/nucosplay_api_service.dart';
@@ -474,6 +475,19 @@ class DownloadEngine {
             tags: item.tags,
           ),
         );
+      } else if (item.detailUrl.contains('pornhub.com')) {
+        vDetail = await PornhubApiService.resolveVideoDetail(
+          VideoItem(
+            title: item.title,
+            slug: item.slug,
+            detailUrl: item.detailUrl,
+            coverUrl: item.coverUrl,
+            date: item.date,
+            author: item.author,
+            tags: item.tags,
+            rawData: item.rawData,
+          ),
+        );
       } else {
         vDetail = await VideoApiService.fetchVideoDetail(
           VideoItem(
@@ -491,12 +505,14 @@ class DownloadEngine {
       directUrl = vDetail?.videoUrl;
     }
 
-    if (directUrl == null || directUrl.isEmpty) {
+    if (directUrl == null || directUrl.isEmpty || directUrl == item.detailUrl) {
       task.status = TaskStatus.failed;
-      task.errorMessage = '未能解析到视频源地址';
+      task.errorMessage = '未能解析到视频直链，请在视频详情页点击【网页播放模式】观看';
       onTaskProgress?.call(task);
       return task;
     }
+
+    final videoHeaders = _buildVideoHeaders(directUrl, detailUrl: item.detailUrl);
 
     // 4. Determine file extension: .ts for HLS stream, .mp4 for progressive stream
     final isM3u8 = directUrl.contains('.m3u8');
@@ -533,7 +549,7 @@ class DownloadEngine {
           directUrl,
           tempFilePath,
           cancelToken: _cancelToken,
-          options: Options(headers: {'Referer': '${VideoApiService.kBaseUrl}/'}),
+          options: Options(headers: videoHeaders),
           onReceiveProgress: (received, total) {
             if (_isCancelled) return;
             final delta = received - lastBytes;
@@ -587,11 +603,12 @@ class DownloadEngine {
             : (item.coverUrl ?? '');
 
         if (coverToDownload.isNotEmpty) {
+          final coverHeaders = _buildVideoHeaders(coverToDownload, detailUrl: item.detailUrl);
           await _dio.download(
             coverToDownload,
             coverFilePath,
             cancelToken: _cancelToken,
-            options: Options(headers: {'Referer': '${VideoApiService.kBaseUrl}/'}),
+            options: Options(headers: coverHeaders),
           );
         }
 
@@ -624,6 +641,30 @@ class DownloadEngine {
     return task;
   }
 
+  Map<String, String> _buildVideoHeaders(String videoUrl, {String? detailUrl}) {
+    String referer = 'https://cn.pornhub.com/';
+    if (detailUrl != null && detailUrl.isNotEmpty) {
+      try {
+        final u = Uri.parse(detailUrl);
+        referer = '${u.scheme}://${u.host}/';
+      } catch (_) {}
+    } else {
+      try {
+        final u = Uri.parse(videoUrl);
+        referer = '${u.scheme}://${u.host}/';
+      } catch (_) {}
+    }
+
+    return {
+      'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+      'Referer': referer,
+      'Origin': referer.replaceAll(RegExp(r'/$'), ''),
+      'Cookie':
+          'age_verified=1; platform=pc; accessAgeDisclaimerPH=1; cookie_preferences=%7B%221%22%3A1%2C%222%22%3A1%2C%223%22%3A1%2C%224%22%3A1%7D; hasVisited=1;',
+    };
+  }
+
   /// Download M3U8 HLS stream by fetching playlist and concatenating TS video segments
   Future<bool> _downloadM3u8Video({
     required String m3u8Url,
@@ -634,13 +675,15 @@ class DownloadEngine {
     File? tempFile;
     IOSink? sink;
     try {
+      final videoHeaders = _buildVideoHeaders(m3u8Url, detailUrl: task.albumItem.detailUrl);
+
       // 1. Fetch m3u8 playlist text
       final resp = await _dio.get(
         m3u8Url,
         cancelToken: _cancelToken,
         options: Options(
           responseType: ResponseType.plain,
-          headers: {'Referer': '${VideoApiService.kBaseUrl}/'},
+          headers: videoHeaders,
         ),
       );
 
@@ -648,11 +691,68 @@ class DownloadEngine {
         return false;
       }
 
-      final m3u8Text = resp.data.toString();
+      var m3u8Text = resp.data.toString();
+      var baseUri = Uri.parse(m3u8Url);
+
+      // If this is a master playlist (#EXT-X-STREAM-INF), extract the best variant playlist
+      if (m3u8Text.contains('#EXT-X-STREAM-INF')) {
+        String? bestVariantUrl;
+        int maxResolutionScore = -1;
+        int maxBandwidth = -1;
+        final masterLines = m3u8Text.split(RegExp(r'\r?\n'));
+        for (int i = 0; i < masterLines.length; i++) {
+          final l = masterLines[i].trim();
+          if (l.startsWith('#EXT-X-STREAM-INF')) {
+            final resMatch = RegExp(r'RESOLUTION=(\d+)x(\d+)').firstMatch(l);
+            final bwMatch = RegExp(r'BANDWIDTH=(\d+)').firstMatch(l);
+            int resScore = 0;
+            if (resMatch != null) {
+              final w = int.tryParse(resMatch.group(1)!) ?? 0;
+              final h = int.tryParse(resMatch.group(2)!) ?? 0;
+              resScore = w * h;
+            }
+            final bw = bwMatch != null ? (int.tryParse(bwMatch.group(1)!) ?? 0) : 0;
+
+            for (int j = i + 1; j < masterLines.length; j++) {
+              final nextLine = masterLines[j].trim();
+              if (nextLine.isEmpty || nextLine.startsWith('#')) continue;
+
+              final isHigherQuality = (resScore > maxResolutionScore) ||
+                  (resScore == maxResolutionScore && bw > maxBandwidth) ||
+                  bestVariantUrl == null;
+
+              if (isHigherQuality) {
+                maxResolutionScore = resScore;
+                maxBandwidth = bw;
+                bestVariantUrl = nextLine.startsWith('http')
+                    ? nextLine
+                    : baseUri.resolve(nextLine).toString();
+              }
+              break;
+            }
+          }
+        }
+
+        if (bestVariantUrl != null) {
+          onLog('解析到最高画质 HLS 视频流: $bestVariantUrl', 'info');
+          final variantResp = await _dio.get(
+            bestVariantUrl,
+            cancelToken: _cancelToken,
+            options: Options(
+              responseType: ResponseType.plain,
+              headers: videoHeaders,
+            ),
+          );
+          if (variantResp.statusCode == 200 && variantResp.data != null) {
+            m3u8Text = variantResp.data.toString();
+            baseUri = Uri.parse(bestVariantUrl);
+          }
+        }
+      }
+
       final lines = m3u8Text.split(RegExp(r'\r?\n'));
       final List<String> segmentUrls = [];
 
-      final baseUri = Uri.parse(m3u8Url);
       Uint8List? aesKeyBytes;
       Uint8List? aesIvBytes;
 
@@ -674,7 +774,7 @@ class DownloadEngine {
                 cancelToken: _cancelToken,
                 options: Options(
                   responseType: ResponseType.bytes,
-                  headers: {'Referer': '${VideoApiService.kBaseUrl}/'},
+                  headers: videoHeaders,
                 ),
               );
               if (keyResp.statusCode == 200 && keyResp.data != null && keyResp.data!.length == 16) {
@@ -736,7 +836,7 @@ class DownloadEngine {
               cancelToken: _cancelToken,
               options: Options(
                 responseType: ResponseType.bytes,
-                headers: {'Referer': '${VideoApiService.kBaseUrl}/'},
+                headers: videoHeaders,
               ),
             );
 

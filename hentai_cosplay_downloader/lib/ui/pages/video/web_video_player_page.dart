@@ -41,7 +41,15 @@ class _WebVideoPlayerPageState extends State<WebVideoPlayerPage> {
 
   @override
   void dispose() {
-    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+    ]);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    try {
+      _webViewController?.stopLoading();
+      _webViewController?.loadUrl(urlRequest: URLRequest(url: WebUri('about:blank')));
+    } catch (_) {}
+    _webViewController = null;
     super.dispose();
   }
 

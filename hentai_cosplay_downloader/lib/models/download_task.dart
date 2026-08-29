@@ -110,6 +110,14 @@ class AlbumDownloadTask {
   int get finishedImages => downloadedImages + skippedImages + failedImages;
 
   double get progress {
+    if (isVideo) {
+      if (status == TaskStatus.completed) return 1.0;
+      if (totalBytes > 0) {
+        final val = downloadedBytes / totalBytes;
+        return val.isNaN ? 0.0 : val.clamp(0.0, 1.0);
+      }
+      return 0.0;
+    }
     if (totalImages <= 0) return 0.0;
     final val = (downloadedImages + skippedImages) / totalImages;
     return val.isNaN ? 0.0 : val.clamp(0.0, 1.0);
@@ -118,7 +126,7 @@ class AlbumDownloadTask {
   bool get isDone =>
       status == TaskStatus.completed ||
       status == TaskStatus.failed ||
-      (totalImages > 0 && (downloadedImages + skippedImages + failedImages) >= totalImages);
+      (!isVideo && totalImages > 0 && (downloadedImages + skippedImages + failedImages) >= totalImages);
 
   bool get isRunning => status == TaskStatus.downloading;
 

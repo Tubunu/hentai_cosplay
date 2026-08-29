@@ -25,6 +25,7 @@ class AppConfig {
   double navBarOpacity; // 0.1 ~ 1.0
   String jableResolutionPref; // '1080p', 'highest', '720p', '480p', 'lowest'
   int jableWorkers;
+  List<String> onlineResourceSortOrder;
 
   AppConfig({
     this.savePath = '',
@@ -42,7 +43,9 @@ class AppConfig {
     this.navBarOpacity = 0.85,
     this.jableResolutionPref = '1080p',
     this.jableWorkers = 3,
-  }) : mztProxyDomains = mztProxyDomains ?? List.from(kDefaultMztProxyDomains);
+    List<String>? onlineResourceSortOrder,
+  })  : mztProxyDomains = mztProxyDomains ?? List.from(kDefaultMztProxyDomains),
+        onlineResourceSortOrder = onlineResourceSortOrder ?? [];
 
   AppConfig copyWith({
     String? savePath,
@@ -60,6 +63,7 @@ class AppConfig {
     double? navBarOpacity,
     String? jableResolutionPref,
     int? jableWorkers,
+    List<String>? onlineResourceSortOrder,
   }) {
     return AppConfig(
       savePath: savePath ?? this.savePath,
@@ -77,6 +81,7 @@ class AppConfig {
       navBarOpacity: navBarOpacity ?? this.navBarOpacity,
       jableResolutionPref: jableResolutionPref ?? this.jableResolutionPref,
       jableWorkers: jableWorkers ?? this.jableWorkers,
+      onlineResourceSortOrder: onlineResourceSortOrder ?? List.from(this.onlineResourceSortOrder),
     );
   }
 
@@ -98,6 +103,10 @@ class AppConfig {
       navBarOpacity: (json['navBarOpacity'] as num?)?.toDouble().clamp(0.1, 1.0) ?? 0.85,
       jableResolutionPref: json['jableResolutionPref'] ?? '1080p',
       jableWorkers: (json['jableWorkers'] as num?)?.toInt().clamp(1, 10) ?? 3,
+      onlineResourceSortOrder: (json['onlineResourceSortOrder'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
     );
   }
 
@@ -117,6 +126,7 @@ class AppConfig {
     'navBarOpacity': navBarOpacity,
     'jableResolutionPref': jableResolutionPref,
     'jableWorkers': jableWorkers,
+    'onlineResourceSortOrder': onlineResourceSortOrder,
   };
 
   String toRawJson() => jsonEncode(toJson());

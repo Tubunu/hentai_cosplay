@@ -82,7 +82,9 @@ class VideoPlayerPage extends StatefulWidget {
 }
 
 class _VideoPlayerPageState extends State<VideoPlayerPage> {
-  late VideoPlayerController _controller;
+  VideoPlayerController? _controller;
+  VideoPlayerController? _pendingController;
+  bool _isDisposed = false;
   bool _isInitialized = false;
   bool _hasError = false;
   String _errorMessage = '';
@@ -130,13 +132,26 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   }
 
   Future<void> _initPlayer() async {
+    if (_isDisposed) return;
     final currentGen = ++_initGen;
+
+    // Safely dispose old controller before loading new stream
+    final oldController = _controller;
+    _controller = null;
+    if (oldController != null) {
+      oldController.removeListener(_onControllerUpdate);
+      try {
+        await oldController.pause();
+      } catch (_) {}
+      oldController.dispose();
+    }
+
     try {
       VideoPlayerController? newController;
       if (_currentFilePath != null && _currentFilePath!.isNotEmpty) {
         final file = File(_currentFilePath!);
         if (!await file.exists()) {
-          if (!mounted || currentGen != _initGen) return;
+          if (!mounted || _isDisposed || currentGen != _initGen) return;
           setState(() {
             _hasError = true;
             _errorMessage = '本地视频文件不存在或已被移除';
@@ -145,16 +160,37 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
         }
         newController = VideoPlayerController.file(file);
       } else if (_currentRemoteUrl != null && _currentRemoteUrl!.isNotEmpty) {
-        final headers = _currentHttpHeaders ?? {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36',
-          'Referer': 'https://porn-video-xxx.com/',
-        };
+        Map<String, String> headers;
+        if (_currentHttpHeaders != null && _currentHttpHeaders!.isNotEmpty) {
+          headers = _currentHttpHeaders!;
+        } else {
+          String referer = 'https://cn.pornhub.com/';
+          if (_currentWebPlayerUrl != null && _currentWebPlayerUrl!.isNotEmpty) {
+            try {
+              final uri = Uri.parse(_currentWebPlayerUrl!);
+              referer = '${uri.scheme}://${uri.host}/';
+            } catch (_) {}
+          } else if (_currentRemoteUrl != null && _currentRemoteUrl!.isNotEmpty) {
+            try {
+              final uri = Uri.parse(_currentRemoteUrl!);
+              referer = '${uri.scheme}://${uri.host}/';
+            } catch (_) {}
+          }
+          headers = {
+            'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+            'Referer': referer,
+            'Origin': referer.replaceAll(RegExp(r'/$'), ''),
+            'Cookie':
+                'age_verified=1; platform=pc; accessAgeDisclaimerPH=1; cookie_preferences=%7B%221%22%3A1%2C%222%22%3A1%2C%223%22%3A1%2C%224%22%3A1%7D; hasVisited=1;',
+          };
+        }
         newController = VideoPlayerController.networkUrl(
           Uri.parse(_currentRemoteUrl!),
           httpHeaders: headers,
         );
       } else {
-        if (!mounted || currentGen != _initGen) return;
+        if (!mounted || _isDisposed || currentGen != _initGen) return;
         setState(() {
           _hasError = true;
           _errorMessage = '未提供有效的视频源';
@@ -162,15 +198,21 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
         return;
       }
 
+      _pendingController = newController;
       await newController.initialize();
-      if (!mounted || currentGen != _initGen) {
+      _pendingController = null;
+
+      if (!mounted || _isDisposed || currentGen != _initGen) {
+        try {
+          await newController.pause();
+        } catch (_) {}
         newController.dispose();
         return;
       }
 
       _controller = newController;
-      _controller.addListener(_onControllerUpdate);
-      _controller.play();
+      _controller!.addListener(_onControllerUpdate);
+      _controller!.play();
 
       setState(() {
         _isInitialized = true;
@@ -178,7 +220,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
 
       _startHideTimer();
     } catch (e) {
-      if (!mounted || currentGen != _initGen) return;
+      _pendingController = null;
+      if (!mounted || _isDisposed || currentGen != _initGen) return;
       setState(() {
         _hasError = true;
         _errorMessage = '视频加载失败: $e';
@@ -187,8 +230,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   }
 
   void _onControllerUpdate() {
-    if (!mounted || !_isInitialized) return;
-    if (_controller.value.position >= _controller.value.duration && _controller.value.duration > Duration.zero) {
+    final controller = _controller;
+    if (!mounted || _isDisposed || !_isInitialized || controller == null) return;
+    if (controller.value.position >= controller.value.duration && controller.value.duration > Duration.zero) {
       if (_hasPlaylist && !_isSeeking) {
         _playNext();
       }
@@ -198,7 +242,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   void _startHideTimer() {
     _hideTimer?.cancel();
     _hideTimer = Timer(const Duration(seconds: 4), () {
-      if (mounted && _controller.value.isPlaying) {
+      if (mounted && !_isDisposed && _controller?.value.isPlaying == true) {
         setState(() {
           _showControls = false;
         });
@@ -218,44 +262,52 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   }
 
   void _togglePlayPause() {
-    if (!_isInitialized) return;
+    final controller = _controller;
+    if (!_isInitialized || controller == null) return;
     setState(() {
-      if (_controller.value.isPlaying) {
-        _controller.pause();
+      if (controller.value.isPlaying) {
+        controller.pause();
         _showControls = true;
         _hideTimer?.cancel();
       } else {
-        _controller.play();
+        controller.play();
         _startHideTimer();
       }
     });
   }
 
   void _seekRelative(int seconds) {
-    if (!_isInitialized) return;
-    final newPos = _controller.value.position + Duration(seconds: seconds);
+    final controller = _controller;
+    if (!_isInitialized || controller == null) return;
+    final newPos = controller.value.position + Duration(seconds: seconds);
     final clamped = newPos < Duration.zero
         ? Duration.zero
-        : newPos > _controller.value.duration
-            ? _controller.value.duration
+        : newPos > controller.value.duration
+            ? controller.value.duration
             : newPos;
-    _controller.seekTo(clamped);
+    controller.seekTo(clamped);
     _startHideTimer();
   }
 
   /// Switch video to a specified playlist index
   Future<void> _switchToIndex(int index) async {
-    if (!_hasPlaylist) return;
+    if (!_hasPlaylist || _isDisposed) return;
     final playlist = widget.playlist!;
     final safeIndex = (index + playlist.length) % playlist.length;
     final nextItem = playlist[safeIndex];
 
     _hideTimer?.cancel();
-    if (_isInitialized) {
-      _controller.removeListener(_onControllerUpdate);
-      await _controller.pause();
-      _controller.dispose();
+    final controller = _controller;
+    _controller = null;
+    if (controller != null) {
+      controller.removeListener(_onControllerUpdate);
+      try {
+        await controller.pause();
+      } catch (_) {}
+      controller.dispose();
     }
+
+    if (!mounted || _isDisposed) return;
 
     setState(() {
       _currentIndex = safeIndex;
@@ -295,11 +347,11 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
 
   /// Play random video from playlist
   void _playRandom() {
-    if (!_hasPlaylist) return;
+    if (!_hasPlaylist || _controller == null) return;
     final playlist = widget.playlist!;
     if (playlist.length == 1) {
-      _controller.seekTo(Duration.zero);
-      _controller.play();
+      _controller?.seekTo(Duration.zero);
+      _controller?.play();
       return;
     }
 
@@ -379,20 +431,35 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
 
   @override
   void dispose() {
+    _isDisposed = true;
     _hideTimer?.cancel();
-    // Restore system orientation & overlays when exiting player
+    _hideTimer = null;
+
+    // Restore portrait orientation smoothly without triggering full activity rebuild
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
     ]);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
-    if (_isInitialized) {
-      _controller.removeListener(_onControllerUpdate);
-      _controller.dispose();
+    final pending = _pendingController;
+    _pendingController = null;
+    if (pending != null) {
+      try {
+        pending.pause();
+      } catch (_) {}
+      pending.dispose();
     }
+
+    final controller = _controller;
+    _controller = null;
+    if (controller != null) {
+      controller.removeListener(_onControllerUpdate);
+      try {
+        controller.pause();
+      } catch (_) {}
+      controller.dispose();
+    }
+
     super.dispose();
   }
 
@@ -415,13 +482,17 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                           const Icon(CupertinoIcons.exclamationmark_circle, color: Colors.redAccent, size: 48),
                           const SizedBox(height: 12),
                           Text(
-                            _errorMessage,
+                            _errorMessage.contains('Source error')
+                                ? '该视频源受源站防盗链/安全策略保护，建议点击下方切换网页极速播放'
+                                : _errorMessage,
                             textAlign: TextAlign.center,
-                            style: const TextStyle(color: Colors.white70, fontSize: 13),
+                            style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
                           ),
                           const SizedBox(height: 18),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                          Wrap(
+                            alignment: WrapAlignment.center,
+                            spacing: 12,
+                            runSpacing: 10,
                             children: [
                               CupertinoButton.filled(
                                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -435,9 +506,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                                 child: const Text('重试播放', style: TextStyle(fontSize: 13)),
                               ),
                               if (_currentWebPlayerUrl != null && _currentWebPlayerUrl!.isNotEmpty) ...[
-                                const SizedBox(width: 12),
                                 CupertinoButton(
-                                  color: IosTheme.primaryPink,
+                                  color: const Color(0xFFFF9900),
                                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                                   onPressed: () {
                                     Navigator.pop(context);
@@ -446,9 +516,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                                   child: const Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(CupertinoIcons.globe, size: 16, color: Colors.white),
+                                      Icon(CupertinoIcons.globe, size: 16, color: Colors.black),
                                       SizedBox(width: 6),
-                                      Text('网页极速播放', style: TextStyle(fontSize: 13, color: Colors.white)),
+                                      Text('网页极速播放', style: TextStyle(fontSize: 13, color: Colors.black, fontWeight: FontWeight.bold)),
                                     ],
                                   ),
                                 ),
@@ -458,7 +528,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                         ],
                       ),
                     )
-                  : _isInitialized
+                  : (_isInitialized && _controller != null)
                       ? GestureDetector(
                           onTap: _toggleControls,
                           behavior: HitTestBehavior.opaque,
@@ -469,17 +539,17 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                                     child: FittedBox(
                                       fit: BoxFit.cover,
                                       child: SizedBox(
-                                        width: _controller.value.size.width > 0 ? _controller.value.size.width : 16,
-                                        height: _controller.value.size.height > 0 ? _controller.value.size.height : 9,
-                                        child: VideoPlayer(_controller),
+                                        width: _controller!.value.size.width > 0 ? _controller!.value.size.width : 16,
+                                        height: _controller!.value.size.height > 0 ? _controller!.value.size.height : 9,
+                                        child: VideoPlayer(_controller!),
                                       ),
                                     ),
                                   )
                                 : AspectRatio(
-                                    aspectRatio: _controller.value.aspectRatio > 0
-                                        ? _controller.value.aspectRatio
+                                    aspectRatio: _controller!.value.aspectRatio > 0
+                                        ? _controller!.value.aspectRatio
                                         : 16 / 9,
-                                    child: VideoPlayer(_controller),
+                                    child: VideoPlayer(_controller!),
                                   ),
                           ),
                         )
@@ -489,7 +559,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
             ),
 
             // Live Buffering Spinner Overlay for Remote Video Streams
-            if (_isInitialized && _controller.value.isBuffering)
+            if (_isInitialized && _controller != null && _controller!.value.isBuffering)
               Center(
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -743,18 +813,20 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                               ),
                             ],
                           ),
-                          child: ValueListenableBuilder<VideoPlayerValue>(
-                            valueListenable: _controller,
-                            builder: (context, val, _) {
-                              return Icon(
-                                val.isPlaying
-                                    ? CupertinoIcons.pause_fill
-                                    : CupertinoIcons.play_fill,
-                                color: Colors.white,
-                                size: 34,
-                              );
-                            },
-                          ),
+                          child: (_controller != null)
+                              ? ValueListenableBuilder<VideoPlayerValue>(
+                                  valueListenable: _controller!,
+                                  builder: (context, val, _) {
+                                    return Icon(
+                                      val.isPlaying
+                                          ? CupertinoIcons.pause_fill
+                                          : CupertinoIcons.play_fill,
+                                      color: Colors.white,
+                                      size: 34,
+                                    );
+                                  },
+                                )
+                              : const SizedBox(),
                         ),
                       ),
                       const SizedBox(width: 20),
@@ -794,7 +866,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                 ),
 
               // Bottom Progress Bar & Time
-              if (_isInitialized)
+              if (_isInitialized && _controller != null)
                 Positioned(
                   bottom: 0,
                   left: 0,
@@ -814,7 +886,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                       ),
                     ),
                     child: ValueListenableBuilder<VideoPlayerValue>(
-                      valueListenable: _controller,
+                      valueListenable: _controller!,
                       builder: (context, videoVal, _) {
                         final durationMs = videoVal.duration.inMilliseconds;
                         final positionMs = videoVal.position.inMilliseconds;
@@ -844,9 +916,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                                   });
                                 },
                                 onChangeEnd: (val) {
-                                  final totalMs = _controller.value.duration.inMilliseconds;
+                                  final totalMs = _controller?.value.duration.inMilliseconds ?? 0;
                                   final targetMs = (val * totalMs).toInt();
-                                  _controller.seekTo(Duration(milliseconds: targetMs));
+                                  _controller?.seekTo(Duration(milliseconds: targetMs));
                                   setState(() {
                                     _isSeeking = false;
                                   });

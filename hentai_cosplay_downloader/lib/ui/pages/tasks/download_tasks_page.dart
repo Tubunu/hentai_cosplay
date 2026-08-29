@@ -698,8 +698,10 @@ class _DownloadTasksPageState extends State<DownloadTasksPage> {
                         if (task.isVideo)
                           Text(
                             task.status == TaskStatus.completed
-                                ? '下载完成'
-                                : (task.duration != null && task.duration!.isNotEmpty ? task.duration! : '高清视频'),
+                                ? '下载完成 (${_formatBytes(task.downloadedBytes)})'
+                                : (task.downloadedBytes > 0
+                                    ? '${(progress * 100).toStringAsFixed(1)}% · ${_formatBytes(task.downloadedBytes)}${task.totalBytes > 0 ? ' / ${_formatBytes(task.totalBytes)}' : ''}'
+                                    : (task.duration != null && task.duration!.isNotEmpty ? task.duration! : '高清视频')),
                             style: TextStyle(
                               fontSize: 11,
                               color: isDark ? Colors.white54 : Colors.black45,

@@ -84,8 +84,12 @@ jobs:
       - name: Build Android Release APK
         run: |
           cd hentai_cosplay_downloader
-          flutter build apk --release --target-platform android-arm64
-          cp build/app/outputs/flutter-apk/app-release.apk "$GITHUB_WORKSPACE/hentai_cosplay_downloader-arm64-v8a.apk"
+          flutter build apk --release --target-platform android-arm64 --split-per-abi
+          if [ -f build/app/outputs/flutter-apk/app-arm64-v8a-release.apk ]; then
+            cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "$GITHUB_WORKSPACE/hentai_cosplay_downloader-arm64-v8a.apk"
+          else
+            cp build/app/outputs/flutter-apk/app-release.apk "$GITHUB_WORKSPACE/hentai_cosplay_downloader-arm64-v8a.apk"
+          fi
           ls -lh "$GITHUB_WORKSPACE/"*.apk
 
       - name: Upload APK Artifact
@@ -117,20 +121,20 @@ jobs:
       - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.3-release
-          name: "Hentai Cosplay Downloader v1.0.3 Release (iOS IPA & Android APK)"
+          tag_name: v1.0.4-release
+          name: "Hentai Cosplay Downloader v1.0.4 Release (iOS IPA & Android APK)"
           body: |
             ### 📱 安装包下载
-            - **🍎 iOS (iPhone / iPad)**: 下载 `hentai_cosplay_downloader.ipa`，使用 **爱思助手** / **Sideloadly** / **TrollStore** / **AltStore** / **牛蛙助手** 签名安装。
+            - **🍎 iOS (iPhone / iPad)**: 下载 `hentai_cosplay_downloader.ipa`，使用 **爱思助手** / **Sideloadly** / **TrollStore (巨魔)** / **AltStore** / **牛蛙助手** / **GBox** / **ESign** 签名安装。
             - **🤖 Android (安卓 64位推荐)**: 下载 `hentai_cosplay_downloader-arm64-v8a.apk` (体积仅 ~65MB)，在安卓手机上直接安装即可。
 
-            ### 🚀 最新功能与修复更新 (v1.0.3)
-            - **全站点真·全库随机漫游**：支持 16 个站点（9个图集站 + 7个视频站）全库随机抽样探索，进入详情页后可无缝连续切换下一个随机资源。
-            - **Kuraa 智能多源随机**：精准限定在「二次元」(2.6万插画)、「秀人」(2000套图)、「达盖尔」(7700套图) 三大核心分类中真随机抽样。
-            - **本地图库全来源筛选**：本地资源支持 10 种来源全量过滤（HC、ExHentai、MZT、MissKon、PixiBB、CosplayTele、NuCosplay、Coomer、Kuraa），并提供实时计数与自适应悬浮「返回最顶部」。
-            - **ExHentai / 810114 智能来源校正**：彻底解决镜像源下载在本地被误标为 HC 的历史问题。
-            - **画中画（PiP）后台保活**：支持 iOS 原生画中画浮窗保活，切到后台持续满速下载。
-            - **全量多媒体播放与下载引擎**：支持 HLS AES-128 切片异步解密、多线程并发加速、断点续传与大图包分页解析。
+            ### 🚀 最新功能与修复更新 (v1.0.4)
+            - **全新加入 Pornhub 专区**：支持海量热门分类选择、全库分页浏览与关键词搜索，内置智能 4K/2K/1080P 最高画质自适应提取与多线程下载引擎。
+            - **【在线资源】完全自定义站点排序**：在【设置】页面支持可视化长按拖拽调整 18 个在线站点的显示顺序，自定义首页首选标签并实时持久化。
+            - **下载进度条与实时体积显示修复**：视频多码率下载任务支持实时显示已下载 MB / 总大小与精准百分比。
+            - **视频播放器极致流畅度与生命周期加固**：彻底消除视频退出返回列表时的解码器资源冲突与偶发卡死/ANR 现象。
+            - **全站点最高画质锁定**：Pornhub、EPorner、HQPorner、SpankBang、Hanime1 播放与下载默认匹配 4K / 1080P 最高分辨率。
+            - **画中画（PiP）后台保活与文件共享**：支持 iOS 文件 App 共享与画中画后台下载保活。
           files: |
             hentai_cosplay_downloader.ipa
             hentai_cosplay_downloader-arm64-v8a.apk*

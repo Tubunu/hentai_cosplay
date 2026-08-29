@@ -193,10 +193,32 @@ class EpornerApiService {
 
         String? directVideoUrl;
 
-        // Check video sources
-        final videoSource = document.querySelector('video source') ?? document.querySelector('video');
-        if (videoSource != null) {
-          directVideoUrl = videoSource.attributes['src'];
+        // Check all video sources & download links and choose highest resolution
+        final sources = document.querySelectorAll('video source[src], a[href*=".mp4"], a[href*="download"], .dwnld a, .download-link');
+        int bestScore = -1;
+        for (final s in sources) {
+          final src = s.attributes['src'] ?? s.attributes['href'];
+          if (src == null || src.isEmpty || !src.startsWith('http')) continue;
+          if (!src.contains('.mp4') && !src.contains('.m3u8')) continue;
+
+          final label = '${s.attributes['size']} ${s.attributes['title']} ${s.text} $src'.toLowerCase();
+          int score = 720;
+          if (label.contains('2160') || label.contains('4k')) {
+            score = 2160;
+          } else if (label.contains('1440') || label.contains('2k')) {
+            score = 1440;
+          } else if (label.contains('1080')) {
+            score = 1080;
+          } else if (label.contains('720')) {
+            score = 720;
+          } else if (label.contains('480')) {
+            score = 480;
+          }
+
+          if (score > bestScore || directVideoUrl == null) {
+            bestScore = score;
+            directVideoUrl = src;
+          }
         }
 
         // Search for mp4 in scripts / download links

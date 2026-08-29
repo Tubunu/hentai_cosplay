@@ -7,6 +7,7 @@ import '../../../providers/settings_provider.dart';
 import '../../../services/storage_service.dart';
 import '../../theme/ios_theme.dart';
 import '../../widgets/bouncing_button.dart';
+import 'resource_order_setting_page.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -493,6 +494,66 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                     ),
                   ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+
+            // Section: Online Resources Sort Order
+            _buildSectionHeader('在线资源管理'),
+            _buildSettingCard(
+              isDark: isDark,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: IosTheme.primaryPink.withValues(alpha: isDark ? 0.22 : 0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(CupertinoIcons.square_list_fill, color: IosTheme.primaryPink, size: 19),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '自定义站点排序',
+                              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              '长按拖拽调整【在线资源】顶部标签与页面排列顺序',
+                              style: TextStyle(fontSize: 11.5, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ),
+                      BouncingButton(
+                        onTap: () => ResourceOrderSettingPage.open(context),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: IosTheme.primaryPink,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text('去排序', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12)),
+                              SizedBox(width: 2),
+                              Icon(CupertinoIcons.chevron_right, color: Colors.white, size: 12),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),

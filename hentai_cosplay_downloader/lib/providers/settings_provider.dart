@@ -153,6 +153,18 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> updateOnlineResourceSortOrder(List<String> order) async {
+    _config.onlineResourceSortOrder = List.from(order);
+    await ConfigService.saveConfig(_config);
+    notifyListeners();
+  }
+
+  Future<void> resetOnlineResourceSortOrder() async {
+    _config.onlineResourceSortOrder = [];
+    await ConfigService.saveConfig(_config);
+    notifyListeners();
+  }
+
   Future<void> persistConfig() async {
     await ConfigService.saveConfig(_config);
   }

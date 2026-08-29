@@ -9,6 +9,7 @@ import 'misskon/misskon_api_service.dart';
 import 'mzt_api_service.dart';
 import 'pinse/pinse_api_service.dart';
 import 'pornbox/pornbox_api_service.dart';
+import 'pornhub/pornhub_api_service.dart';
 import 'exhentai/exhentai_api_service.dart';
 import 'pixibb/pixibb_api_service.dart';
 import 'cosplaytele/cosplaytele_api_service.dart';
@@ -44,6 +45,7 @@ class ConfigService {
     EpornerApiService.setProxy(p);
     HqpornerApiService.setProxy(p);
     SpankbangApiService.setProxy(p);
+    PornhubApiService.setProxy(p);
   }
 
   static Future<void> init() async {

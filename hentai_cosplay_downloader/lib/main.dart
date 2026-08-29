@@ -23,6 +23,7 @@ import 'providers/nucosplay_browse_provider.dart';
 import 'providers/pinse_browse_provider.dart';
 import 'providers/pixibb_browse_provider.dart';
 import 'providers/pornbox_browse_provider.dart';
+import 'providers/pornhub_browse_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/spankbang_browse_provider.dart';
 import 'providers/twitter_browse_provider.dart';
@@ -90,6 +91,7 @@ void main() async {
           ChangeNotifierProvider(create: (_) => EpornerBrowseProvider()),
           ChangeNotifierProvider(create: (_) => HqpornerBrowseProvider()),
           ChangeNotifierProvider(create: (_) => SpankbangBrowseProvider()),
+          ChangeNotifierProvider(create: (_) => PornhubBrowseProvider()),
           ChangeNotifierProvider(create: (_) => JableBrowseProvider()),
           ChangeNotifierProvider(create: (_) => DownloadProvider()),
           ChangeNotifierProvider(create: (_) => JableDownloadProvider()),

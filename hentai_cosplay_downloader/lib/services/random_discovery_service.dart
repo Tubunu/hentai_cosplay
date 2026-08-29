@@ -15,6 +15,7 @@ import 'nucosplay/nucosplay_api_service.dart';
 import 'pinse/pinse_api_service.dart';
 import 'pixibb/pixibb_api_service.dart';
 import 'pornbox/pornbox_api_service.dart';
+import 'pornhub/pornhub_api_service.dart';
 import 'spankbang/spankbang_api_service.dart';
 import 'video_api_service.dart';
 
@@ -32,6 +33,7 @@ import '../ui/pages/nucosplay/nucosplay_detail_page.dart';
 import '../ui/pages/pinse/pinse_detail_page.dart';
 import '../ui/pages/pixibb/pixibb_detail_page.dart';
 import '../ui/pages/pornbox/pornbox_detail_page.dart';
+import '../ui/pages/pornhub/pornhub_detail_page.dart';
 import '../ui/pages/spankbang/spankbang_detail_page.dart';
 import '../ui/pages/video/video_detail_page.dart';
 
@@ -42,7 +44,8 @@ enum VideoSiteType {
   pornbox('PornBox'),
   eporner('EPorner'),
   hqporner('HQPorner'),
-  spankbang('SpankBang');
+  spankbang('SpankBang'),
+  pornhub('Pornhub');
 
   final String label;
   const VideoSiteType(this.label);
@@ -339,6 +342,16 @@ class RandomDiscoveryService {
           if (res != null && res.items.isNotEmpty) {
             final item = res.items[_rng.nextInt(res.items.length)];
             _navigateTo(context, SpankbangDetailPage(item: item), replace);
+            return;
+          }
+          break;
+
+        case VideoSiteType.pornhub:
+          final randomPage = _rng.nextInt(80) + 1;
+          final res = await PornhubApiService.fetchPageData(page: randomPage);
+          if (res != null && res.items.isNotEmpty) {
+            final item = res.items[_rng.nextInt(res.items.length)];
+            _navigateTo(context, PornhubDetailPage(item: item), replace);
             return;
           }
           break;
