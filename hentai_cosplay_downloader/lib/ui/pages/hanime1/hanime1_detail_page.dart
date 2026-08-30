@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../models/download_task.dart';
 import '../../../models/video_item.dart';
+import '../../../providers/browsing_history_provider.dart';
 import '../../../providers/download_provider.dart';
 import '../../../providers/hanime1_browse_provider.dart';
 import '../../../services/hanime1/hanime1_api_service.dart';
@@ -40,6 +41,17 @@ class _Hanime1DetailPageState extends State<Hanime1DetailPage> {
     super.initState();
     _item = widget.item;
     _resolveDetail();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<BrowsingHistoryProvider>().recordVideo(
+          _item,
+          siteKey: 'hanime1',
+          siteName: 'Hanime1',
+          siteColor: const Color(0xFFFF2E63),
+        );
+      }
+    });
   }
 
   Future<void> _resolveDetail() async {

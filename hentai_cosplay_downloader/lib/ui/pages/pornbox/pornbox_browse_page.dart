@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/download_provider.dart';
 import '../../../providers/pornbox_browse_provider.dart';
@@ -200,7 +201,12 @@ class _PornboxBrowsePageState extends State<PornboxBrowsePage> {
           children: [
             RefreshIndicator(
               color: const Color(0xFFAB47BC),
-              onRefresh: () => prov.loadPage(prov.currentPage),
+              edgeOffset: 58.0,
+              displacement: 40.0,
+              onRefresh: () async {
+                await prov.loadPage(prov.currentPage);
+                HapticFeedback.lightImpact();
+              },
               child: CustomScrollView(
             controller: _scrollController,
             physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),

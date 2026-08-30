@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../models/video_item.dart';
 import '../../../providers/download_provider.dart';
@@ -133,8 +134,11 @@ class _VideoBrowsePageState extends State<VideoBrowsePage> {
           children: [
             RefreshIndicator(
               color: IosTheme.primaryPink,
+              edgeOffset: 58.0,
+              displacement: 40.0,
               onRefresh: () async {
                 await browseProv.loadPage(browseProv.currentPage);
+                HapticFeedback.lightImpact();
               },
               child: CustomScrollView(
             controller: _scrollController,

@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../models/jable_video_item.dart';
 import '../../../providers/jable_browse_provider.dart';
@@ -318,7 +319,10 @@ class _JableBrowsePageState extends State<JableBrowsePage> with AutomaticKeepAli
                                   child: Text('未找到相关视频', style: TextStyle(color: Colors.grey)),
                                 )
                               : RefreshIndicator(
-                                  onRefresh: () => browse.loadVideos(),
+                                  onRefresh: () async {
+                                    await browse.loadVideos();
+                                    HapticFeedback.lightImpact();
+                                  },
                                   color: IosTheme.primaryPink,
                                   child: GridView.builder(
                                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 90),

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../models/download_task.dart';
 import '../../../models/video_item.dart';
+import '../../../providers/browsing_history_provider.dart';
 import '../../../providers/download_provider.dart';
 import '../../../services/pinse/pinse_api_service.dart';
 import '../../widgets/bouncing_button.dart';
@@ -40,6 +41,17 @@ class _PinseDetailPageState extends State<PinseDetailPage> {
     super.initState();
     _item = widget.item;
     _fetchDetail();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<BrowsingHistoryProvider>().recordVideo(
+          _item,
+          siteKey: 'pinse',
+          siteName: '91品色',
+          siteColor: const Color(0xFFFF8C00),
+        );
+      }
+    });
   }
 
   Future<void> _fetchDetail() async {

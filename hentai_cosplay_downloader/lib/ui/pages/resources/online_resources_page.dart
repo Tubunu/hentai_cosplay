@@ -1,9 +1,11 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../models/resource_site_item.dart';
 import '../../../providers/settings_provider.dart';
 import '../../widgets/bouncing_button.dart';
 import '../../widgets/liquid_glass.dart';
+import '../history/browsing_history_page.dart';
 
 class OnlineResourcesPage extends StatefulWidget {
   const OnlineResourcesPage({super.key});
@@ -78,35 +80,54 @@ class _OnlineResourcesPageState extends State<OnlineResourcesPage> {
             children: orderedSites.map((site) => site.widget).toList(),
           ),
 
-          // Floating Adaptive Liquid Glass Segmented Capsule Bar
+          // Floating Adaptive Liquid Glass Segmented Capsule Bar & History Button
           Positioned(
             top: topPadding + 6,
             left: 12,
             right: 12,
-            child: Align(
-              alignment: Alignment.topCenter,
-              child: LiquidGlass(
-                borderRadius: 24,
-                blur: 24,
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3.5),
-                fluidAuraColor: activeSite.color,
-                child: SingleChildScrollView(
-                  controller: _navScrollController,
-                  scrollDirection: Axis.horizontal,
-                  physics: const BouncingScrollPhysics(),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: List.generate(orderedSites.length, (index) {
-                      return _buildSegmentItem(
-                        index,
-                        orderedSites[index],
-                        isDark,
-                        orderedSites,
-                      );
-                    }),
+            child: Row(
+              children: [
+                Expanded(
+                  child: LiquidGlass(
+                    borderRadius: 24,
+                    blur: 24,
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3.5),
+                    fluidAuraColor: activeSite.color,
+                    child: SingleChildScrollView(
+                      controller: _navScrollController,
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: List.generate(orderedSites.length, (index) {
+                          return _buildSegmentItem(
+                            index,
+                            orderedSites[index],
+                            isDark,
+                            orderedSites,
+                          );
+                        }),
+                      ),
+                    ),
                   ),
                 ),
-              ),
+                const SizedBox(width: 8),
+                // Browsing History Button
+                BouncingButton(
+                  onTap: () => BrowsingHistoryPage.open(context),
+                  child: LiquidGlass(
+                    borderRadius: 24,
+                    blur: 24,
+                    padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9.5),
+                    fluidAuraColor: activeSite.color,
+                    child: Icon(
+                      CupertinoIcons.clock_fill,
+                      color: isDark ? Colors.white : const Color(0xFF1C1C1E),
+                      size: 15.5,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],

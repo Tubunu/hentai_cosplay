@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:video_player/video_player.dart';
 import '../../../models/video_item.dart';
+import '../../../providers/browsing_history_provider.dart';
 import '../../../providers/download_provider.dart';
 import '../../../services/twitter_rankings/twitter_ranking_api_service.dart';
 import '../../../services/twitter_rankings/twitter_site_config.dart';
@@ -44,6 +45,22 @@ class _TwitterReelPlayerPageState extends State<TwitterReelPlayerPage> {
   Duration _scrubPosition = Duration.zero;
   Duration _scrubTotal = Duration.zero;
 
+  void _recordCurrentHistory(int index) {
+    if (index >= 0 && index < widget.playlist.length) {
+      final video = widget.playlist[index];
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          context.read<BrowsingHistoryProvider>().recordVideo(
+            video,
+            siteKey: 'twitter',
+            siteName: widget.site.name.isNotEmpty ? widget.site.name : 'Twitter 榜',
+            siteColor: const Color(0xFF1D9BF0),
+          );
+        }
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -53,6 +70,7 @@ class _TwitterReelPlayerPageState extends State<TwitterReelPlayerPage> {
     // Enter immersive full screen
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
 
+    _recordCurrentHistory(_currentIndex);
     _initPlayerAtIndex(_currentIndex);
     if (_currentIndex + 1 < widget.playlist.length) {
       _initPlayerAtIndex(_currentIndex + 1);
@@ -138,6 +156,8 @@ class _TwitterReelPlayerPageState extends State<TwitterReelPlayerPage> {
     setState(() {
       _currentIndex = index;
     });
+
+    _recordCurrentHistory(index);
 
     // Play current video
     if (_controllers.containsKey(index)) {

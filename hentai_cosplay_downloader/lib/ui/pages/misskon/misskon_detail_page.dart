@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../models/album_item.dart';
 import '../../../models/download_task.dart';
+import '../../../providers/browsing_history_provider.dart';
 import '../../../providers/download_provider.dart';
 import '../../../services/misskon/misskon_api_service.dart';
 import '../../theme/ios_theme.dart';
@@ -44,6 +45,17 @@ class _MisskonDetailPageState extends State<MisskonDetailPage> {
     super.initState();
     _item = widget.item;
     _fetchDetail();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<BrowsingHistoryProvider>().recordAlbum(
+          _item,
+          siteKey: 'misskon',
+          siteName: 'MissKon',
+          siteColor: const Color(0xFFE74C3C),
+        );
+      }
+    });
   }
 
   Future<void> _fetchDetail() async {

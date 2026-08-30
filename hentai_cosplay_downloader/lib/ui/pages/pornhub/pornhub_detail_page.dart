@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../models/download_task.dart';
 import '../../../models/video_item.dart';
+import '../../../providers/browsing_history_provider.dart';
 import '../../../providers/download_provider.dart';
 import '../../../services/pornhub/pornhub_api_service.dart';
 import '../../widgets/random_action_button.dart';
@@ -37,6 +38,17 @@ class _PornhubDetailPageState extends State<PornhubDetailPage> {
     super.initState();
     _item = widget.item;
     _resolveDetail();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<BrowsingHistoryProvider>().recordVideo(
+          _item,
+          siteKey: 'pornhub',
+          siteName: 'Pornhub',
+          siteColor: const Color(0xFFFF9900),
+        );
+      }
+    });
   }
 
   Future<void> _resolveDetail() async {

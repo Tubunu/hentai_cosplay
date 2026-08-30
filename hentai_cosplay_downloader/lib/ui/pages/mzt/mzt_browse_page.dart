@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../models/album_item.dart';
 import '../../../models/download_task.dart';
@@ -235,8 +236,11 @@ class _MztBrowsePageState extends State<MztBrowsePage> {
           children: [
             RefreshIndicator(
               color: IosTheme.primaryPink,
+              edgeOffset: 58.0,
+              displacement: 40.0,
               onRefresh: () async {
                 await mztProv.loadPage(mztProv.currentPage);
+                HapticFeedback.lightImpact();
               },
               child: CustomScrollView(
             controller: _scrollController,

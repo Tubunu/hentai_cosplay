@@ -8,6 +8,7 @@ import 'package:photo_view/photo_view_gallery.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../models/album_item.dart';
+import '../../../providers/browsing_history_provider.dart';
 import '../../../providers/download_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../theme/ios_theme.dart';
@@ -29,6 +30,21 @@ class _MztDetailPageState extends State<MztDetailPage> {
   final ScrollController _scrollController = ScrollController();
   bool _isSelectionMode = false;
   final Set<int> _selectedIndices = {};
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<BrowsingHistoryProvider>().recordAlbum(
+          widget.item,
+          siteKey: 'mzt',
+          siteName: '妹子图',
+          siteColor: const Color(0xFFFF4081),
+        );
+      }
+    });
+  }
 
   @override
   void dispose() {

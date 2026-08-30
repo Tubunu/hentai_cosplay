@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../models/album_item.dart';
 import '../../../models/download_task.dart';
+import '../../../providers/browsing_history_provider.dart';
 import '../../../providers/download_provider.dart';
 import '../../../services/kuraa/kuraa_api_service.dart';
 import '../../widgets/bouncing_button.dart';
@@ -42,12 +43,27 @@ class _KuraaDetailPageState extends State<KuraaDetailPage> {
     super.dispose();
   }
 
+  void _recordHistory(AlbumItem item) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<BrowsingHistoryProvider>().recordAlbum(
+          item,
+          siteKey: 'kuraa',
+          siteName: 'Kuraa',
+          siteColor: const Color(0xFF00897B),
+          extra: {'folderId': widget.folderItem.id},
+        );
+      }
+    });
+  }
+
   @override
   void initState() {
     super.initState();
     if (widget.initialAlbum != null) {
       _album = widget.initialAlbum;
       _isLoading = false;
+      _recordHistory(_album!);
     } else {
       _fetchDetail();
     }
@@ -69,6 +85,9 @@ class _KuraaDetailPageState extends State<KuraaDetailPage> {
           _album = detailed;
           _isLoading = false;
         });
+        if (detailed != null) {
+          _recordHistory(detailed);
+        }
       }
     } catch (e) {
       if (mounted) {

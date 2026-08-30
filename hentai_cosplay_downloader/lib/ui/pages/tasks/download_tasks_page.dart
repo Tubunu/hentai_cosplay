@@ -14,6 +14,7 @@ import '../../theme/ios_theme.dart';
 import '../../widgets/bouncing_button.dart';
 import '../../widgets/frosted_glass.dart';
 import '../../widgets/liquid_glass.dart';
+import '../history/browsing_history_page.dart';
 
 class DownloadTasksPage extends StatefulWidget {
   const DownloadTasksPage({super.key});
@@ -162,8 +163,36 @@ class _DownloadTasksPageState extends State<DownloadTasksPage> {
                       ),
                     ),
 
-                  // Clear History Button (when in Completed / History tab)
+                  // Clear History Button & Browsing History Button (when in Completed / History tab)
                   if (isHistoryMode) ...[
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: BouncingButton(
+                        onTap: () => BrowsingHistoryPage.open(context),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: IosTheme.primaryBlue.withValues(alpha: isDark ? 0.25 : 0.12),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(CupertinoIcons.clock_fill, size: 12, color: IosTheme.primaryBlue),
+                              SizedBox(width: 3),
+                              Text(
+                                '浏览历史',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: IosTheme.primaryBlue,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                     BouncingButton(
                       onTap: () => _confirmClearHistory(context, _resourceSegment, historyProv, jableProv),
                       child: Container(

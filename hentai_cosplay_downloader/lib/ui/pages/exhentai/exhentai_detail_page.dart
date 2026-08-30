@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:provider/provider.dart';
 import '../../../models/album_item.dart';
+import '../../../providers/browsing_history_provider.dart';
 import '../../../providers/download_provider.dart';
 import '../../../providers/exhentai_browse_provider.dart';
 import '../../../services/exhentai/exhentai_api_service.dart';
@@ -41,6 +42,17 @@ class _ExDetailPageState extends State<ExDetailPage> {
     super.initState();
     _item = widget.item;
     _fetchDetail();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<BrowsingHistoryProvider>().recordAlbum(
+          _item,
+          siteKey: 'exhentai',
+          siteName: 'ExHentai',
+          siteColor: const Color(0xFF9C27B0),
+        );
+      }
+    });
   }
 
   Future<void> _fetchDetail() async {

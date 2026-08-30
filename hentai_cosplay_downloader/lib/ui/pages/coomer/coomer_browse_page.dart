@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/coomer_browse_provider.dart';
 import '../../../providers/download_provider.dart';
@@ -179,7 +180,12 @@ class _CoomerBrowsePageState extends State<CoomerBrowsePage> {
           children: [
             RefreshIndicator(
               color: IosTheme.primaryPink,
-              onRefresh: () => prov.loadData(reset: true),
+              edgeOffset: 58.0,
+              displacement: 40.0,
+              onRefresh: () async {
+                await prov.loadData(reset: true);
+                HapticFeedback.lightImpact();
+              },
               child: CustomScrollView(
             controller: _scrollController,
             physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),

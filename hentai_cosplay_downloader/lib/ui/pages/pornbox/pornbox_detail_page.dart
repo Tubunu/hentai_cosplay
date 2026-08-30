@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../models/download_task.dart';
 import '../../../models/video_item.dart';
+import '../../../providers/browsing_history_provider.dart';
 import '../../../providers/download_provider.dart';
 import '../../../services/pornbox/pornbox_api_service.dart';
 import '../../widgets/bouncing_button.dart';
@@ -40,6 +41,17 @@ class _PornboxDetailPageState extends State<PornboxDetailPage> {
     super.initState();
     _item = widget.item;
     _fetchDetail();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<BrowsingHistoryProvider>().recordVideo(
+          _item,
+          siteKey: 'pornbox',
+          siteName: 'PornBox',
+          siteColor: const Color(0xFF8E24AA),
+        );
+      }
+    });
   }
 
   Future<void> _fetchDetail() async {

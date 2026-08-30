@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'providers/browse_provider.dart';
+import 'providers/browsing_history_provider.dart';
 import 'providers/coomer_browse_provider.dart';
 import 'providers/cosplaytele_browse_provider.dart';
 import 'providers/download_provider.dart';
@@ -96,6 +97,7 @@ void main() async {
           ChangeNotifierProvider(create: (_) => DownloadProvider()),
           ChangeNotifierProvider(create: (_) => JableDownloadProvider()),
           ChangeNotifierProvider(create: (_) => HistoryProvider()),
+          ChangeNotifierProvider(create: (_) => BrowsingHistoryProvider()),
           ChangeNotifierProvider(create: (_) => GalleryProvider()),
           ChangeNotifierProvider(create: (_) => LocalVideoProvider()),
           ChangeNotifierProvider(create: (_) => LocalJableProvider()),

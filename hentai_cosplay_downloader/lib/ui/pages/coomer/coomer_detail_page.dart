@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../models/album_item.dart';
 import '../../../models/download_task.dart';
+import '../../../providers/browsing_history_provider.dart';
 import '../../../providers/download_provider.dart';
 import '../../../services/coomer/coomer_api_service.dart';
 import '../../theme/ios_theme.dart';
@@ -40,6 +41,17 @@ class _CoomerDetailPageState extends State<CoomerDetailPage> {
   void initState() {
     super.initState();
     _item = widget.item;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<BrowsingHistoryProvider>().recordAlbum(
+          _item,
+          siteKey: 'coomer',
+          siteName: 'Coomer',
+          siteColor: const Color(0xFF00AFF0),
+        );
+      }
+    });
   }
 
   void _downloadFullPost() {

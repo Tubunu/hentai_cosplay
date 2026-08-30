@@ -6,6 +6,7 @@ import 'package:photo_view/photo_view_gallery.dart';
 import 'package:provider/provider.dart';
 import '../../../models/album_item.dart';
 import '../../../models/download_task.dart';
+import '../../../providers/browsing_history_provider.dart';
 import '../../../providers/download_provider.dart';
 import '../../../services/cosplaytele/cosplaytele_api_service.dart';
 import '../../widgets/random_action_button.dart';
@@ -37,6 +38,17 @@ class _CosplayteleDetailPageState extends State<CosplayteleDetailPage> {
     super.initState();
     _item = widget.item;
     _loadDetail();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<BrowsingHistoryProvider>().recordAlbum(
+          _item,
+          siteKey: 'cosplaytele',
+          siteName: 'CosplayTele',
+          siteColor: const Color(0xFF0088CC),
+        );
+      }
+    });
   }
 
   Future<void> _loadDetail() async {

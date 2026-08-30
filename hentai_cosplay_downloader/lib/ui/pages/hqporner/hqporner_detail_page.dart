@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../models/download_task.dart';
 import '../../../models/video_item.dart';
+import '../../../providers/browsing_history_provider.dart';
 import '../../../providers/download_provider.dart';
 import '../../../services/hqporner/hqporner_api_service.dart';
 import '../../widgets/random_action_button.dart';
@@ -37,6 +38,17 @@ class _HqpornerDetailPageState extends State<HqpornerDetailPage> {
     super.initState();
     _item = widget.item;
     _resolveDetail();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<BrowsingHistoryProvider>().recordVideo(
+          _item,
+          siteKey: 'hqporner',
+          siteName: 'HQPorner',
+          siteColor: const Color(0xFFFF9800),
+        );
+      }
+    });
   }
 
   Future<void> _resolveDetail() async {

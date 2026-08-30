@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../../models/jable_video_item.dart';
+import '../../../../providers/browsing_history_provider.dart';
 import '../../../../providers/jable_download_provider.dart';
 import '../../../../providers/settings_provider.dart';
 import '../../../../services/jable/scrapers/base_scraper.dart';
@@ -37,6 +38,25 @@ class JableVideoDetailSheet extends StatefulWidget {
 class _JableVideoDetailSheetState extends State<JableVideoDetailSheet> {
   bool _isResolvingStream = false;
   String? _streamError;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<BrowsingHistoryProvider>().recordBrowsing(
+          title: widget.video.title,
+          coverUrl: widget.video.thumbnail,
+          detailUrl: widget.video.url,
+          siteKey: 'jable',
+          siteName: 'Jable',
+          siteColor: const Color(0xFFFF2D55),
+          isVideo: true,
+          duration: widget.video.duration,
+        );
+      }
+    });
+  }
 
   Future<void> _watchOnline() async {
     setState(() {

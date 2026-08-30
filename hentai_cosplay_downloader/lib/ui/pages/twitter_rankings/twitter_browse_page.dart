@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../models/video_item.dart';
 import '../../../providers/download_provider.dart';
@@ -208,8 +209,11 @@ class _TwitterBrowsePageState extends State<TwitterBrowsePage> {
         child: Stack(
           children: [
             RefreshIndicator(
+              edgeOffset: 58.0,
+              displacement: 40.0,
               onRefresh: () async {
                 await prov.fetchData(refresh: true);
+                HapticFeedback.lightImpact();
               },
               color: themeColor,
               child: CustomScrollView(

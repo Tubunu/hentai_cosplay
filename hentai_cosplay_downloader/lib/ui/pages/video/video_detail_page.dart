@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../models/video_item.dart';
+import '../../../providers/browsing_history_provider.dart';
 import '../../../providers/download_provider.dart';
 import '../../../providers/video_browse_provider.dart';
 import '../../../services/video_api_service.dart';
@@ -42,6 +43,17 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
     super.initState();
     _item = widget.initialItem;
     _loadVideoDetails();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<BrowsingHistoryProvider>().recordVideo(
+          _item,
+          siteKey: 'hc_video',
+          siteName: 'HC 视频',
+          siteColor: const Color(0xFFFF5252),
+        );
+      }
+    });
   }
 
   Future<void> _loadVideoDetails() async {

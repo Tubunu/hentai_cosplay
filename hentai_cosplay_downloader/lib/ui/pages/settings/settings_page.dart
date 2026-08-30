@@ -3,10 +3,12 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../models/app_config.dart';
+import '../../../providers/browsing_history_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../services/storage_service.dart';
 import '../../theme/ios_theme.dart';
 import '../../widgets/bouncing_button.dart';
+import '../history/browsing_history_page.dart';
 import 'resource_order_setting_page.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -499,13 +501,78 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             const SizedBox(height: 18),
 
-            // Section: Online Resources Sort Order
+            // Section: Online Resources Sort Order & History
             _buildSectionHeader('在线资源管理'),
             _buildSettingCard(
               isDark: isDark,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // 1. Browsing History Entrance
+                  Builder(
+                    builder: (context) {
+                      final historyCount = context.select<BrowsingHistoryProvider, int>(
+                        (p) => p.totalCount,
+                      );
+                      return Row(
+                        children: [
+                          Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF007AFF).withValues(alpha: isDark ? 0.22 : 0.12),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(CupertinoIcons.clock_fill, color: Color(0xFF007AFF), size: 19),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  '在线资源浏览历史',
+                                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  historyCount > 0
+                                      ? '已记录 $historyCount 条看过的图集与视频'
+                                      : '暂无浏览记录，点开资源将自动记录',
+                                  style: const TextStyle(fontSize: 11.5, color: Colors.grey),
+                                ),
+                              ],
+                            ),
+                          ),
+                          BouncingButton(
+                            onTap: () => BrowsingHistoryPage.open(context),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF007AFF),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text('查看历史', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12)),
+                                  SizedBox(width: 2),
+                                  Icon(CupertinoIcons.chevron_right, color: Colors.white, size: 12),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Divider(height: 1, thickness: 0.5),
+                  ),
+
+                  // 2. Custom Sort Order Entrance
                   Row(
                     children: [
                       Container(

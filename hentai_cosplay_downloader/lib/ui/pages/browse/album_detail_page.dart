@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../models/album_item.dart';
 import '../../../providers/browse_provider.dart';
+import '../../../providers/browsing_history_provider.dart';
 import '../../../providers/download_provider.dart';
 import '../../../services/hc_api_service.dart';
 import '../../theme/ios_theme.dart';
@@ -45,6 +46,17 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
     super.initState();
     _item = widget.initialItem;
     _loadAlbumDetails();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<BrowsingHistoryProvider>().recordAlbum(
+          _item,
+          siteKey: 'hc_gallery',
+          siteName: 'HC 图集',
+          siteColor: IosTheme.primaryPink,
+        );
+      }
+    });
   }
 
   Future<void> _loadAlbumDetails() async {

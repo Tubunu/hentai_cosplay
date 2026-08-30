@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../models/hanime1_category.dart';
 import '../../../providers/download_provider.dart';
@@ -107,7 +108,12 @@ class _Hanime1BrowsePageState extends State<Hanime1BrowsePage> {
           children: [
             RefreshIndicator(
               color: themeColor,
-              onRefresh: () => provider.loadPage(1),
+              edgeOffset: 58.0,
+              displacement: 40.0,
+              onRefresh: () async {
+                await provider.loadPage(1);
+                HapticFeedback.lightImpact();
+              },
               child: CustomScrollView(
                 controller: _scrollController,
                 physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
