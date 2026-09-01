@@ -26,8 +26,9 @@ class _Rule34VideoBrowsePageState extends State<Rule34VideoBrowsePage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       final prov = context.read<Rule34VideoBrowseProvider>();
-      if (prov.items.isEmpty) {
+      if (prov.items.isEmpty && !prov.isLoading && prov.errorMessage == null) {
         prov.loadPage(1);
       }
     });

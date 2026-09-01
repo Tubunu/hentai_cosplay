@@ -36,6 +36,13 @@ class _CoomerBrowsePageState extends State<CoomerBrowsePage> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final prov = context.read<CoomerBrowseProvider>();
+      if (prov.posts.isEmpty && prov.creators.isEmpty && !prov.isLoading && prov.errorMessage == null) {
+        prov.loadData(reset: true);
+      }
+    });
   }
 
   @override

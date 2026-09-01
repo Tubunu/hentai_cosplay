@@ -27,6 +27,13 @@ class _TwitterBrowsePageState extends State<TwitterBrowsePage> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final prov = context.read<TwitterBrowseProvider>();
+      if (prov.items.isEmpty && !prov.isLoading && prov.errorMessage == null) {
+        prov.fetchData();
+      }
+    });
   }
 
   @override

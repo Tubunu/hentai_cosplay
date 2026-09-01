@@ -27,8 +27,9 @@ class _ExHentaiBrowsePageState extends State<ExHentaiBrowsePage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       final prov = context.read<ExHentaiBrowseProvider>();
-      if (prov.items.isEmpty) {
+      if (prov.items.isEmpty && !prov.isLoading && prov.errorMessage == null) {
         prov.loadPage(1);
       }
     });

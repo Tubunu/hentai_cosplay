@@ -29,6 +29,18 @@ class _MztBrowsePageState extends State<MztBrowsePage> {
   final ScrollController _scrollController = ScrollController();
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final prov = context.read<MztBrowseProvider>();
+      if (prov.items.isEmpty && !prov.isLoading && prov.errorMessage == null) {
+        prov.loadPage(1);
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     _pageJumpController.dispose();

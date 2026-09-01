@@ -26,8 +26,9 @@ class _Hanime1BrowsePageState extends State<Hanime1BrowsePage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       final prov = context.read<Hanime1BrowseProvider>();
-      if (prov.items.isEmpty) {
+      if (prov.items.isEmpty && !prov.isLoading && prov.errorMessage == null) {
         prov.loadPage(1);
       }
     });

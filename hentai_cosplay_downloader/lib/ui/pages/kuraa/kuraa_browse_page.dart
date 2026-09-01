@@ -27,6 +27,18 @@ class _KuraaBrowsePageState extends State<KuraaBrowsePage> {
   static const Color _themeColor = Color(0xFF00897B);
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final prov = context.read<KuraaBrowseProvider>();
+      if (prov.items.isEmpty && !prov.isLoading && prov.errorMessage == null) {
+        prov.loadPage(1);
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     _scrollController.dispose();

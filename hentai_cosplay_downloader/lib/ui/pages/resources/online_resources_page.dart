@@ -2,7 +2,27 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../models/resource_site_item.dart';
+import '../../../providers/browse_provider.dart';
+import '../../../providers/coomer_browse_provider.dart';
+import '../../../providers/cosplaytele_browse_provider.dart';
+import '../../../providers/eporner_browse_provider.dart';
+import '../../../providers/exhentai_browse_provider.dart';
+import '../../../providers/hanime1_browse_provider.dart';
+import '../../../providers/hqporner_browse_provider.dart';
+import '../../../providers/iwara_browse_provider.dart';
+import '../../../providers/kuraa_browse_provider.dart';
+import '../../../providers/misskon_browse_provider.dart';
+import '../../../providers/mzt_browse_provider.dart';
+import '../../../providers/nucosplay_browse_provider.dart';
+import '../../../providers/pinse_browse_provider.dart';
+import '../../../providers/pixibb_browse_provider.dart';
+import '../../../providers/pornbox_browse_provider.dart';
+import '../../../providers/pornhub_browse_provider.dart';
+import '../../../providers/rule34video_browse_provider.dart';
 import '../../../providers/settings_provider.dart';
+import '../../../providers/spankbang_browse_provider.dart';
+import '../../../providers/twitter_browse_provider.dart';
+import '../../../providers/video_browse_provider.dart';
 import '../../widgets/bouncing_button.dart';
 import '../../widgets/liquid_glass.dart';
 import '../history/browsing_history_page.dart';
@@ -18,6 +38,23 @@ class _OnlineResourcesPageState extends State<OnlineResourcesPage> {
   int _currentIndex = 0;
   final ScrollController _navScrollController = ScrollController();
   final Map<String, GlobalKey> _itemKeys = {};
+  final Set<String> _visitedSiteKeys = {};
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final settingsProv = context.read<SettingsProvider>();
+      final orderedSites = ResourceSiteRegistry.getOrderedSites(
+        settingsProv.config.onlineResourceSortOrder,
+      );
+      if (orderedSites.isNotEmpty) {
+        final initialKey = orderedSites[_currentIndex.clamp(0, orderedSites.length - 1)].key;
+        _activateAndLoadSite(initialKey);
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -25,12 +62,111 @@ class _OnlineResourcesPageState extends State<OnlineResourcesPage> {
     super.dispose();
   }
 
+  void _activateAndLoadSite(String siteKey) {
+    if (!_visitedSiteKeys.contains(siteKey)) {
+      setState(() {
+        _visitedSiteKeys.add(siteKey);
+      });
+    }
+    _ensureSiteDataLoaded(siteKey);
+  }
+
+  void _ensureSiteDataLoaded(String siteKey) {
+    switch (siteKey) {
+      case 'hc_gallery':
+        final p = context.read<BrowseProvider>();
+        if (p.items.isEmpty && !p.isLoading && p.errorMessage == null) p.loadPage(1);
+        break;
+      case 'hc_video':
+        final p = context.read<VideoBrowseProvider>();
+        if (p.items.isEmpty && !p.isLoading && p.errorMessage == null) p.loadPage(1);
+        break;
+      case 'mzt':
+        final p = context.read<MztBrowseProvider>();
+        if (p.items.isEmpty && !p.isLoading && p.errorMessage == null) p.loadPage(1);
+        break;
+      case 'misskon':
+        final p = context.read<MisskonBrowseProvider>();
+        if (p.items.isEmpty && !p.isLoading && p.errorMessage == null) p.loadPage(1);
+        break;
+      case 'coomer':
+        final p = context.read<CoomerBrowseProvider>();
+        if (p.posts.isEmpty && p.creators.isEmpty && !p.isLoading && p.errorMessage == null) {
+          p.loadData(reset: true);
+        }
+        break;
+      case 'pinse':
+        final p = context.read<PinseBrowseProvider>();
+        if (p.items.isEmpty && !p.isLoading && p.errorMessage == null) p.loadPage(1);
+        break;
+      case 'pornbox':
+        final p = context.read<PornboxBrowseProvider>();
+        if (p.items.isEmpty && !p.isLoading && p.errorMessage == null) p.loadPage(1);
+        break;
+      case 'kuraa':
+        final p = context.read<KuraaBrowseProvider>();
+        if (p.items.isEmpty && !p.isLoading && p.errorMessage == null) p.loadPage(1);
+        break;
+      case 'twitter':
+        final p = context.read<TwitterBrowseProvider>();
+        if (p.items.isEmpty && !p.isLoading && p.errorMessage == null) p.fetchData();
+        break;
+      case 'exhentai':
+        final p = context.read<ExHentaiBrowseProvider>();
+        if (p.items.isEmpty && !p.isLoading && p.errorMessage == null) p.loadPage(1);
+        break;
+      case 'pixibb':
+        final p = context.read<PixibbBrowseProvider>();
+        if (p.items.isEmpty && !p.isLoading && p.errorMessage == null) p.loadPage(1);
+        break;
+      case 'cosplaytele':
+        final p = context.read<CosplayteleBrowseProvider>();
+        if (p.items.isEmpty && !p.isLoading && p.errorMessage == null) p.loadPage(1);
+        break;
+      case 'nucosplay':
+        final p = context.read<NucosplayBrowseProvider>();
+        if (p.items.isEmpty && !p.isLoading && p.errorMessage == null) p.loadPage(1);
+        break;
+      case 'hanime1':
+        final p = context.read<Hanime1BrowseProvider>();
+        if (p.items.isEmpty && !p.isLoading && p.errorMessage == null) p.loadPage(1);
+        break;
+      case 'iwara':
+        final p = context.read<IwaraBrowseProvider>();
+        if (p.items.isEmpty && !p.isLoading && p.errorMessage == null) p.loadPage(1);
+        break;
+      case 'rule34video':
+        final p = context.read<Rule34VideoBrowseProvider>();
+        if (p.items.isEmpty && !p.isLoading && p.errorMessage == null) p.loadPage(1);
+        break;
+      case 'eporner':
+        final p = context.read<EpornerBrowseProvider>();
+        if (p.items.isEmpty && !p.isLoading && p.errorMessage == null) p.loadPage(1);
+        break;
+      case 'hqporner':
+        final p = context.read<HqpornerBrowseProvider>();
+        if (p.items.isEmpty && !p.isLoading && p.errorMessage == null) p.loadPage(1);
+        break;
+      case 'spankbang':
+        final p = context.read<SpankbangBrowseProvider>();
+        if (p.items.isEmpty && !p.isLoading && p.errorMessage == null) p.loadPage(1);
+        break;
+      case 'pornhub':
+        final p = context.read<PornhubBrowseProvider>();
+        if (p.items.isEmpty && !p.isLoading && p.errorMessage == null) p.loadPage(1);
+        break;
+    }
+  }
+
   void _onTabSelected(int index, List<ResourceSiteItem> sites) {
     if (_currentIndex == index) return;
 
+    final targetSite = sites[index];
     setState(() {
       _currentIndex = index;
     });
+
+    _activateAndLoadSite(targetSite.key);
 
     // Auto-scroll the selected pill to center
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -70,14 +206,22 @@ class _OnlineResourcesPageState extends State<OnlineResourcesPage> {
       _itemKeys.putIfAbsent(s.key, () => GlobalKey());
     }
 
+    // Ensure current active site is marked visited
+    _visitedSiteKeys.add(activeSite.key);
+
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF000000) : const Color(0xFFF2F2F7),
       body: Stack(
         children: [
-          // Indexed pages preserving scroll and browse state across all customized resources
+          // Indexed pages with lazy mounting and persistent caching
           IndexedStack(
             index: _currentIndex,
-            children: orderedSites.map((site) => site.widget).toList(),
+            children: orderedSites.map((site) {
+              if (!_visitedSiteKeys.contains(site.key)) {
+                return const SizedBox.shrink();
+              }
+              return site.widget;
+            }).toList(),
           ),
 
           // Floating Adaptive Liquid Glass Segmented Capsule Bar & History Button

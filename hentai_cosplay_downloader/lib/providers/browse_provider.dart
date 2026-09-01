@@ -59,7 +59,7 @@ class BrowseProvider extends ChangeNotifier {
     }).toList();
   }
 
-  BrowseProvider({bool autoLoad = true}) {
+  BrowseProvider({bool autoLoad = false}) {
     if (autoLoad) {
       loadPage(1);
     }

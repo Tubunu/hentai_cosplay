@@ -26,8 +26,9 @@ class _IwaraBrowsePageState extends State<IwaraBrowsePage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       final prov = context.read<IwaraBrowseProvider>();
-      if (prov.items.isEmpty) {
+      if (prov.items.isEmpty && !prov.isLoading && prov.errorMessage == null) {
         prov.loadPage(1);
       }
     });
