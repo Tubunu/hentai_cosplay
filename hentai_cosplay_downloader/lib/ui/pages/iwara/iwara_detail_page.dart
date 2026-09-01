@@ -160,11 +160,12 @@ class _IwaraDetailPageState extends State<IwaraDetailPage> {
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0C0C0E) : const Color(0xFFF2F2F7),
-      floatingActionButton: ScrollToTopButton(scrollController: _scrollController),
-      body: CustomScrollView(
-        controller: _scrollController,
-        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-        slivers: [
+      body: Stack(
+        children: [
+          CustomScrollView(
+            controller: _scrollController,
+            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+            slivers: [
           // 1. App Bar
           SliverAppBar(
             expandedHeight: 280,
@@ -548,7 +549,13 @@ class _IwaraDetailPageState extends State<IwaraDetailPage> {
           ),
         ],
       ),
-    );
+      ScrollToTopButton(
+        scrollController: _scrollController,
+        color: themeColor,
+      ),
+    ],
+  ),
+);
   }
 
   Widget _buildMetaBadge(IconData icon, String text, bool isDark, {Color? color}) {

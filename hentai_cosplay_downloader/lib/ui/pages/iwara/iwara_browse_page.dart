@@ -517,10 +517,14 @@ class _IwaraBrowsePageState extends State<IwaraBrowsePage> {
                   ),
                 ),
               ),
+            // Scroll To Top Button
+            ScrollToTopButton(
+              scrollController: _scrollController,
+              color: themeColor,
+            ),
           ],
         ),
       ),
-      floatingActionButton: ScrollToTopButton(scrollController: _scrollController),
     );
   }
 }

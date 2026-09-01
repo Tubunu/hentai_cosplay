@@ -64,6 +64,17 @@ class CfCookieHarvester {
              lower.contains('video-details') ||
              lower.contains('player') ||
              lower.contains('hanime1');
+    } else if (siteName == 'Iwara') {
+      return lower.contains('"count":') ||
+          lower.contains('"results":') ||
+          lower.contains('"fileurl"') ||
+          lower.contains('"title":') ||
+          lower.contains('iwara');
+    } else if (siteName == 'Rule34Video') {
+      return lower.contains('thumb_title') ||
+          lower.contains('rule34') ||
+          lower.contains('tag_item_download') ||
+          lower.contains('video_url');
     } else if (siteName == '91PinSe') {
       if (isDetailPage) {
         return (lower.contains('player') ||
@@ -387,6 +398,7 @@ class CfCookieHarvester {
         domStorageEnabled: true,
         databaseEnabled: true,
         useShouldOverrideUrlLoading: true,
+        userAgent: 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
       ),
       onWebViewCreated: (controller) {
         pollTimer = Timer.periodic(const Duration(milliseconds: 500), (t) async {
@@ -396,7 +408,15 @@ class CfCookieHarvester {
           }
           try {
             final html = await controller.evaluateJavascript(
-              source: "document.documentElement ? document.documentElement.outerHTML : ''"
+              source: """
+                (function() {
+                  const pre = document.querySelector('pre');
+                  if (pre && pre.innerText && (pre.innerText.trim().startsWith('{') || pre.innerText.trim().startsWith('['))) {
+                    return pre.innerText.trim();
+                  }
+                  return document.documentElement ? document.documentElement.outerHTML : (document.body ? document.body.outerHTML : '');
+                })()
+              """
             ) as String? ?? "";
             if (html.isNotEmpty) {
               lastObtainedHtml = html;
@@ -413,7 +433,15 @@ class CfCookieHarvester {
       onLoadStop: (controller, currentUrl) async {
         try {
           final html = await controller.evaluateJavascript(
-            source: "document.documentElement ? document.documentElement.outerHTML : (document.body ? document.body.outerHTML : '')"
+            source: """
+              (function() {
+                const pre = document.querySelector('pre');
+                if (pre && pre.innerText && (pre.innerText.trim().startsWith('{') || pre.innerText.trim().startsWith('['))) {
+                  return pre.innerText.trim();
+                }
+                return document.documentElement ? document.documentElement.outerHTML : (document.body ? document.body.outerHTML : '');
+              })()
+            """
           ) as String? ?? "";
           if (html.isNotEmpty) {
             lastObtainedHtml = html;
@@ -452,11 +480,12 @@ class CfCookieHarvester {
     }
   }
 
+  /// Internal worker method
   static Future<Map<String, String>> _doHarvest(String url, {String? siteName}) async {
-    String finalSiteName = siteName ?? "JableTV";
-    if (url.contains("missav")) {
-      finalSiteName = "MissAV";
-    } else if (url.contains("supjav")) {
+    String finalSiteName = siteName ?? "MissAV";
+    if (url.contains("jable.tv") || url.contains("fs1.app")) {
+      finalSiteName = "JableTV";
+    } else if (url.contains("supjav") || url.contains("supremejav")) {
       finalSiteName = "SupJav";
     } else if (url.contains("hanime1")) {
       finalSiteName = "Hanime1";
@@ -484,8 +513,8 @@ class CfCookieHarvester {
       AppLogger.w('CfHarvester', 'Headless harvest exception for [$finalSiteName]: $e');
     }
 
-    // Never show modal for background-safe sites
-    if (finalSiteName == '91PinSe' || finalSiteName == 'Hanime1' || finalSiteName == 'Iwara' || finalSiteName == 'Rule34Video') {
+    // Never show modal for 91PinSe (which uses static fallback)
+    if (finalSiteName == '91PinSe') {
       if (headlessResult.isNotEmpty) return headlessResult;
       throw Exception('[$finalSiteName] Headless 加载未获取到有效内容');
     }

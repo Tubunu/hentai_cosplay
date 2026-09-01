@@ -58,7 +58,13 @@ class IwaraApiService {
       final effectiveProxy = _configuredProxy ?? ConfigService.loadConfig().customProxy;
       if (effectiveProxy.isNotEmpty) {
         final clean = effectiveProxy.replaceAll(RegExp(r'https?://|socks5?://'), '');
-        client.findProxy = (uri) => 'PROXY $clean';
+        if (effectiveProxy.startsWith('socks')) {
+          client.findProxy = (uri) => 'SOCKS5 $clean; DIRECT';
+        } else {
+          client.findProxy = (uri) => 'PROXY $clean; DIRECT';
+        }
+      } else {
+        client.findProxy = HttpClient.findProxyFromEnvironment;
       }
       return client;
     };
@@ -66,11 +72,11 @@ class IwaraApiService {
     return dio;
   }
 
-  /// Internal JSON fetcher with multi-tier fallback (curl on desktop, Dio on mobile)
+  /// Internal JSON fetcher with multi-tier fallback (curl on desktop, WebView/Dio on mobile)
   static Future<String> _fetchJson(String url) async {
     final effectiveProxy = _configuredProxy ?? ConfigService.loadConfig().customProxy;
 
-    // Desktop tier: curl
+    // 1. Desktop tier: curl (Windows, macOS, Linux) with real browser TLS fingerprint
     if (!kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
       try {
         final args = <String>[
@@ -98,17 +104,38 @@ class IwaraApiService {
 
         final result = await Process.run('curl', args, stdoutEncoding: utf8);
         if (result.exitCode == 0 && (result.stdout as String).isNotEmpty) {
-          final stdout = result.stdout as String;
-          if (stdout.trim().startsWith('{') || stdout.trim().startsWith('[')) {
+          final stdout = (result.stdout as String).trim();
+          if (stdout.startsWith('{') || stdout.startsWith('[')) {
             return stdout;
           }
         }
       } catch (e) {
-        debugPrint('[IwaraApiService] Desktop curl failed, falling back to Dio: $e');
+        debugPrint('[IwaraApiService] Desktop curl failed: $e');
       }
     }
 
-    // Mobile / Standard tier: Dio
+    // 2. Mobile Tier: Chromium WebView Engine
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      try {
+        final res = await CfCookieHarvester.fetchContentViaWebView(url, siteName: 'Iwara');
+        if (res.isNotEmpty) {
+          String cleanJson = res.trim();
+          if (cleanJson.contains('<pre') && cleanJson.contains('</pre>')) {
+            final match = RegExp(r'<pre[^>]*>([\s\S]*?)</pre>').firstMatch(cleanJson);
+            if (match != null) {
+              cleanJson = match.group(1)!.trim();
+            }
+          }
+          if (cleanJson.startsWith('{') || cleanJson.startsWith('[')) {
+            return cleanJson;
+          }
+        }
+      } catch (e) {
+        debugPrint('[IwaraApiService] Mobile WebView fetch error: $e');
+      }
+    }
+
+    // 3. Fallback: Dio HTTP Client
     try {
       final dio = _createDio();
       final res = await dio.get(url);
@@ -117,11 +144,7 @@ class IwaraApiService {
       }
       return jsonEncode(res.data);
     } catch (e) {
-      debugPrint('[IwaraApiService] Dio get failed, trying cf Harvester: $e');
-      if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
-        final res = await CfCookieHarvester.fetchContentViaWebView(url, siteName: 'Iwara');
-        if (res.isNotEmpty) return res;
-      }
+      debugPrint('[IwaraApiService] Dio get failed: $e');
       rethrow;
     }
   }

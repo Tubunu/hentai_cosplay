@@ -517,10 +517,14 @@ class _Rule34VideoBrowsePageState extends State<Rule34VideoBrowsePage> {
                   ),
                 ),
               ),
+            // Scroll To Top Button
+            ScrollToTopButton(
+              scrollController: _scrollController,
+              color: themeColor,
+            ),
           ],
         ),
       ),
-      floatingActionButton: ScrollToTopButton(scrollController: _scrollController),
     );
   }
 }
