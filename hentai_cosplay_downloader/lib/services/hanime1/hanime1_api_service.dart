@@ -6,8 +6,9 @@ import 'package:dio/io.dart';
 import 'package:html/parser.dart' as html_parser;
 import '../../models/video_item.dart';
 import '../../models/hanime1_category.dart';
-
+import '../config_service.dart';
 import '../jable/api_client.dart';
+import '../jable/cf_cookie_harvester.dart';
 
 class Hanime1ApiResponse {
   final List<VideoItem> items;
@@ -54,9 +55,10 @@ class Hanime1ApiService {
     adapter.createHttpClient = () {
       final client = HttpClient();
       client.badCertificateCallback = (cert, host, port) => true;
-      if (!direct && _configuredProxy != null && _configuredProxy!.isNotEmpty) {
-        final clean = _configuredProxy!.replaceAll(RegExp(r'https?://|socks5?://'), '');
-        if (_configuredProxy!.startsWith('socks')) {
+      final effectiveProxy = _configuredProxy ?? ConfigService.loadConfig().customProxy;
+      if (!direct && effectiveProxy.isNotEmpty) {
+        final clean = effectiveProxy.replaceAll(RegExp(r'https?://|socks5?://'), '');
+        if (effectiveProxy.startsWith('socks')) {
           client.findProxy = (uri) => 'SOCKS5 $clean; DIRECT';
         } else {
           client.findProxy = (uri) => 'PROXY $clean; DIRECT';
@@ -82,50 +84,119 @@ class Hanime1ApiService {
     String? year,
     String? month,
   }) {
+    final queryParams = <String, String>{};
+
     if (keyword != null && keyword.trim().isNotEmpty) {
-      final q = Uri.encodeComponent(keyword.trim());
-      if (page > 1) {
-        return '$kBaseUrl/search?query=$q&page=$page';
-      }
-      return '$kBaseUrl/search?query=$q';
-    }
-
-    if (tag != null && tag.trim().isNotEmpty) {
-      final t = Uri.encodeComponent(tag.trim());
-      if (page > 1) {
-        return '$kBaseUrl/search?tags=$t&page=$page';
-      }
-      return '$kBaseUrl/search?tags=$t';
-    }
-
-    if (broadcaster != null && broadcaster.trim().isNotEmpty) {
-      final b = Uri.encodeComponent(broadcaster.trim());
-      if (page > 1) {
-        return '$kBaseUrl/search?broadcaster=$b&page=$page';
-      }
-      return '$kBaseUrl/search?broadcaster=$b';
-    }
-
-    if (genre != null && genre.trim().isNotEmpty) {
-      final g = Uri.encodeComponent(genre.trim());
-      if (page > 1) {
-        return '$kBaseUrl/search?genre=$g&page=$page';
-      }
-      return '$kBaseUrl/search?genre=$g';
-    }
-
-    final catPath = category.path;
-    if (catPath.contains('?')) {
-      if (page > 1) {
-        return '$kBaseUrl$catPath&page=$page';
-      }
-      return '$kBaseUrl$catPath';
+      queryParams['query'] = keyword.trim();
+    } else if (tag != null && tag.trim().isNotEmpty) {
+      queryParams['tags'] = tag.trim();
+    } else if (broadcaster != null && broadcaster.trim().isNotEmpty) {
+      queryParams['broadcaster'] = broadcaster.trim();
+    } else if (genre != null && genre.trim().isNotEmpty) {
+      queryParams['genre'] = genre.trim();
+    } else {
+      final catUri = Uri.parse(category.path);
+      queryParams.addAll(catUri.queryParameters);
+      if (year != null && year.isNotEmpty) queryParams['year'] = year;
+      if (month != null && month.isNotEmpty) queryParams['month'] = month;
     }
 
     if (page > 1) {
-      return '$kBaseUrl$catPath?page=$page';
+      queryParams['page'] = page.toString();
     }
-    return '$kBaseUrl$catPath';
+
+    final uri = Uri.https('hanime1.me', '/search', queryParams);
+    return uri.toString();
+  }
+
+  /// High-reliability multi-tier HTML fetcher
+  static Future<String?> fetchHtml(String url, {bool isDetailPage = false}) async {
+    final safeUrl = url.contains(RegExp(r'[^\x00-\x7F]')) ? Uri.encodeFull(url) : url;
+    final effectiveProxy = _configuredProxy ?? ConfigService.loadConfig().customProxy;
+
+    // 1. Tier 1: Desktop Native CLI (Windows, macOS, Linux) with real browser TLS fingerprint
+    if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+      try {
+        final args = <String>[
+          '-s',
+          '-L',
+          '--compressed',
+          if (effectiveProxy.isNotEmpty) ...[
+            '-x',
+            effectiveProxy.startsWith('http') || effectiveProxy.startsWith('socks')
+                ? effectiveProxy
+                : 'http://$effectiveProxy',
+          ],
+          '-A',
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          '-H',
+          'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+          '-H',
+          'Accept-Language: zh-TW,zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+          '-H',
+          'Referer: $kBaseUrl/',
+          '--max-time',
+          '15',
+          safeUrl,
+        ];
+        final result = await Process.run('curl', args);
+        debugPrint('[Hanime1ApiService] Desktop curl code: ${result.exitCode}, stdout length: ${(result.stdout as String).length}, stderr: ${result.stderr}');
+        if (result.exitCode == 0) {
+          final stdout = result.stdout as String;
+          if (stdout.length > 500) {
+            return stdout;
+          }
+        }
+      } catch (e) {
+        debugPrint('[Hanime1ApiService] Desktop curl fetch error: $e');
+      }
+    }
+
+    // 2. Tier 2: Mobile InAppWebView / Cloudflare Cookie Harvester (Android & iOS)
+    if (Platform.isAndroid || Platform.isIOS) {
+      try {
+        final html = await CfCookieHarvester.fetchContentViaWebView(url, siteName: 'Hanime1', isDetailPage: isDetailPage);
+        if (html.isNotEmpty && CfCookieHarvester.isValidPage('Hanime1', html, isDetailPage: isDetailPage)) {
+          return html;
+        }
+      } catch (e) {
+        debugPrint('[Hanime1ApiService] Mobile WebView fetch error: $e');
+      }
+
+      try {
+        final html = await ApiClient().fetchHtml('Hanime1', url, isDetailPage: isDetailPage);
+        if (html.isNotEmpty && CfCookieHarvester.isValidPage('Hanime1', html, isDetailPage: isDetailPage)) {
+          return html;
+        }
+      } catch (e) {
+        debugPrint('[Hanime1ApiService] ApiClient fetch error: $e');
+      }
+    }
+
+    // 3. Tier 3: Dio HTTP client with configured proxy
+    try {
+      final response = await _dio.get<String>(
+        url,
+        options: Options(responseType: ResponseType.plain),
+      );
+      if (response.statusCode == 200 && response.data != null && response.data!.isNotEmpty) {
+        return response.data;
+      }
+    } catch (e) {
+      debugPrint('[Hanime1ApiService] Dio fetch error: $e');
+      try {
+        final directDio = _createDio(true);
+        final response = await directDio.get<String>(
+          url,
+          options: Options(responseType: ResponseType.plain),
+        );
+        if (response.statusCode == 200 && response.data != null && response.data!.isNotEmpty) {
+          return response.data;
+        }
+      } catch (_) {}
+    }
+
+    return null;
   }
 
   /// Fetch videos list from Hanime1
@@ -151,42 +222,11 @@ class Hanime1ApiService {
     );
     debugPrint('[Hanime1ApiService] Fetching list: $url');
 
-    // 1. Primary: Use ApiClient with Cloudflare Harvester
-    try {
-      final html = await ApiClient().fetchHtml('Hanime1', url);
-      if (html.isNotEmpty) {
-        final parsed = _parseListPageHtml(html, page);
-        if (parsed.items.isNotEmpty) {
-          return parsed;
-        }
-      }
-    } catch (e) {
-      debugPrint('[Hanime1ApiService] ApiClient fetchHtml exception: $e');
-    }
-
-    // 2. Secondary fallback: Dio
-    try {
-      final response = await _dio.get<String>(
-        url,
-        options: Options(responseType: ResponseType.plain),
-      );
-
-      if (response.statusCode == 200 && response.data != null) {
-        return _parseListPageHtml(response.data!, page);
-      }
-    } catch (e) {
-      debugPrint('[Hanime1ApiService] Error fetching page data: $e. Retrying direct...');
-      try {
-        final directDio = _createDio(true);
-        final response = await directDio.get<String>(
-          url,
-          options: Options(responseType: ResponseType.plain),
-        );
-        if (response.statusCode == 200 && response.data != null) {
-          return _parseListPageHtml(response.data!, page);
-        }
-      } catch (e2) {
-        debugPrint('[Hanime1ApiService] Direct fallback error: $e2');
+    final html = await fetchHtml(url, isDetailPage: false);
+    if (html != null && html.isNotEmpty) {
+      final parsed = _parseListPageHtml(html, page);
+      if (parsed.items.isNotEmpty) {
+        return parsed;
       }
     }
     return null;
@@ -218,37 +258,15 @@ class Hanime1ApiService {
 
     try {
       debugPrint('[Hanime1ApiService] Resolving video detail HTML: ${item.detailUrl}');
-      String? html;
-      try {
-        html = await ApiClient().fetchHtml('Hanime1', item.detailUrl, isDetailPage: true);
-      } catch (e) {
-        debugPrint('[Hanime1ApiService] ApiClient fetchHtml detail error: $e');
-        try {
-          final response = await _dio.get<String>(
-            item.detailUrl,
-            options: Options(responseType: ResponseType.plain),
-          );
-          if (response.statusCode == 200) {
-            html = response.data;
-          }
-        } catch (e2) {
-          final directDio = _createDio(true);
-          final response = await directDio.get<String>(
-            item.detailUrl,
-            options: Options(responseType: ResponseType.plain),
-          );
-          if (response.statusCode == 200) {
-            html = response.data;
-          }
-        }
-      }
+      final html = await fetchHtml(item.detailUrl, isDetailPage: true);
 
       if (html != null && html.isNotEmpty) {
         final document = html_parser.parse(html);
 
         // 1. Title
-        final titleElem = document.querySelector('h1#shareBtn-title') ??
+        final titleElem = document.querySelector('#shareBtn-title') ??
             document.querySelector('h1') ??
+            document.querySelector('h3') ??
             document.querySelector('.video-title');
         if (titleElem != null) {
           final t = titleElem.text.trim();
@@ -259,38 +277,56 @@ class Hanime1ApiService {
         final sourceElems = document.querySelectorAll('video source, source');
         for (final s in sourceElems) {
           final src = s.attributes['src'];
-          final size = s.attributes['size'] ?? s.attributes['title'] ?? s.attributes['type'] ?? '720p';
+          final size = s.attributes['size'] ?? s.attributes['title'] ?? s.attributes['type'] ?? '720';
           if (src != null && src.isNotEmpty && (src.contains('.mp4') || src.contains('.m3u8'))) {
             final qKey = size.contains('1080')
                 ? '1080p'
                 : (size.contains('720')
                     ? '720p'
-                    : (size.contains('480') ? '480p' : size));
+                    : (size.contains('480') ? '480p' : '${size}p'));
             qualities[qKey] = src;
-            if (directVideoUrl == null || directVideoUrl.isEmpty || qKey == '1080p') {
-              directVideoUrl = src;
-            }
           }
+        }
+
+        // Prefer 1080p -> 720p -> first available
+        if (qualities.isNotEmpty) {
+          directVideoUrl = qualities['1080p'] ??
+              qualities['720p'] ??
+              qualities['480p'] ??
+              qualities.values.first;
         }
 
         // 3. Poster / Cover image
         final videoElem = document.querySelector('video#player') ?? document.querySelector('video');
-        final poster = videoElem?.attributes['poster'];
+        final poster = videoElem?.attributes['poster'] ??
+            document.querySelector('meta[property="og:image"]')?.attributes['content'];
         if (poster != null && poster.isNotEmpty) {
           coverUrl = poster.startsWith('http') ? poster : '$kBaseUrl$poster';
         }
 
         // 4. Studio / Broadcaster & Director / Artist
-        final broadcasterElem = document.querySelector('a[href*="broadcaster="]');
+        final broadcasterElem = document.querySelector('a[href*="broadcaster="]') ??
+            document.querySelector('#video-artist-name') ??
+            document.querySelector('.video-artist-name');
         if (broadcasterElem != null && broadcasterElem.text.trim().isNotEmpty) {
           author = broadcasterElem.text.trim();
         }
 
         // 5. Release Date & Views & Duration from video details area
+        final durMeta = document.querySelector('meta[property="og:video:duration"]')?.attributes['content'];
+        if (durMeta != null && durMeta.isNotEmpty) {
+          final totalSec = int.tryParse(durMeta) ?? 0;
+          if (totalSec > 0) {
+            final m = totalSec ~/ 60;
+            final s = totalSec % 60;
+            duration = '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+          }
+        }
+
         final detailsArea = document.querySelector('.video-details-wrapper') ?? document.querySelector('.video-info');
         if (detailsArea != null) {
           final dText = detailsArea.text;
-          final viewMatch = RegExp(r'(\d+[\d,]*\s*次觀看|\d+[\d,]*\s*次播放)').firstMatch(dText);
+          final viewMatch = RegExp(r'(\d+[\d,.]*\s*萬?次[觀播]看|\d+[\d,.]*\s*次播放)').firstMatch(dText);
           if (viewMatch != null) {
             views = viewMatch.group(1)!.trim();
           }
@@ -301,10 +337,10 @@ class Hanime1ApiService {
         }
 
         // 6. Tags
-        final tagElements = document.querySelectorAll('.single-video-tag, .video-tag, a[href*="genre="], a[href*="tags="]');
+        final tagElements = document.querySelectorAll('.single-video-tag, .video-tag, a[href*="genre="], a[href*="tags="], a[href*="tag="]');
         for (final tagElem in tagElements) {
           final tagText = tagElem.text.trim();
-          if (tagText.isNotEmpty && !tags.contains(tagText)) {
+          if (tagText.isNotEmpty && tagText != 'Hanime1' && !tags.contains(tagText)) {
             tags.add(tagText);
           }
         }

@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 import '../app_logger.dart';
@@ -66,10 +68,27 @@ class ApiClient {
             return "PROXY $cleaned; DIRECT";
           }
         };
-        client.badCertificateCallback = (X509Certificate cert, String host, int port) => true;
+        client.badCertificateCallback = (cert, host, port) => true;
         return client;
       },
     );
+
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      try {
+        final pc = ProxyController.instance();
+        if (_proxyUrl.isNotEmpty) {
+          pc.setProxyOverride(
+            settings: ProxySettings(
+              proxyRules: [ProxyRule(url: formattedProxy)],
+            ),
+          );
+        } else {
+          pc.clearProxyOverride();
+        }
+      } catch (e) {
+        debugPrint('[ApiClient] ProxyController setProxyOverride error: $e');
+      }
+    }
   }
 
   /// Sets custom Cloudflare headers (cookies, user-agent) for a specific site and host.
