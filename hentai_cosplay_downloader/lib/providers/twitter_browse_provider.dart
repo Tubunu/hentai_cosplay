@@ -45,8 +45,10 @@ class TwitterBrowseProvider extends ChangeNotifier {
   bool _isSelectionMode = false;
   final Set<String> _selectedSlugs = {};
 
-  TwitterBrowseProvider() {
-    fetchData();
+  TwitterBrowseProvider({bool autoLoad = false}) {
+    if (autoLoad) {
+      fetchData();
+    }
   }
 
   TwitterSiteState _getOrCreateState(TwitterSiteConfig site) {

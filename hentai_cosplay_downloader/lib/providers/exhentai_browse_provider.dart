@@ -20,8 +20,10 @@ class ExHentaiBrowseProvider extends ChangeNotifier {
   bool _isSelectionMode = false;
   final Set<String> _selectedSlugs = {};
 
-  ExHentaiBrowseProvider() {
-    loadPage(1);
+  ExHentaiBrowseProvider({bool autoLoad = false}) {
+    if (autoLoad) {
+      loadPage(1);
+    }
   }
 
   ExCategory get currentCategory => _currentCategory;

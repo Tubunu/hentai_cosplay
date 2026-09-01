@@ -33,8 +33,10 @@ class CosplayteleBrowseProvider extends ChangeNotifier {
   List<AlbumItem> get selectedItems =>
       _items.where((item) => _selectedSlugs.contains(item.slug)).toList();
 
-  CosplayteleBrowseProvider() {
-    loadPage(1);
+  CosplayteleBrowseProvider({bool autoLoad = false}) {
+    if (autoLoad) {
+      loadPage(1);
+    }
   }
 
   void setSelectionMode(bool value) {

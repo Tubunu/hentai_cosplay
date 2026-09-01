@@ -33,8 +33,10 @@ class PixibbBrowseProvider extends ChangeNotifier {
   List<AlbumItem> get selectedItems =>
       _items.where((item) => _selectedSlugs.contains(item.slug)).toList();
 
-  PixibbBrowseProvider() {
-    loadPage(1);
+  PixibbBrowseProvider({bool autoLoad = false}) {
+    if (autoLoad) {
+      loadPage(1);
+    }
   }
 
   void setSelectionMode(bool value) {

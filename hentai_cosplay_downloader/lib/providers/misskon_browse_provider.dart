@@ -57,7 +57,7 @@ class MisskonBrowseProvider extends ChangeNotifier {
     }).toList();
   }
 
-  MisskonBrowseProvider({bool autoLoad = true}) {
+  MisskonBrowseProvider({bool autoLoad = false}) {
     if (autoLoad) {
       loadPage(1);
     }

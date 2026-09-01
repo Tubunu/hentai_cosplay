@@ -47,8 +47,10 @@ class KuraaBrowseProvider extends ChangeNotifier {
   final Set<String> _selectedIds = {};
   final List<KuraaFileItem> _selectedItems = [];
 
-  KuraaBrowseProvider() {
-    init();
+  KuraaBrowseProvider({bool autoLoad = false}) {
+    if (autoLoad) {
+      init();
+    }
   }
 
   List<KuraaStorageLocation> get locations => _locations;

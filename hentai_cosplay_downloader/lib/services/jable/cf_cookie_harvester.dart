@@ -480,10 +480,10 @@ class CfCookieHarvester {
       AppLogger.w('CfHarvester', 'Headless harvest exception for [$finalSiteName]: $e');
     }
 
-    // Never show modal for 91PinSe
-    if (finalSiteName == '91PinSe') {
+    // Never show modal for 91PinSe and Hanime1
+    if (finalSiteName == '91PinSe' || finalSiteName == 'Hanime1') {
       if (headlessResult.isNotEmpty) return headlessResult;
-      throw Exception('91品色 Headless 加载未获取到有效内容');
+      throw Exception('[$finalSiteName] Headless 加载未获取到有效内容');
     }
 
     // Check if HTML genuinely requires human interaction (Turnstile/Challenge)

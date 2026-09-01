@@ -2,7 +2,7 @@ name: hentai_cosplay_downloader
 description: "A modern iOS Apple Music style image browser and multi-threaded downloader for Hentai Cosplay."
 publish_to: 'none'
 
-version: 1.0.6+7
+version: 1.0.7+8
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

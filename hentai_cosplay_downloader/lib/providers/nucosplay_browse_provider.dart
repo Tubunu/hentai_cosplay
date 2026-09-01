@@ -33,8 +33,10 @@ class NucosplayBrowseProvider extends ChangeNotifier {
   List<AlbumItem> get selectedItems =>
       _items.where((item) => _selectedSlugs.contains(item.slug)).toList();
 
-  NucosplayBrowseProvider() {
-    loadPage(1);
+  NucosplayBrowseProvider({bool autoLoad = false}) {
+    if (autoLoad) {
+      loadPage(1);
+    }
   }
 
   void setSelectionMode(bool value) {

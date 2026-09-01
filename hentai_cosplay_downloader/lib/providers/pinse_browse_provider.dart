@@ -58,7 +58,7 @@ class PinseBrowseProvider extends ChangeNotifier {
     }).toList();
   }
 
-  PinseBrowseProvider({bool autoLoad = true}) {
+  PinseBrowseProvider({bool autoLoad = false}) {
     if (autoLoad) {
       loadPage(1);
     }

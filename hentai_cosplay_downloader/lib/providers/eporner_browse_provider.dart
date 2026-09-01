@@ -33,8 +33,10 @@ class EpornerBrowseProvider extends ChangeNotifier {
   List<VideoItem> get selectedItems =>
       _items.where((item) => _selectedSlugs.contains(item.slug)).toList();
 
-  EpornerBrowseProvider() {
-    loadPage(1);
+  EpornerBrowseProvider({bool autoLoad = false}) {
+    if (autoLoad) {
+      loadPage(1);
+    }
   }
 
   void setSelectionMode(bool value) {

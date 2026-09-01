@@ -70,7 +70,7 @@ class CoomerBrowseProvider extends ChangeNotifier {
     }).toList();
   }
 
-  CoomerBrowseProvider({bool autoLoad = true}) {
+  CoomerBrowseProvider({bool autoLoad = false}) {
     if (autoLoad) {
       loadData(reset: true);
     }

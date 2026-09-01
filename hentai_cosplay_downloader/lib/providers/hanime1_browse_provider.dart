@@ -61,7 +61,7 @@ class Hanime1BrowseProvider extends ChangeNotifier {
     }).toList();
   }
 
-  Hanime1BrowseProvider({bool autoLoad = true}) {
+  Hanime1BrowseProvider({bool autoLoad = false}) {
     if (autoLoad) {
       loadPage(1);
     }

@@ -59,7 +59,7 @@ class VideoBrowseProvider extends ChangeNotifier {
     }).toList();
   }
 
-  VideoBrowseProvider({bool autoLoad = true}) {
+  VideoBrowseProvider({bool autoLoad = false}) {
     if (autoLoad) {
       loadPage(1);
     }

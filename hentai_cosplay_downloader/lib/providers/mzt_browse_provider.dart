@@ -46,7 +46,7 @@ class MztBrowseProvider extends ChangeNotifier {
   int get selectedCount => _selectedMap.length;
   List<AlbumItem> get selectedItems => _selectedMap.values.toList();
 
-  MztBrowseProvider({bool autoLoad = true}) {
+  MztBrowseProvider({bool autoLoad = false}) {
     if (autoLoad) {
       loadPage(1);
     }

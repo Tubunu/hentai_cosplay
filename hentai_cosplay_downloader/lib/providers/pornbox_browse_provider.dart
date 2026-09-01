@@ -57,7 +57,7 @@ class PornboxBrowseProvider extends ChangeNotifier {
     }).toList();
   }
 
-  PornboxBrowseProvider({bool autoLoad = true}) {
+  PornboxBrowseProvider({bool autoLoad = false}) {
     if (autoLoad) {
       loadPage(1);
     }
