@@ -8,6 +8,7 @@ import 'exhentai/exhentai_api_service.dart';
 import 'hanime1/hanime1_api_service.dart';
 import 'hc_api_service.dart';
 import 'hqporner/hqporner_api_service.dart';
+import 'iwara/iwara_api_service.dart';
 import 'kuraa/kuraa_api_service.dart';
 import 'misskon/misskon_api_service.dart';
 import 'mzt_api_service.dart';
@@ -16,6 +17,7 @@ import 'pinse/pinse_api_service.dart';
 import 'pixibb/pixibb_api_service.dart';
 import 'pornbox/pornbox_api_service.dart';
 import 'pornhub/pornhub_api_service.dart';
+import 'rule34video/rule34video_api_service.dart';
 import 'spankbang/spankbang_api_service.dart';
 import 'video_api_service.dart';
 
@@ -26,6 +28,7 @@ import '../ui/pages/eporner/eporner_detail_page.dart';
 import '../ui/pages/exhentai/exhentai_detail_page.dart';
 import '../ui/pages/hanime1/hanime1_detail_page.dart';
 import '../ui/pages/hqporner/hqporner_detail_page.dart';
+import '../ui/pages/iwara/iwara_detail_page.dart';
 import '../ui/pages/kuraa/kuraa_detail_page.dart';
 import '../ui/pages/misskon/misskon_detail_page.dart';
 import '../ui/pages/mzt/mzt_detail_page.dart';
@@ -34,12 +37,15 @@ import '../ui/pages/pinse/pinse_detail_page.dart';
 import '../ui/pages/pixibb/pixibb_detail_page.dart';
 import '../ui/pages/pornbox/pornbox_detail_page.dart';
 import '../ui/pages/pornhub/pornhub_detail_page.dart';
+import '../ui/pages/rule34video/rule34video_detail_page.dart';
 import '../ui/pages/spankbang/spankbang_detail_page.dart';
 import '../ui/pages/video/video_detail_page.dart';
 
 enum VideoSiteType {
   hcVideo('HC影视'),
   hanime1('Hanime1'),
+  iwara('Iwara'),
+  rule34video('Rule34Video'),
   pinse('91品色'),
   pornbox('PornBox'),
   eporner('EPorner'),
@@ -292,6 +298,26 @@ class RandomDiscoveryService {
           if (res != null && res.items.isNotEmpty) {
             final item = res.items[_rng.nextInt(res.items.length)];
             _navigateTo(context, Hanime1DetailPage(item: item), replace);
+            return;
+          }
+          break;
+
+        case VideoSiteType.iwara:
+          final randomPage = _rng.nextInt(100) + 1;
+          final res = await IwaraApiService.fetchPageData(page: randomPage);
+          if (res.items.isNotEmpty) {
+            final item = res.items[_rng.nextInt(res.items.length)];
+            _navigateTo(context, IwaraDetailPage(item: item), replace);
+            return;
+          }
+          break;
+
+        case VideoSiteType.rule34video:
+          final randomPage = _rng.nextInt(100) + 1;
+          final res = await Rule34VideoApiService.fetchPageData(page: randomPage);
+          if (res.items.isNotEmpty) {
+            final item = res.items[_rng.nextInt(res.items.length)];
+            _navigateTo(context, Rule34VideoDetailPage(item: item), replace);
             return;
           }
           break;

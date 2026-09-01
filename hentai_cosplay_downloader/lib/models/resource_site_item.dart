@@ -6,6 +6,7 @@ import '../ui/pages/eporner/eporner_browse_page.dart';
 import '../ui/pages/exhentai/exhentai_browse_page.dart';
 import '../ui/pages/hanime1/hanime1_browse_page.dart';
 import '../ui/pages/hqporner/hqporner_browse_page.dart';
+import '../ui/pages/iwara/iwara_browse_page.dart';
 import '../ui/pages/kuraa/kuraa_browse_page.dart';
 import '../ui/pages/misskon/misskon_browse_page.dart';
 import '../ui/pages/mzt/mzt_browse_page.dart';
@@ -14,6 +15,7 @@ import '../ui/pages/pinse/pinse_browse_page.dart';
 import '../ui/pages/pixibb/pixibb_browse_page.dart';
 import '../ui/pages/pornbox/pornbox_browse_page.dart';
 import '../ui/pages/pornhub/pornhub_browse_page.dart';
+import '../ui/pages/rule34video/rule34video_browse_page.dart';
 import '../ui/pages/spankbang/spankbang_browse_page.dart';
 import '../ui/pages/twitter_rankings/twitter_browse_page.dart';
 import '../ui/pages/video/video_browse_page.dart';
@@ -53,6 +55,8 @@ class ResourceSiteRegistry {
     'cosplaytele',
     'nucosplay',
     'hanime1',
+    'iwara',
+    'rule34video',
     'eporner',
     'hqporner',
     'spankbang',
@@ -171,6 +175,22 @@ class ResourceSiteRegistry {
       icon: CupertinoIcons.film_fill,
       color: Color(0xFFFF2E63),
       widget: Hanime1BrowsePage(),
+    ),
+    'iwara': const ResourceSiteItem(
+      key: 'iwara',
+      label: 'Iwara',
+      description: 'Iwara 3D / MMD 二次元动画',
+      icon: CupertinoIcons.play_rectangle_fill,
+      color: Color(0xFF00A8FF),
+      widget: IwaraBrowsePage(),
+    ),
+    'rule34video': const ResourceSiteItem(
+      key: 'rule34video',
+      label: 'Rule34Video',
+      description: 'Rule34Video 3D 二次元动画',
+      icon: CupertinoIcons.tv_fill,
+      color: Color(0xFFFF6B35),
+      widget: Rule34VideoBrowsePage(),
     ),
     'eporner': const ResourceSiteItem(
       key: 'eporner',

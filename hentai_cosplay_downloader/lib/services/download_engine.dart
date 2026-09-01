@@ -23,6 +23,8 @@ import 'pixibb/pixibb_api_service.dart';
 import 'cosplaytele/cosplaytele_api_service.dart';
 import 'nucosplay/nucosplay_api_service.dart';
 import 'hanime1/hanime1_api_service.dart';
+import 'iwara/iwara_api_service.dart';
+import 'rule34video/rule34video_api_service.dart';
 import 'storage_service.dart';
 import 'video_api_service.dart';
 
@@ -440,6 +442,32 @@ class DownloadEngine {
       onLog('正在解析视频播放地址: ${item.title}', 'info');
       if (item.detailUrl.contains('hanime1.me')) {
         vDetail = await Hanime1ApiService.fetchVideoDetail(
+          VideoItem(
+            title: item.title,
+            slug: item.slug,
+            detailUrl: item.detailUrl,
+            coverUrl: item.coverUrl,
+            date: item.date,
+            author: item.author,
+            tags: item.tags,
+            rawData: item.rawData,
+          ),
+        );
+      } else if (item.detailUrl.contains('iwara.tv')) {
+        vDetail = await IwaraApiService.resolveVideoDetail(
+          VideoItem(
+            title: item.title,
+            slug: item.slug,
+            detailUrl: item.detailUrl,
+            coverUrl: item.coverUrl,
+            date: item.date,
+            author: item.author,
+            tags: item.tags,
+            rawData: item.rawData,
+          ),
+        );
+      } else if (item.detailUrl.contains('rule34video.com')) {
+        vDetail = await Rule34VideoApiService.resolveVideoDetail(
           VideoItem(
             title: item.title,
             slug: item.slug,

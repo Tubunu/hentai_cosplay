@@ -460,6 +460,10 @@ class CfCookieHarvester {
       finalSiteName = "SupJav";
     } else if (url.contains("hanime1")) {
       finalSiteName = "Hanime1";
+    } else if (url.contains("iwara")) {
+      finalSiteName = "Iwara";
+    } else if (url.contains("rule34video")) {
+      finalSiteName = "Rule34Video";
     } else if (url.contains("91pinse")) {
       finalSiteName = "91PinSe";
     }
@@ -480,8 +484,8 @@ class CfCookieHarvester {
       AppLogger.w('CfHarvester', 'Headless harvest exception for [$finalSiteName]: $e');
     }
 
-    // Never show modal for 91PinSe and Hanime1
-    if (finalSiteName == '91PinSe' || finalSiteName == 'Hanime1') {
+    // Never show modal for background-safe sites
+    if (finalSiteName == '91PinSe' || finalSiteName == 'Hanime1' || finalSiteName == 'Iwara' || finalSiteName == 'Rule34Video') {
       if (headlessResult.isNotEmpty) return headlessResult;
       throw Exception('[$finalSiteName] Headless 加载未获取到有效内容');
     }

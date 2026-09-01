@@ -13,6 +13,7 @@ import 'providers/gallery_provider.dart';
 import 'providers/hanime1_browse_provider.dart';
 import 'providers/history_provider.dart';
 import 'providers/hqporner_browse_provider.dart';
+import 'providers/iwara_browse_provider.dart';
 import 'providers/jable_browse_provider.dart';
 import 'providers/jable_download_provider.dart';
 import 'providers/kuraa_browse_provider.dart';
@@ -25,6 +26,7 @@ import 'providers/pinse_browse_provider.dart';
 import 'providers/pixibb_browse_provider.dart';
 import 'providers/pornbox_browse_provider.dart';
 import 'providers/pornhub_browse_provider.dart';
+import 'providers/rule34video_browse_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/spankbang_browse_provider.dart';
 import 'providers/twitter_browse_provider.dart';
@@ -89,6 +91,8 @@ void main() async {
           ChangeNotifierProvider(create: (_) => CosplayteleBrowseProvider()),
           ChangeNotifierProvider(create: (_) => NucosplayBrowseProvider()),
           ChangeNotifierProvider(create: (_) => Hanime1BrowseProvider()),
+          ChangeNotifierProvider(create: (_) => IwaraBrowseProvider()),
+          ChangeNotifierProvider(create: (_) => Rule34VideoBrowseProvider()),
           ChangeNotifierProvider(create: (_) => EpornerBrowseProvider()),
           ChangeNotifierProvider(create: (_) => HqpornerBrowseProvider()),
           ChangeNotifierProvider(create: (_) => SpankbangBrowseProvider()),

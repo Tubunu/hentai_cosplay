@@ -10,6 +10,7 @@ import '../ui/pages/eporner/eporner_detail_page.dart';
 import '../ui/pages/exhentai/exhentai_detail_page.dart';
 import '../ui/pages/hanime1/hanime1_detail_page.dart';
 import '../ui/pages/hqporner/hqporner_detail_page.dart';
+import '../ui/pages/iwara/iwara_detail_page.dart';
 import '../ui/pages/kuraa/kuraa_detail_page.dart';
 import '../ui/pages/misskon/misskon_detail_page.dart';
 import '../ui/pages/mzt/mzt_detail_page.dart';
@@ -18,6 +19,7 @@ import '../ui/pages/pinse/pinse_detail_page.dart';
 import '../ui/pages/pixibb/pixibb_detail_page.dart';
 import '../ui/pages/pornbox/pornbox_detail_page.dart';
 import '../ui/pages/pornhub/pornhub_detail_page.dart';
+import '../ui/pages/rule34video/rule34video_detail_page.dart';
 import '../ui/pages/spankbang/spankbang_detail_page.dart';
 import '../ui/pages/video/video_detail_page.dart';
 import '../ui/pages/video/video_player_page.dart';
@@ -111,6 +113,12 @@ class HistoryRouter {
         break;
       case 'hanime1':
         targetPage = Hanime1DetailPage(item: videoItem);
+        break;
+      case 'iwara':
+        targetPage = IwaraDetailPage(item: videoItem);
+        break;
+      case 'rule34video':
+        targetPage = Rule34VideoDetailPage(item: videoItem);
         break;
       case 'eporner':
         targetPage = EpornerDetailPage(item: videoItem);
