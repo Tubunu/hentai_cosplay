@@ -86,13 +86,32 @@ class _Hanime1DetailPageState extends State<Hanime1DetailPage> {
     }
   }
 
-  void _playVideo() {
+  Future<void> _playVideo() async {
     final qualities = _item.rawData['qualities'] as Map<String, dynamic>?;
     String? streamUrl;
     if (qualities != null && qualities.containsKey(_selectedQuality)) {
       streamUrl = qualities[_selectedQuality]?.toString();
     }
     streamUrl ??= _item.videoUrl;
+
+    if (streamUrl == null || streamUrl.isEmpty) {
+      if (!_isLoading) {
+        await _resolveDetail();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('正在解析动漫视频流，请稍候...'),
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+      final q = _item.rawData['qualities'] as Map<String, dynamic>?;
+      streamUrl = q?[_selectedQuality]?.toString() ?? _item.videoUrl;
+    }
+
+    if (!mounted) return;
 
     if (streamUrl != null &&
         streamUrl.isNotEmpty &&
@@ -103,8 +122,20 @@ class _Hanime1DetailPageState extends State<Hanime1DetailPage> {
         title: _item.title,
         author: _item.author,
         webPlayerUrl: _item.detailUrl,
+        headers: const {
+          'Referer': 'https://hanime1.me/',
+          'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        },
       );
     } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('未获取到视频播放直链，正在使用网页播放器打开...'),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
       WebVideoPlayerPage.open(
         context,
         url: _item.detailUrl,
