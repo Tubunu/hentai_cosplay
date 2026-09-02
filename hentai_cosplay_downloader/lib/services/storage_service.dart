@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -37,24 +38,22 @@ class StorageService {
   /// Request storage permissions
   static Future<bool> requestStoragePermissions() async {
     if (Platform.isAndroid) {
-      final photosStatus = await Permission.photos.status;
-      if (photosStatus.isDenied) {
-        await Permission.photos.request();
+      if (await Permission.manageExternalStorage.isGranted) {
+        return true;
       }
 
-      final storageStatus = await Permission.storage.status;
-      if (storageStatus.isDenied) {
-        await Permission.storage.request();
-      }
+      final statuses = await [
+        Permission.photos,
+        Permission.videos,
+        Permission.storage,
+      ].request();
 
-      final manageStatus = await Permission.manageExternalStorage.status;
-      if (manageStatus.isDenied) {
-        await Permission.manageExternalStorage.request();
-      }
+      final photosGranted = statuses[Permission.photos]?.isGranted ?? await Permission.photos.isGranted;
+      final videosGranted = statuses[Permission.videos]?.isGranted ?? await Permission.videos.isGranted;
+      final storageGranted = statuses[Permission.storage]?.isGranted ?? await Permission.storage.isGranted;
+      final manageGranted = await Permission.manageExternalStorage.isGranted;
 
-      return (await Permission.storage.isGranted) ||
-          (await Permission.photos.isGranted) ||
-          (await Permission.manageExternalStorage.isGranted);
+      return photosGranted || videosGranted || storageGranted || manageGranted;
     }
     return true;
   }
@@ -142,17 +141,25 @@ class StorageService {
     return null;
   }
 
-  /// Scan a local folder to check for downloaded images and albums
+  /// Scan a local folder to check for downloaded images and albums (runs in background isolate)
   static Future<List<LocalAlbumFolder>> scanLocalAlbums(String baseDirPath) async {
+    try {
+      return await Isolate.run(() => _scanLocalAlbumsSync(baseDirPath));
+    } catch (_) {
+      return _scanLocalAlbumsSync(baseDirPath);
+    }
+  }
+
+  static List<LocalAlbumFolder> _scanLocalAlbumsSync(String baseDirPath) {
     final List<LocalAlbumFolder> albums = [];
     final baseDir = Directory(baseDirPath);
-    if (!await baseDir.exists()) return albums;
+    if (!baseDir.existsSync()) return albums;
 
     const validExts = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'};
 
-    Future<void> inspectFolder(Directory dir, {String? defaultAuthor}) async {
+    void inspectFolder(Directory dir, {String? defaultAuthor}) {
       try {
-        final entities = await dir.list().toList();
+        final entities = dir.listSync();
         final List<String> imgFiles = [];
         int bytes = 0;
         Map<String, dynamic>? meta;
@@ -162,7 +169,7 @@ class StorageService {
             final filename = p.basename(e.path);
             if (filename == kAlbumMetadataFilename || filename == kMztMetadataFilename) {
               try {
-                final content = await e.readAsString();
+                final content = e.readAsStringSync();
                 meta = jsonDecode(content) as Map<String, dynamic>?;
               } catch (_) {}
             } else {
@@ -170,7 +177,7 @@ class StorageService {
               if (validExts.contains(ext)) {
                 imgFiles.add(e.path);
                 try {
-                  bytes += await e.length();
+                  bytes += e.lengthSync();
                 } catch (_) {}
               }
             }
@@ -189,7 +196,7 @@ class StorageService {
 
         if (imgFiles.isNotEmpty) {
           final folderName = p.basename(dir.path);
-          final stat = await dir.stat();
+          final stat = dir.statSync();
           final title = meta?['title'] ?? meta?['item']?['title'] ?? folderName;
           final itemData = (meta?['item'] as Map<String, dynamic>?) ?? {};
           final author = meta?['author'] ?? defaultAuthor ?? AlbumItem.inferAuthor(title, itemData);
@@ -223,28 +230,28 @@ class StorageService {
     }
 
     try {
-      final topEntities = await baseDir.list().toList();
+      final topEntities = baseDir.listSync();
       for (final e in topEntities) {
         if (e is Directory) {
           final name = p.basename(e.path);
           if (name == 'archive') {
             // Traverse archive/<author>/<album>
             try {
-              final authorDirs = await e.list().toList();
+              final authorDirs = e.listSync();
               for (final ad in authorDirs) {
                 if (ad is Directory) {
                   final authorName = p.basename(ad.path);
-                  final albumDirs = await ad.list().toList();
+                  final albumDirs = ad.listSync();
                   for (final alb in albumDirs) {
                     if (alb is Directory) {
-                      await inspectFolder(alb, defaultAuthor: authorName);
+                      inspectFolder(alb, defaultAuthor: authorName);
                     }
                   }
                 }
               }
             } catch (_) {}
           } else {
-            await inspectFolder(e);
+            inspectFolder(e);
           }
         }
       }

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 
 const String kAlbumMetadataFilename = '.hc_album.json';
 const String kMztMetadataFilename = '.mzt_pack.json';
@@ -131,4 +132,46 @@ class AppConfig {
 
   String toRawJson() => jsonEncode(toJson());
   factory AppConfig.fromRawJson(String str) => AppConfig.fromJson(jsonDecode(str));
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is AppConfig &&
+        other.savePath == savePath &&
+        other.packWorkers == packWorkers &&
+        other.imgWorkers == imgWorkers &&
+        other.retryCount == retryCount &&
+        other.startPage == startPage &&
+        other.endPage == endPage &&
+        other.customProxy == customProxy &&
+        listEquals(other.mztProxyDomains, mztProxyDomains) &&
+        other.autoArchive == autoArchive &&
+        other.archiveStrategy == archiveStrategy &&
+        other.themeMode == themeMode &&
+        other.accentColor == accentColor &&
+        other.navBarOpacity == navBarOpacity &&
+        other.jableResolutionPref == jableResolutionPref &&
+        other.jableWorkers == jableWorkers &&
+        listEquals(other.onlineResourceSortOrder, onlineResourceSortOrder);
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        savePath,
+        packWorkers,
+        imgWorkers,
+        retryCount,
+        startPage,
+        endPage,
+        customProxy,
+        Object.hashAll(mztProxyDomains),
+        autoArchive,
+        archiveStrategy,
+        themeMode,
+        accentColor,
+        navBarOpacity,
+        jableResolutionPref,
+        jableWorkers,
+        Object.hashAll(onlineResourceSortOrder),
+      );
 }

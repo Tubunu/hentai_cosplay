@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:collection';
 import 'package:flutter/foundation.dart';
 
@@ -52,6 +53,7 @@ class AppLogger extends ChangeNotifier {
 
   static const int _maxLogs = 500;
   final ListQueue<LogEntry> _logs = ListQueue<LogEntry>();
+  Timer? _notifyTimer;
 
   List<LogEntry> get logs => _logs.toList();
 
@@ -78,12 +80,29 @@ class AppLogger extends ChangeNotifier {
     _logs.addLast(entry);
 
     debugPrint(entry.toString());
-    notifyListeners();
+    _scheduleNotify();
+  }
+
+  void _scheduleNotify() {
+    if (_notifyTimer?.isActive ?? false) return;
+    _notifyTimer = Timer(const Duration(milliseconds: 250), () {
+      _notifyTimer = null;
+      notifyListeners();
+    });
   }
 
   void clear() {
+    _notifyTimer?.cancel();
+    _notifyTimer = null;
     _logs.clear();
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _notifyTimer?.cancel();
+    _notifyTimer = null;
+    super.dispose();
   }
 
   String getAllLogsFormatted([String? tagFilter]) {

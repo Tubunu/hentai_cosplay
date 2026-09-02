@@ -379,6 +379,18 @@ class AlbumItem {
 
   String toRawJson() => jsonEncode(toJson());
   factory AlbumItem.fromRawJson(String str) => AlbumItem.fromJson(jsonDecode(str));
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is AlbumItem &&
+        other.slug == slug &&
+        other.detailUrl == detailUrl &&
+        other.title == title;
+  }
+
+  @override
+  int get hashCode => Object.hash(slug, detailUrl, title);
 }
 
 /// Browse category ranking modes

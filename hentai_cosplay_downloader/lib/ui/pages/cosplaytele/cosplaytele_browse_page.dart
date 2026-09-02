@@ -164,7 +164,7 @@ class _CosplayteleBrowsePageState extends State<CosplayteleBrowsePage> {
                       }
                     }
 
-                    if (mounted) {
+                    if (mounted && context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text('区间抓取完成，共添加 $totalQueued 个相册至下载队列！'),

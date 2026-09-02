@@ -57,7 +57,12 @@ void main() {
     // Initial frame check
     expect(find.byType(MaterialApp), findsOneWidget);
 
-    // Let any pending timers/async calls settle
-    await tester.pump(const Duration(milliseconds: 100));
+    // Dispose manually instantiated providers that own timers
+    downloadProv.dispose();
+    jableDownloadProv.dispose();
+    historyProv.dispose();
+
+    // Let any pending retry timers/async calls settle
+    await tester.pump(const Duration(seconds: 5));
   });
 }

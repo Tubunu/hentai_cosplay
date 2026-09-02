@@ -56,23 +56,31 @@ class Merger {
       final raf = await mergedFile.open(mode: FileMode.write);
       int writtenSegments = 0;
 
-      for (final path in tempSegmentPaths) {
-        try {
-          final file = File(path);
-          if (await file.exists()) {
-            final len = await file.length();
-            if (len > 0) {
-              final bytes = await file.readAsBytes();
-              await raf.writeFrom(bytes);
-              writtenSegments++;
+      try {
+        for (final path in tempSegmentPaths) {
+          try {
+            final file = File(path);
+            if (await file.exists()) {
+              final len = await file.length();
+              if (len > 0) {
+                final bytes = await file.readAsBytes();
+                await raf.writeFrom(bytes);
+                writtenSegments++;
+              }
             }
-          }
-        } catch (_) {}
+          } catch (_) {}
+        }
+        await raf.flush();
+      } finally {
+        await raf.close();
       }
-      await raf.flush();
-      await raf.close();
 
       if (writtenSegments == 0) {
+        if (await mergedFile.exists()) {
+          try {
+            await mergedFile.delete();
+          } catch (_) {}
+        }
         return MergeResult(success: false, error: "未找到任何已下载的有效视频分片");
       }
 

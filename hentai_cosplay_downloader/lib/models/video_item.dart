@@ -196,6 +196,18 @@ class VideoItem {
 
   String toRawJson() => jsonEncode(toJson());
   factory VideoItem.fromRawJson(String str) => VideoItem.fromJson(jsonDecode(str));
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is VideoItem &&
+        other.slug == slug &&
+        other.detailUrl == detailUrl &&
+        other.title == title;
+  }
+
+  @override
+  int get hashCode => Object.hash(slug, detailUrl, title);
 }
 
 /// Represents a locally saved video file

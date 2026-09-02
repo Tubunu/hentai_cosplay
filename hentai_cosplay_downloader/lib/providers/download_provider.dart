@@ -1,30 +1,29 @@
 import 'dart:async';
 import 'dart:io';
-import '../services/exhentai/exhentai_api_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path/path.dart' as p;
 import '../models/album_item.dart';
 import '../models/app_config.dart';
 import '../models/download_task.dart';
 import '../models/history_record.dart';
 import '../models/video_item.dart';
+import '../services/app_logger.dart';
 import '../services/config_service.dart';
 import '../services/coomer/coomer_api_service.dart';
+import '../services/coordinators/batch_fetch_coordinator.dart';
+import '../services/coordinators/download_notification_manager.dart';
+import '../services/coordinators/task_persistence_service.dart';
 import '../services/download_engine.dart';
-import '../services/hc_api_service.dart';
+import '../services/exhentai/exhentai_api_service.dart';
 import '../services/kuraa/kuraa_api_service.dart';
 import '../services/misskon/misskon_api_service.dart';
-import '../services/mzt_api_service.dart';
 import '../services/notification_service.dart';
 import '../services/pinse/pinse_api_service.dart';
 import '../services/pornbox/pornbox_api_service.dart';
 import '../services/storage_service.dart';
-import '../services/twitter_rankings/twitter_ranking_api_service.dart';
 import '../services/twitter_rankings/twitter_site_config.dart';
-import '../services/video_api_service.dart';
 
-const String _kTasksKey = 'hc_saved_download_tasks';
 const MethodChannel _bgChannel = MethodChannel('com.hentaicosplay/background_keeper');
 
 void _setIosBackgroundKeeper(bool enable) {
@@ -42,6 +41,28 @@ class DownloadProvider extends ChangeNotifier {
   final Set<AlbumDownloadTask> _runningTasks = {};
   final Map<String, DownloadEngine> _activeEngines = {};
   final Set<String> _currentBatchTaskIds = {};
+
+  // Coordinators & helper services
+  final TaskPersistenceService _persistenceService = TaskPersistenceService();
+  final BatchFetchCoordinator _batchCoordinator = BatchFetchCoordinator();
+  final DownloadNotificationManager _notificationManager = DownloadNotificationManager();
+
+  // Fast O(1) task index maps
+  final Map<String, AlbumDownloadTask> _taskBySlug = {};
+  final Map<String, AlbumDownloadTask> _taskByDetailUrl = {};
+  final Map<String, AlbumDownloadTask> _taskByTitle = {};
+  final Map<String, AlbumDownloadTask> _taskByVideoUrl = {};
+  final Map<String, AlbumDownloadTask> _taskById = {};
+
+  // Cached filtered task lists for UI optimization
+  List<AlbumDownloadTask>? _cachedImageTasks;
+  List<AlbumDownloadTask>? _cachedVideoTasks;
+  List<AlbumDownloadTask>? _cachedImageActive;
+  List<AlbumDownloadTask>? _cachedImageCompleted;
+  List<AlbumDownloadTask>? _cachedImageFailed;
+  List<AlbumDownloadTask>? _cachedVideoActive;
+  List<AlbumDownloadTask>? _cachedVideoCompleted;
+  List<AlbumDownloadTask>? _cachedVideoFailed;
 
   AppConfig _config = ConfigService.loadConfig();
 
@@ -69,8 +90,37 @@ class DownloadProvider extends ChangeNotifier {
   List<AlbumDownloadTask> get pausedTasks =>
       _allTasks.where((t) => t.status == TaskStatus.paused).toList();
 
+  // Cached getters for DownloadTasksPage
+  List<AlbumDownloadTask> get imageTasks =>
+      _cachedImageTasks ??= _allTasks.where((t) => !t.isVideo).toList();
+  List<AlbumDownloadTask> get videoTasks =>
+      _cachedVideoTasks ??= _allTasks.where((t) => t.isVideo).toList();
+  List<AlbumDownloadTask> get imageActiveTasks =>
+      _cachedImageActive ??= imageTasks
+          .where((t) =>
+              t.status == TaskStatus.downloading ||
+              t.status == TaskStatus.queued ||
+              t.status == TaskStatus.paused)
+          .toList();
+  List<AlbumDownloadTask> get imageCompletedTasks =>
+      _cachedImageCompleted ??= imageTasks.where((t) => t.status == TaskStatus.completed).toList();
+  List<AlbumDownloadTask> get imageFailedTasks =>
+      _cachedImageFailed ??= imageTasks.where((t) => t.status == TaskStatus.failed).toList();
+  List<AlbumDownloadTask> get videoActiveTasks =>
+      _cachedVideoActive ??= videoTasks
+          .where((t) =>
+              t.status == TaskStatus.downloading ||
+              t.status == TaskStatus.queued ||
+              t.status == TaskStatus.paused)
+          .toList();
+  List<AlbumDownloadTask> get videoCompletedTasks =>
+      _cachedVideoCompleted ??= videoTasks.where((t) => t.status == TaskStatus.completed).toList();
+  List<AlbumDownloadTask> get videoFailedTasks =>
+      _cachedVideoFailed ??= videoTasks.where((t) => t.status == TaskStatus.failed).toList();
+
   bool get isDownloading => activeTasks.isNotEmpty || queuedTasks.isNotEmpty;
-  bool get hasActiveOrPausedTasks => activeTasks.isNotEmpty || pausedTasks.isNotEmpty || queuedTasks.isNotEmpty;
+  bool get hasActiveOrPausedTasks =>
+      activeTasks.isNotEmpty || pausedTasks.isNotEmpty || queuedTasks.isNotEmpty;
 
   /// Accurate overall progress strictly tracking active download batch
   double get overallProgress {
@@ -108,6 +158,79 @@ class DownloadProvider extends ChangeNotifier {
     loadSavedTasks();
     NotificationService.init();
     NotificationService.requestNotificationPermission();
+  }
+
+  void _invalidateFilteredCache() {
+    _cachedImageTasks = null;
+    _cachedVideoTasks = null;
+    _cachedImageActive = null;
+    _cachedImageCompleted = null;
+    _cachedImageFailed = null;
+    _cachedVideoActive = null;
+    _cachedVideoCompleted = null;
+    _cachedVideoFailed = null;
+  }
+
+  void _rebuildIndexes() {
+    _taskBySlug.clear();
+    _taskByDetailUrl.clear();
+    _taskByTitle.clear();
+    _taskByVideoUrl.clear();
+    _taskById.clear();
+
+    for (final t in _allTasks) {
+      _indexSingleTask(t);
+    }
+    _invalidateFilteredCache();
+  }
+
+  void _indexSingleTask(AlbumDownloadTask task) {
+    _taskById[task.id] = task;
+    if (task.albumItem.slug.isNotEmpty) {
+      _taskBySlug[task.albumItem.slug] = task;
+    }
+    if (task.albumItem.detailUrl.isNotEmpty) {
+      _taskByDetailUrl[task.albumItem.detailUrl] = task;
+    }
+    if (task.albumItem.title.isNotEmpty) {
+      _taskByTitle[task.albumItem.title] = task;
+    }
+    if (task.videoUrl != null && task.videoUrl!.isNotEmpty) {
+      _taskByVideoUrl[task.videoUrl!.split('?').first] = task;
+    }
+  }
+
+  AlbumDownloadTask? findTask({
+    String? slug,
+    String? detailUrl,
+    String? title,
+    String? videoUrl,
+    String? id,
+  }) {
+    if (id != null && _taskById.containsKey(id)) return _taskById[id];
+    if (slug != null && slug.isNotEmpty) {
+      return _taskBySlug[slug];
+    }
+    if (detailUrl != null && detailUrl.isNotEmpty) {
+      return _taskByDetailUrl[detailUrl];
+    }
+    if (videoUrl != null && videoUrl.isNotEmpty) {
+      final clean = videoUrl.split('?').first;
+      return _taskByVideoUrl[clean];
+    }
+    if (title != null && title.isNotEmpty) {
+      return _taskByTitle[title];
+    }
+    return null;
+  }
+
+  /// O(1) task lookup for AlbumItem
+  AlbumDownloadTask? getTaskForAlbum(AlbumItem item) {
+    return findTask(
+      slug: item.slug,
+      detailUrl: item.detailUrl,
+      title: item.title,
+    );
   }
 
   String _generateTaskId(String title) {
@@ -157,6 +280,7 @@ class DownloadProvider extends ChangeNotifier {
       engine.cancel();
     }
     _activeEngines.clear();
+    _persistenceService.dispose();
     super.dispose();
   }
 
@@ -186,36 +310,19 @@ class DownloadProvider extends ChangeNotifier {
 
   /// Load persisted download tasks from SharedPreferences
   Future<void> loadSavedTasks() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(_kTasksKey);
-      if (raw != null && raw.isNotEmpty) {
-        final loaded = AlbumDownloadTask.listFromJson(raw);
-        for (final t in loaded) {
-          // If task was downloading before app closed, restore as paused
-          if (t.status == TaskStatus.downloading) {
-            t.status = TaskStatus.paused;
-          }
-          final key = t.id;
-          if (!_allTasks.any((existing) => existing.id == key)) {
-            _allTasks.add(t);
-          }
-        }
-        notifyListeners();
+    final loaded = await _persistenceService.loadTasks();
+    for (final t in loaded) {
+      if (!_allTasks.any((existing) => existing.id == t.id)) {
+        _allTasks.add(t);
       }
-    } catch (e) {
-      debugPrint('Error loading saved tasks: $e');
     }
+    _rebuildIndexes();
+    notifyListeners();
   }
 
-  /// Persist all tasks to SharedPreferences
-  Future<void> _persistTasks() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_kTasksKey, AlbumDownloadTask.listToJson(_allTasks));
-    } catch (e) {
-      debugPrint('Error persisting tasks: $e');
-    }
+  /// Persist all tasks to SharedPreferences (debounced unless immediate)
+  void _persistTasks({bool immediate = false}) {
+    _persistenceService.persistTasks(_allTasks, immediate: immediate);
   }
 
   void _onBytesReceived(int bytes) {
@@ -230,15 +337,13 @@ class DownloadProvider extends ChangeNotifier {
       _currentBatchTaskIds.clear();
     }
 
-    final key = item.slug.isNotEmpty ? item.slug : item.title;
-    final existingIndex = _allTasks.indexWhere((t) => t.albumItem.slug == key || t.albumItem.title == key);
-
-    if (existingIndex != -1) {
-      final existingTask = _allTasks[existingIndex];
+    final existingTask = getTaskForAlbum(item);
+    if (existingTask != null) {
       _currentBatchTaskIds.add(existingTask.id);
       if (existingTask.status == TaskStatus.paused || existingTask.status == TaskStatus.failed) {
         existingTask.status = TaskStatus.queued;
-        _persistTasks();
+        _invalidateFilteredCache();
+        _persistTasks(immediate: true);
         notifyListeners();
         _triggerDownloadLoop();
       }
@@ -249,14 +354,16 @@ class DownloadProvider extends ChangeNotifier {
     final task = AlbumDownloadTask(
       id: taskId,
       albumItem: item,
-      targetFolder: '${_config.savePath}/${AlbumItem.cleanFilename(item.title)}',
+      targetFolder: p.join(_config.savePath, AlbumItem.cleanFilename(item.title)),
       totalImages: item.imageUrls.length,
       status: TaskStatus.queued,
     );
 
     _allTasks.add(task);
+    _indexSingleTask(task);
+    _invalidateFilteredCache();
     _currentBatchTaskIds.add(taskId);
-    _persistTasks();
+    _persistTasks(immediate: true);
     notifyListeners();
 
     _triggerDownloadLoop();
@@ -271,11 +378,8 @@ class DownloadProvider extends ChangeNotifier {
     }
 
     for (final item in items) {
-      final key = item.slug.isNotEmpty ? item.slug : item.title;
-      final existingIndex = _allTasks.indexWhere((t) => t.albumItem.slug == key || t.albumItem.title == key);
-
-      if (existingIndex != -1) {
-        final existingTask = _allTasks[existingIndex];
+      final existingTask = getTaskForAlbum(item);
+      if (existingTask != null) {
         _currentBatchTaskIds.add(existingTask.id);
         if (existingTask.status == TaskStatus.paused || existingTask.status == TaskStatus.failed) {
           existingTask.status = TaskStatus.queued;
@@ -287,15 +391,17 @@ class DownloadProvider extends ChangeNotifier {
       final task = AlbumDownloadTask(
         id: taskId,
         albumItem: item,
-        targetFolder: '${_config.savePath}/${AlbumItem.cleanFilename(item.title)}',
+        targetFolder: p.join(_config.savePath, AlbumItem.cleanFilename(item.title)),
         totalImages: item.imageUrls.length,
         status: TaskStatus.queued,
       );
       _allTasks.add(task);
+      _indexSingleTask(task);
       _currentBatchTaskIds.add(taskId);
     }
 
-    _persistTasks();
+    _invalidateFilteredCache();
+    _persistTasks(immediate: true);
     notifyListeners();
 
     _triggerDownloadLoop();
@@ -303,20 +409,7 @@ class DownloadProvider extends ChangeNotifier {
 
   /// Fetch and add page range (e.g. from page 1 to 5) to batch download queue
   Future<void> addPageRange(int startPage, int endPage, {String? keyword}) async {
-    _config = ConfigService.loadConfig();
-    final List<AlbumItem> allItems = [];
-
-    for (int p = startPage; p <= endPage; p++) {
-      try {
-        final pageData = await HCApiService.fetchPageData(page: p, keyword: keyword);
-        if (pageData != null && pageData.items.isNotEmpty) {
-          allItems.addAll(pageData.items);
-        }
-      } catch (e) {
-        debugPrint('Error fetching page $p during batch range download: $e');
-      }
-    }
-
+    final allItems = await _batchCoordinator.fetchHcPageRange(startPage, endPage, keyword: keyword);
     if (allItems.isNotEmpty) {
       addBatchAlbumTasks(allItems);
     }
@@ -324,20 +417,7 @@ class DownloadProvider extends ChangeNotifier {
 
   /// Fetch and add MZT page range (e.g. from page 1 to 5) to batch download queue
   Future<void> addMztPageRange(int startPage, int endPage) async {
-    _config = ConfigService.loadConfig();
-    final List<AlbumItem> allItems = [];
-
-    for (int p = startPage; p <= endPage; p++) {
-      try {
-        final pageData = await MztApiService.fetchPageData(page: p, pageSize: 12);
-        if (pageData != null && pageData.items.isNotEmpty) {
-          allItems.addAll(pageData.items);
-        }
-      } catch (e) {
-        debugPrint('Error fetching MZT page $p during batch range download: $e');
-      }
-    }
-
+    final allItems = await _batchCoordinator.fetchMztPageRange(startPage, endPage);
     if (allItems.isNotEmpty) {
       addBatchAlbumTasks(allItems);
     }
@@ -351,25 +431,13 @@ class DownloadProvider extends ChangeNotifier {
     String? tag,
     String? keyword,
   }) async {
-    _config = ConfigService.loadConfig();
-    final List<AlbumItem> allItems = [];
-
-    for (int p = startPage; p <= endPage; p++) {
-      try {
-        final pageData = await MisskonApiService.fetchPageData(
-          page: p,
-          category: category,
-          tag: tag,
-          keyword: keyword,
-        );
-        if (pageData != null && pageData.items.isNotEmpty) {
-          allItems.addAll(pageData.items);
-        }
-      } catch (e) {
-        debugPrint('Error fetching MissKon page $p during batch range download: $e');
-      }
-    }
-
+    final allItems = await _batchCoordinator.fetchMisskonPageRange(
+      startPage,
+      endPage,
+      category: category,
+      tag: tag,
+      keyword: keyword,
+    );
     if (allItems.isNotEmpty) {
       addBatchAlbumTasks(allItems);
     }
@@ -383,37 +451,13 @@ class DownloadProvider extends ChangeNotifier {
     String? query,
     CoomerCreator? creator,
   }) async {
-    _config = ConfigService.loadConfig();
-    final List<AlbumItem> allItems = [];
-
-    for (int p = startPage; p <= endPage; p++) {
-      try {
-        final offset = (p - 1) * 40;
-        CoomerApiResponse? pageData;
-        if (creator != null) {
-          pageData = await CoomerApiService.fetchCreatorPosts(
-            service: creator.service,
-            creatorId: creator.id,
-            offset: offset,
-            limit: 40,
-          );
-        } else {
-          pageData = await CoomerApiService.fetchRecentPosts(
-            offset: offset,
-            limit: 40,
-            service: service == 'all' ? null : service,
-            query: query,
-          );
-        }
-
-        if (pageData != null && pageData.items.isNotEmpty) {
-          allItems.addAll(pageData.items);
-        }
-      } catch (e) {
-        debugPrint('Error fetching Coomer page $p during batch range download: $e');
-      }
-    }
-
+    final allItems = await _batchCoordinator.fetchCoomerPageRange(
+      startPage,
+      endPage,
+      service: service,
+      query: query,
+      creator: creator,
+    );
     if (allItems.isNotEmpty) {
       addBatchAlbumTasks(allItems);
     }
@@ -427,25 +471,13 @@ class DownloadProvider extends ChangeNotifier {
     String? keyword,
     String? author,
   }) async {
-    _config = ConfigService.loadConfig();
-    final List<VideoItem> allVideos = [];
-
-    for (int p = startPage; p <= endPage; p++) {
-      try {
-        final pageData = await PinseApiService.fetchPageData(
-          page: p,
-          category: category,
-          keyword: keyword,
-          author: author,
-        );
-        if (pageData != null && pageData.items.isNotEmpty) {
-          allVideos.addAll(pageData.items);
-        }
-      } catch (e) {
-        debugPrint('Error fetching 91品色 page $p during batch range download: $e');
-      }
-    }
-
+    final allVideos = await _batchCoordinator.fetchPinsePageRange(
+      startPage,
+      endPage,
+      category: category,
+      keyword: keyword,
+      author: author,
+    );
     if (allVideos.isNotEmpty) {
       addBatchVideoTasks(allVideos);
     }
@@ -459,25 +491,13 @@ class DownloadProvider extends ChangeNotifier {
     String? keyword,
     String? studio,
   }) async {
-    _config = ConfigService.loadConfig();
-    final List<VideoItem> allVideos = [];
-
-    for (int p = startPage; p <= endPage; p++) {
-      try {
-        final pageData = await PornboxApiService.fetchPageData(
-          page: p,
-          category: category,
-          keyword: keyword,
-          studio: studio,
-        );
-        if (pageData != null && pageData.items.isNotEmpty) {
-          allVideos.addAll(pageData.items);
-        }
-      } catch (e) {
-        debugPrint('Error fetching PornBox page $p during batch range download: $e');
-      }
-    }
-
+    final allVideos = await _batchCoordinator.fetchPornboxPageRange(
+      startPage,
+      endPage,
+      category: category,
+      keyword: keyword,
+      studio: studio,
+    );
     if (allVideos.isNotEmpty) {
       addBatchVideoTasks(allVideos);
     }
@@ -485,14 +505,9 @@ class DownloadProvider extends ChangeNotifier {
 
   /// Fetch and add Kuraa album to download queue
   Future<void> addKuraaAlbumTask(KuraaFileItem folderItem, {String? token}) async {
-    _config = ConfigService.loadConfig();
-    try {
-      final album = await KuraaApiService.fetchAlbumDetail(folderItem, token: token);
-      if (album != null && album.imageUrls.isNotEmpty) {
-        addBatchAlbumTasks([album]);
-      }
-    } catch (e) {
-      debugPrint('Error adding Kuraa album task: $e');
+    final album = await _batchCoordinator.fetchKuraaAlbum(folderItem, token: token);
+    if (album != null && album.imageUrls.isNotEmpty) {
+      addBatchAlbumTasks([album]);
     }
   }
 
@@ -504,30 +519,15 @@ class DownloadProvider extends ChangeNotifier {
     String? parentId,
     String? token,
   }) async {
-    _config = ConfigService.loadConfig();
-    const pageSize = 50;
-
-    for (int p = startPage; p <= endPage; p++) {
-      try {
-        final offset = (p - 1) * pageSize;
-        final res = await KuraaApiService.fetchFiles(
-          storageLocationId: storageLocationId,
-          parentId: parentId,
-          offset: offset,
-          limit: pageSize,
-          sortBy: 'updatedAt',
-          sortOrder: 'desc',
-          token: token,
-        );
-
-        for (final item in res.items) {
-          if (item.isFolder) {
-            await addKuraaAlbumTask(item, token: token);
-          }
-        }
-      } catch (e) {
-        debugPrint('Error fetching Kuraa page $p during batch range download: $e');
-      }
+    final albums = await _batchCoordinator.fetchKuraaPageRange(
+      startPage,
+      endPage,
+      storageLocationId: storageLocationId,
+      parentId: parentId,
+      token: token,
+    );
+    if (albums.isNotEmpty) {
+      addBatchAlbumTasks(albums);
     }
   }
 
@@ -539,30 +539,13 @@ class DownloadProvider extends ChangeNotifier {
     String? range,
     String? sort,
   }) async {
-    _config = ConfigService.loadConfig();
-    final List<VideoItem> allVideos = [];
-
-    for (int p = startPage; p <= endPage; p++) {
-      try {
-        final pageData = await TwitterRankingApiService.fetchPageData(
-          site: site,
-          range: range,
-          sort: sort,
-          page: p,
-        );
-        if (pageData != null && pageData.items.isNotEmpty) {
-          for (var v in pageData.items) {
-            if (v.videoUrl == null || v.videoUrl!.isEmpty) {
-              v = await TwitterRankingApiService.resolveVideoDetail(site, v);
-            }
-            allVideos.add(v);
-          }
-        }
-      } catch (e) {
-        debugPrint('Error fetching Twitter page $p during batch range download: $e');
-      }
-    }
-
+    final allVideos = await _batchCoordinator.fetchTwitterPageRange(
+      startPage,
+      endPage,
+      site: site,
+      range: range,
+      sort: sort,
+    );
     if (allVideos.isNotEmpty) {
       addBatchVideoTasks(allVideos);
     }
@@ -576,25 +559,13 @@ class DownloadProvider extends ChangeNotifier {
     String? keyword,
     bool isPopular = false,
   }) async {
-    _config = ConfigService.loadConfig();
-    final List<AlbumItem> allAlbums = [];
-
-    for (int p = startPage; p <= endPage; p++) {
-      try {
-        final res = await ExHentaiApiService.fetchPageData(
-          page: p,
-          category: category,
-          keyword: keyword,
-          isPopular: isPopular,
-        );
-        if (res != null && res.items.isNotEmpty) {
-          allAlbums.addAll(res.items);
-        }
-      } catch (e) {
-        debugPrint('Error fetching ExHentai page $p during batch range download: $e');
-      }
-    }
-
+    final allAlbums = await _batchCoordinator.fetchExHentaiPageRange(
+      startPage,
+      endPage,
+      category: category,
+      keyword: keyword,
+      isPopular: isPopular,
+    );
     if (allAlbums.isNotEmpty) {
       addBatchAlbumTasks(allAlbums);
     }
@@ -659,7 +630,7 @@ class DownloadProvider extends ChangeNotifier {
       final task = AlbumDownloadTask(
         id: taskId,
         albumItem: albumItem,
-        targetFolder: '${_config.savePath}/video',
+        targetFolder: p.join(_config.savePath, 'video'),
         totalImages: 1,
         status: TaskStatus.queued,
         isVideo: true,
@@ -667,10 +638,12 @@ class DownloadProvider extends ChangeNotifier {
         duration: video.duration,
       );
       _allTasks.add(task);
+      _indexSingleTask(task);
       _currentBatchTaskIds.add(taskId);
     }
 
-    _persistTasks();
+    _invalidateFilteredCache();
+    _persistTasks(immediate: true);
     notifyListeners();
 
     _triggerDownloadLoop();
@@ -684,25 +657,13 @@ class DownloadProvider extends ChangeNotifier {
     String? keyword,
     String? tag,
   }) async {
-    _config = ConfigService.loadConfig();
-    final List<VideoItem> allVideos = [];
-
-    for (int p = startPage; p <= endPage; p++) {
-      try {
-        final pageData = await VideoApiService.fetchVideoPageData(
-          category: category,
-          keyword: keyword,
-          tag: tag,
-          page: p,
-        );
-        if (pageData != null && pageData.items.isNotEmpty) {
-          allVideos.addAll(pageData.items);
-        }
-      } catch (e) {
-        debugPrint('Error fetching video page $p during batch range download: $e');
-      }
-    }
-
+    final allVideos = await _batchCoordinator.fetchVideoPageRange(
+      startPage,
+      endPage,
+      category: category,
+      keyword: keyword,
+      tag: tag,
+    );
     if (allVideos.isNotEmpty) {
       addBatchVideoTasks(allVideos);
     }
@@ -747,7 +708,8 @@ class DownloadProvider extends ChangeNotifier {
     _activeEngines.remove(task.id);
     task.status = TaskStatus.paused;
     _runningTasks.remove(task);
-    _persistTasks();
+    _invalidateFilteredCache();
+    _persistTasks(immediate: true);
     notifyListeners();
     _updateNotification();
     _scheduleNextTasks();
@@ -766,7 +728,8 @@ class DownloadProvider extends ChangeNotifier {
     }
     _runningTasks.clear();
     _setIosBackgroundKeeper(false);
-    _persistTasks();
+    _invalidateFilteredCache();
+    _persistTasks(immediate: true);
     notifyListeners();
     _updateNotification();
   }
@@ -776,7 +739,8 @@ class DownloadProvider extends ChangeNotifier {
     if (task.status == TaskStatus.paused || task.status == TaskStatus.failed) {
       task.status = TaskStatus.queued;
       _currentBatchTaskIds.add(task.id);
-      _persistTasks();
+      _invalidateFilteredCache();
+      _persistTasks(immediate: true);
       notifyListeners();
       _scheduleNextTasks();
     }
@@ -790,7 +754,8 @@ class DownloadProvider extends ChangeNotifier {
         _currentBatchTaskIds.add(task.id);
       }
     }
-    _persistTasks();
+    _invalidateFilteredCache();
+    _persistTasks(immediate: true);
     notifyListeners();
     _scheduleNextTasks();
   }
@@ -801,7 +766,8 @@ class DownloadProvider extends ChangeNotifier {
       task.status = TaskStatus.queued;
       _currentBatchTaskIds.add(task.id);
     }
-    _persistTasks();
+    _invalidateFilteredCache();
+    _persistTasks(immediate: true);
     notifyListeners();
     _scheduleNextTasks();
   }
@@ -810,7 +776,8 @@ class DownloadProvider extends ChangeNotifier {
   void clearCompleted() {
     _allTasks.removeWhere((t) => t.status == TaskStatus.completed);
     _currentBatchTaskIds.clear();
-    _persistTasks();
+    _rebuildIndexes();
+    _persistTasks(immediate: true);
     notifyListeners();
     if (_allTasks.isEmpty) {
       NotificationService.cancelNotification();
@@ -823,7 +790,8 @@ class DownloadProvider extends ChangeNotifier {
     _allTasks.remove(task);
     _currentBatchTaskIds.remove(task.id);
     _runningTasks.remove(task);
-    _persistTasks();
+    _rebuildIndexes();
+    _persistTasks(immediate: true);
     notifyListeners();
     if (_allTasks.isEmpty) {
       NotificationService.cancelNotification();
@@ -853,6 +821,7 @@ class DownloadProvider extends ChangeNotifier {
       task.startTime ??= DateTime.now();
       _runningTasks.add(task);
       _setIosBackgroundKeeper(true);
+      _invalidateFilteredCache();
       notifyListeners();
       _updateNotification();
 
@@ -868,7 +837,24 @@ class DownloadProvider extends ChangeNotifier {
     if (_isDisposed) return;
     final engine = DownloadEngine(
       config: _config,
-      onLog: (msg, level) {},
+      onLog: (msg, level) {
+        switch (level) {
+          case 'error':
+            AppLogger.e('DownloadEngine', msg);
+            break;
+          case 'warn':
+            AppLogger.w('DownloadEngine', msg);
+            break;
+          case 'success':
+            AppLogger.s('DownloadEngine', msg);
+            break;
+          case 'debug':
+            AppLogger.d('DownloadEngine', msg);
+            break;
+          default:
+            AppLogger.i('DownloadEngine', msg);
+        }
+      },
       onTaskProgress: (t) {
         _throttledProgressNotify();
       },
@@ -920,6 +906,7 @@ class DownloadProvider extends ChangeNotifier {
     } finally {
       _activeEngines.remove(task.id);
       _runningTasks.remove(task);
+      _invalidateFilteredCache();
       _persistTasks();
       notifyListeners();
       _updateNotification();
@@ -946,9 +933,9 @@ class DownloadProvider extends ChangeNotifier {
     }
 
     if (finishedBatch.isNotEmpty) {
-      NotificationService.showDownloadCompleted(
-        albumsCount: finishedBatch.length,
-        imagesCount: totalImages,
+      _notificationManager.notifyBatchCompleted(
+        completedAlbumsCount: finishedBatch.length,
+        totalImagesCount: totalImages,
         durationSec: duration,
       );
     }
@@ -958,25 +945,13 @@ class DownloadProvider extends ChangeNotifier {
   }
 
   void _updateNotification() {
-    if (activeTasks.isNotEmpty) {
-      final currentTask = activeTasks.first;
-      NotificationService.updateProgressNotification(
-        title: currentTask.albumItem.title,
-        progress: overallProgress,
-        speed: formattedSpeed,
-        finishedCount: currentTask.downloadedImages + currentTask.skippedImages,
-        totalCount: currentTask.totalImages > 0 ? currentTask.totalImages : 1,
-      );
-    } else if (queuedTasks.isEmpty && activeTasks.isEmpty && pausedTasks.isNotEmpty) {
-      NotificationService.updateProgressNotification(
-        title: '已暂停全部任务',
-        progress: overallProgress,
-        speed: '0 KB/s',
-        finishedCount: 0,
-        totalCount: 0,
-        isPaused: true,
-      );
-    }
+    _notificationManager.updateProgress(
+      activeTasks: activeTasks,
+      queuedTasks: queuedTasks,
+      pausedTasks: pausedTasks,
+      overallProgress: overallProgress,
+      formattedSpeed: formattedSpeed,
+    );
   }
 
   String? _extractMediaIdentifier(String? url, String? slug) {

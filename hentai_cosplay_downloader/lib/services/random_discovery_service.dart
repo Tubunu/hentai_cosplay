@@ -20,6 +20,7 @@ import 'pornhub/pornhub_api_service.dart';
 import 'rule34video/rule34video_api_service.dart';
 import 'spankbang/spankbang_api_service.dart';
 import 'video_api_service.dart';
+import 'xvideos/xvideos_api_service.dart';
 
 import '../ui/pages/browse/album_detail_page.dart';
 import '../ui/pages/coomer/coomer_detail_page.dart';
@@ -40,6 +41,7 @@ import '../ui/pages/pornhub/pornhub_detail_page.dart';
 import '../ui/pages/rule34video/rule34video_detail_page.dart';
 import '../ui/pages/spankbang/spankbang_detail_page.dart';
 import '../ui/pages/video/video_detail_page.dart';
+import '../ui/pages/xvideos/xvideos_detail_page.dart';
 
 enum VideoSiteType {
   hcVideo('HC影视'),
@@ -51,7 +53,8 @@ enum VideoSiteType {
   eporner('EPorner'),
   hqporner('HQPorner'),
   spankbang('SpankBang'),
-  pornhub('Pornhub');
+  pornhub('Pornhub'),
+  xvideos('XVideos');
 
   final String label;
   const VideoSiteType(this.label);
@@ -82,6 +85,7 @@ class RandomDiscoveryService {
           final res = await HCApiService.fetchPageData(page: randomPage);
           if (res != null && res.items.isNotEmpty) {
             final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
             _navigateTo(context, AlbumDetailPage(initialItem: item), replace);
             return;
           }
@@ -92,6 +96,7 @@ class RandomDiscoveryService {
           final res = await ExHentaiApiService.fetchPageData(page: randomPage);
           if (res != null && res.items.isNotEmpty) {
             final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
             _navigateTo(context, ExDetailPage(item: item), replace);
             return;
           }
@@ -102,6 +107,7 @@ class RandomDiscoveryService {
           final res = await MztApiService.fetchPageData(page: randomPage);
           if (res != null && res.items.isNotEmpty) {
             final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
             _navigateTo(context, MztDetailPage(item: item), replace);
             return;
           }
@@ -112,6 +118,7 @@ class RandomDiscoveryService {
           final res = await MisskonApiService.fetchPageData(page: randomPage);
           if (res != null && res.items.isNotEmpty) {
             final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
             _navigateTo(context, MisskonDetailPage(item: item), replace);
             return;
           }
@@ -122,6 +129,7 @@ class RandomDiscoveryService {
           final res = await PixibbApiService.fetchPageData(page: randomPage);
           if (res != null && res.items.isNotEmpty) {
             final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
             _navigateTo(context, PixibbDetailPage(item: item), replace);
             return;
           }
@@ -132,6 +140,7 @@ class RandomDiscoveryService {
           final res = await CosplayteleApiService.fetchPageData(page: randomPage);
           if (res != null && res.items.isNotEmpty) {
             final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
             _navigateTo(context, CosplayteleDetailPage(item: item), replace);
             return;
           }
@@ -142,6 +151,7 @@ class RandomDiscoveryService {
           final res = await NucosplayApiService.fetchPageData(page: randomPage);
           if (res != null && res.items.isNotEmpty) {
             final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
             _navigateTo(context, NucosplayDetailPage(item: item), replace);
             return;
           }
@@ -152,6 +162,7 @@ class RandomDiscoveryService {
           final res = await CoomerApiService.fetchRecentPosts(offset: randomOffset);
           if (res != null && res.items.isNotEmpty) {
             final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
             _navigateTo(context, CoomerDetailPage(item: item), replace);
             return;
           }
@@ -171,6 +182,7 @@ class RandomDiscoveryService {
             final folders = res.items.where((f) => f.isFolder).toList();
             if (folders.isNotEmpty) {
               final folder = folders[_rng.nextInt(folders.length)];
+              if (!context.mounted) return;
               _navigateTo(context, KuraaDetailPage(folderItem: folder), replace);
               return;
             }
@@ -191,6 +203,7 @@ class RandomDiscoveryService {
             final folders = res.items.where((f) => f.isFolder).toList();
             if (folders.isNotEmpty) {
               final folder = folders[_rng.nextInt(folders.length)];
+              if (!context.mounted) return;
               _navigateTo(context, KuraaDetailPage(folderItem: folder, token: token), replace);
               return;
             }
@@ -241,6 +254,7 @@ class RandomDiscoveryService {
                 isDetailLoaded: true,
               );
 
+              if (!context.mounted) return;
               _navigateTo(
                 context,
                 KuraaDetailPage(folderItem: pseudoFolder, initialAlbum: album),
@@ -287,6 +301,7 @@ class RandomDiscoveryService {
           final res = await VideoApiService.fetchVideoPageData(page: randomPage);
           if (res != null && res.items.isNotEmpty) {
             final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
             _navigateTo(context, VideoDetailPage(initialItem: item), replace);
             return;
           }
@@ -297,6 +312,7 @@ class RandomDiscoveryService {
           final res = await Hanime1ApiService.fetchPageData(page: randomPage);
           if (res != null && res.items.isNotEmpty) {
             final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
             _navigateTo(context, Hanime1DetailPage(item: item), replace);
             return;
           }
@@ -307,6 +323,7 @@ class RandomDiscoveryService {
           final res = await IwaraApiService.fetchPageData(page: randomPage);
           if (res.items.isNotEmpty) {
             final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
             _navigateTo(context, IwaraDetailPage(item: item), replace);
             return;
           }
@@ -317,6 +334,7 @@ class RandomDiscoveryService {
           final res = await Rule34VideoApiService.fetchPageData(page: randomPage);
           if (res.items.isNotEmpty) {
             final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
             _navigateTo(context, Rule34VideoDetailPage(item: item), replace);
             return;
           }
@@ -327,6 +345,7 @@ class RandomDiscoveryService {
           final res = await PinseApiService.fetchPageData(page: randomPage);
           if (res != null && res.items.isNotEmpty) {
             final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
             _navigateTo(context, PinseDetailPage(item: item), replace);
             return;
           }
@@ -337,6 +356,7 @@ class RandomDiscoveryService {
           final res = await PornboxApiService.fetchPageData(page: randomPage);
           if (res != null && res.items.isNotEmpty) {
             final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
             _navigateTo(context, PornboxDetailPage(item: item), replace);
             return;
           }
@@ -347,6 +367,7 @@ class RandomDiscoveryService {
           final res = await EpornerApiService.fetchPageData(page: randomPage);
           if (res != null && res.items.isNotEmpty) {
             final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
             _navigateTo(context, EpornerDetailPage(item: item), replace);
             return;
           }
@@ -357,6 +378,7 @@ class RandomDiscoveryService {
           final res = await HqpornerApiService.fetchPageData(page: randomPage);
           if (res != null && res.items.isNotEmpty) {
             final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
             _navigateTo(context, HqpornerDetailPage(item: item), replace);
             return;
           }
@@ -367,6 +389,7 @@ class RandomDiscoveryService {
           final res = await SpankbangApiService.fetchPageData(page: randomPage);
           if (res != null && res.items.isNotEmpty) {
             final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
             _navigateTo(context, SpankbangDetailPage(item: item), replace);
             return;
           }
@@ -377,7 +400,19 @@ class RandomDiscoveryService {
           final res = await PornhubApiService.fetchPageData(page: randomPage);
           if (res != null && res.items.isNotEmpty) {
             final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
             _navigateTo(context, PornhubDetailPage(item: item), replace);
+            return;
+          }
+          break;
+
+        case VideoSiteType.xvideos:
+          final randomPage = _rng.nextInt(80) + 1;
+          final res = await XVideosApiService.fetchPageData(page: randomPage);
+          if (res != null && res.items.isNotEmpty) {
+            final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
+            _navigateTo(context, XVideosDetailPage(item: item), replace);
             return;
           }
           break;

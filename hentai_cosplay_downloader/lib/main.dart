@@ -31,8 +31,8 @@ import 'providers/settings_provider.dart';
 import 'providers/spankbang_browse_provider.dart';
 import 'providers/twitter_browse_provider.dart';
 import 'providers/video_browse_provider.dart';
+import 'providers/xvideos_browse_provider.dart';
 import 'services/config_service.dart';
-import 'services/jable/api_client.dart';
 import 'services/jable/navigator_service.dart';
 import 'services/notification_service.dart';
 import 'ui/pages/home_scaffold.dart';
@@ -63,12 +63,6 @@ void main() async {
     // Initialize local notifications
     await NotificationService.init();
 
-    // Initialize Jable proxy if configured
-    final cfg = ConfigService.loadConfig();
-    if (cfg.customProxy.isNotEmpty) {
-      ApiClient().setProxy(cfg.customProxy);
-    }
-
     // Protect from iOS Jetsam memory kills when scrolling large photo sets
     PaintingBinding.instance.imageCache.maximumSize = 100;
     PaintingBinding.instance.imageCache.maximumSizeBytes = 120 * 1024 * 1024; // 120MB limit
@@ -97,6 +91,7 @@ void main() async {
           ChangeNotifierProvider(create: (_) => HqpornerBrowseProvider()),
           ChangeNotifierProvider(create: (_) => SpankbangBrowseProvider()),
           ChangeNotifierProvider(create: (_) => PornhubBrowseProvider()),
+          ChangeNotifierProvider(create: (_) => XVideosBrowseProvider()),
           ChangeNotifierProvider(create: (_) => JableBrowseProvider()),
           ChangeNotifierProvider(create: (_) => DownloadProvider()),
           ChangeNotifierProvider(create: (_) => JableDownloadProvider()),

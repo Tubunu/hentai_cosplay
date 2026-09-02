@@ -150,7 +150,7 @@ class _MisskonBrowsePageState extends State<MisskonBrowsePage> {
 
   void _showBatchRangeDialog(MisskonBrowseProvider prov) {
     final startController = TextEditingController(text: '${prov.currentPage}');
-    final endController = TextEditingController(text: '${(prov.currentPage + 2).clamp(1, prov.totalPages)}');
+    final endController = TextEditingController(text: '${(prov.currentPage + 2).clamp(1, prov.totalPages > 0 ? prov.totalPages : 1)}');
 
     showDialog(
       context: context,

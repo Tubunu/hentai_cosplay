@@ -5,18 +5,18 @@ import 'package:provider/provider.dart';
 import '../../../../models/download_task.dart';
 import '../../../../models/video_item.dart';
 import '../../../../providers/download_provider.dart';
-import '../../../../providers/pornhub_browse_provider.dart';
+import '../../../../providers/xvideos_browse_provider.dart';
 import '../../../widgets/bouncing_button.dart';
-import '../pornhub_author_page.dart';
+import '../xvideos_author_page.dart';
 
-class PornhubVideoCard extends StatelessWidget {
+class XVideosVideoCard extends StatelessWidget {
   final VideoItem item;
   final VoidCallback onTap;
   final bool? isSelected;
   final bool? isSelectionMode;
   final VoidCallback? onToggleSelect;
 
-  const PornhubVideoCard({
+  const XVideosVideoCard({
     super.key,
     required this.item,
     required this.onTap,
@@ -28,13 +28,13 @@ class PornhubVideoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
+    
     // Resolve selection state from props if passed (e.g. in AuthorPage) or fallback to BrowseProvider
     final effectiveSelected = isSelected ??
-        context.select<PornhubBrowseProvider, bool>((p) => p.isSelected(item));
+        context.select<XVideosBrowseProvider, bool>((p) => p.isSelected(item));
     final effectiveSelectionMode = isSelectionMode ??
-        context.select<PornhubBrowseProvider, bool>((p) => p.isSelectionMode);
-    const themeColor = Color(0xFFFF9900);
+        context.select<XVideosBrowseProvider, bool>((p) => p.isSelectionMode);
+    const themeColor = Color(0xFFE50914);
 
     final existingTask = context.select<DownloadProvider, AlbumDownloadTask?>((p) {
       for (final t in p.allTasks) {
@@ -45,7 +45,7 @@ class PornhubVideoCard extends StatelessWidget {
       return null;
     });
 
-    final category = item.tags.isNotEmpty ? item.tags.first : 'Pornhub';
+    final category = item.tags.isNotEmpty ? item.tags.first : 'XVideos';
 
     return BouncingButton(
       onTap: () {
@@ -53,7 +53,7 @@ class PornhubVideoCard extends StatelessWidget {
           if (onToggleSelect != null) {
             onToggleSelect!();
           } else {
-            context.read<PornhubBrowseProvider>().toggleSelect(item);
+            context.read<XVideosBrowseProvider>().toggleSelect(item);
           }
         } else {
           onTap();
@@ -63,7 +63,7 @@ class PornhubVideoCard extends StatelessWidget {
         if (onToggleSelect != null) {
           onToggleSelect!();
         } else {
-          context.read<PornhubBrowseProvider>().toggleSelect(item);
+          context.read<XVideosBrowseProvider>().toggleSelect(item);
         }
       },
       child: Container(
@@ -101,7 +101,7 @@ class PornhubVideoCard extends StatelessWidget {
                       fit: BoxFit.cover,
                       memCacheWidth: 450,
                       httpHeaders: const {
-                        'Referer': 'https://cn.pornhub.com/',
+                        'Referer': 'https://www.xvideos.com/',
                         'User-Agent':
                             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
                       },
@@ -159,7 +159,7 @@ class PornhubVideoCard extends StatelessWidget {
                       child: Text(
                         category,
                         style: const TextStyle(
-                          color: Colors.black,
+                          color: Colors.white,
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 0.2,
@@ -182,7 +182,7 @@ class PornhubVideoCard extends StatelessWidget {
                           border: Border.all(color: Colors.white, width: 1.5),
                         ),
                         child: effectiveSelected
-                            ? const Icon(CupertinoIcons.checkmark, size: 13, color: Colors.black)
+                            ? const Icon(CupertinoIcons.checkmark, size: 13, color: Colors.white)
                             : null,
                       ),
                     )
@@ -271,11 +271,11 @@ class PornhubVideoCard extends StatelessWidget {
                         child: GestureDetector(
                           behavior: HitTestBehavior.opaque,
                           onTap: () {
-                            if (item.author.isNotEmpty && item.author != 'Pornhub') {
+                            if (item.author.isNotEmpty && item.author != 'XVideos') {
                               Navigator.push(
                                 context,
                                 CupertinoPageRoute(
-                                  builder: (_) => PornhubAuthorPage(
+                                  builder: (_) => XVideosAuthorPage(
                                     authorName: item.author,
                                     authorUrl: item.rawData['authorUrl']?.toString(),
                                   ),
@@ -284,12 +284,12 @@ class PornhubVideoCard extends StatelessWidget {
                             }
                           },
                           child: Text(
-                            item.author.isNotEmpty ? item.author : 'Pornhub',
+                            item.author.isNotEmpty ? item.author : 'XVideos',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 11,
-                              color: (item.author.isNotEmpty && item.author != 'Pornhub')
+                              color: (item.author.isNotEmpty && item.author != 'XVideos')
                                   ? themeColor
                                   : (isDark ? Colors.white70 : Colors.black87),
                               fontWeight: FontWeight.w600,

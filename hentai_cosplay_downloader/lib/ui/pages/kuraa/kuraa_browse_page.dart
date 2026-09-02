@@ -156,7 +156,7 @@ class _KuraaBrowsePageState extends State<KuraaBrowsePage> {
               if (pwd.isNotEmpty) {
                 Navigator.pop(ctx);
                 final success = await prov.unlockLocation('4', pwd);
-                if (success) {
+                if (success && mounted) {
                   prov.loadPage(1);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -178,7 +178,7 @@ class _KuraaBrowsePageState extends State<KuraaBrowsePage> {
   void _showBatchRangeDialog(KuraaBrowseProvider prov) {
     final startController = TextEditingController(text: '${prov.currentPage}');
     final endController = TextEditingController(
-      text: '${(prov.currentPage + 2).clamp(1, prov.totalPages)}',
+      text: '${(prov.currentPage + 2).clamp(1, prov.totalPages > 0 ? prov.totalPages : 1)}',
     );
 
     showDialog(

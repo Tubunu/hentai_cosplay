@@ -27,11 +27,10 @@ import 'iwara/iwara_api_service.dart';
 import 'rule34video/rule34video_api_service.dart';
 import 'storage_service.dart';
 import 'video_api_service.dart';
+import 'xvideos/xvideos_api_service.dart';
 
 typedef DownloadLogCallback = void Function(String message, String level);
 typedef TaskProgressCallback = void Function(AlbumDownloadTask task);
-
-const String kAlbumMetadataFilename = '.hc_album.json';
 
 class DownloadEngine {
   final AppConfig config;
@@ -516,6 +515,19 @@ class DownloadEngine {
             rawData: item.rawData,
           ),
         );
+      } else if (item.detailUrl.contains('xvideos.com')) {
+        vDetail = await XVideosApiService.resolveVideoDetail(
+          VideoItem(
+            title: item.title,
+            slug: item.slug,
+            detailUrl: item.detailUrl,
+            coverUrl: item.coverUrl,
+            date: item.date,
+            author: item.author,
+            tags: item.tags,
+            rawData: item.rawData,
+          ),
+        );
       } else {
         vDetail = await VideoApiService.fetchVideoDetail(
           VideoItem(
@@ -658,6 +670,13 @@ class DownloadEngine {
       } catch (_) {}
 
       onLog('视频下载完成: ${item.title}', 'success');
+      onTaskProgress?.call(task);
+      return task;
+    }
+
+    if (_isCancelled) {
+      task.status = TaskStatus.paused;
+      onLog('视频下载已暂停: ${item.title}', 'info');
       onTaskProgress?.call(task);
       return task;
     }

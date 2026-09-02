@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
+import 'package:pool/pool.dart';
 import '../../models/album_item.dart';
 
 enum CosplayTeleCategory {
@@ -250,8 +251,9 @@ class CosplayteleApiService {
 
         if (subPageUrls.isNotEmpty) {
           debugPrint('[CosplayteleApiService] Fetching ${subPageUrls.length} subpages for ${item.title}');
+          final pool = Pool(4);
           final results = await Future.wait(
-            subPageUrls.map((subUrl) async {
+            subPageUrls.map((subUrl) => pool.withResource(() async {
               try {
                 final subRes = await _dio.get<String>(
                   subUrl,
@@ -267,8 +269,9 @@ class CosplayteleApiService {
                 debugPrint('[CosplayteleApiService] Error fetching subpage $subUrl: $e');
               }
               return <String>{};
-            }),
+            })),
           );
+          await pool.close();
 
           for (final set in results) {
             allImages.addAll(set);
@@ -327,7 +330,10 @@ class CosplayteleApiService {
         src = '$kBaseUrl$src';
       }
 
-      src = src.replaceAll(RegExp(r'-\d+x\d+\.(jpg|jpeg|png|webp)'), '.\$1');
+      src = src.replaceAllMapped(
+        RegExp(r'-\d+x\d+\.(jpg|jpeg|png|webp)'),
+        (match) => '.${match.group(1)}',
+      );
       images.add(src);
     }
   }

@@ -121,18 +121,23 @@ jobs:
       - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.7-release
-          name: "Hentai Cosplay Downloader v1.0.7 Release (iOS IPA & Android APK)"
+          tag_name: v1.0.9-release
+          name: "Hentai Cosplay Downloader v1.0.9 Release (iOS IPA & Android APK)"
           body: |
             ### 📱 安装包下载
             - **🍎 iOS (iPhone / iPad)**: 下载 `hentai_cosplay_downloader.ipa`，使用 **爱思助手** / **Sideloadly** / **TrollStore (巨魔)** / **AltStore** / **牛蛙助手** / **GBox** / **ESign** 签名安装。
-            - **🤖 Android (安卓 64位推荐)**: 下载 `hentai_cosplay_downloader-arm64-v8a.apk` (体积仅 ~65MB)，在安卓手机上直接安装即可。
+            - **🤖 Android (安卓 64位推荐)**: 下载 `hentai_cosplay_downloader-arm64-v8a.apk` (体积约 ~66MB)，在安卓手机上直接安装即可。
 
-            ### 🚀 最新功能与修复更新 (v1.0.7)
-            - **【彻底解决启动 App 误弹 Hanime1 验证弹窗问题】**：
-              - 全面实施 Provider 懒加载机制（`autoLoad: false`），启动 App 时不再预加载任何未点击站点的后台网络请求；
-              - 针对 Hanime1 彻底禁用全局 Cloudflare 底部模态弹窗（`showModalBottomSheet`），保证 100% 后台静默极速加载，绝不干扰前台操作；
-              - 统一优化全量站点 Provider 初始化与生命周期。
+            ### 🚀 最新功能与更新 (v1.0.9)
+            - **【新增 XVideos 资源站点】**：
+              - 完整支持最新发布、最佳影片（支持用户选择任意历史最佳月份，如 2026-07 等）；
+              - 全面覆盖 30+ 热门分类（亚洲、Cosplay、Hentai 等）与多种排序过滤（最新、观看量、评级、随机）；
+              - 支持高清视频解析播放、多选批量下载任务调度。
+            - **【新增 XVideos & Pornhub 创作者个人主页】**：
+              - 在卡片与详情页中一键点击创作者名称 / 认证标签进入个人主页；
+              - 支持查看创作者/Model 所有作品、分类排序与一键多选批量下载。
+            - **【回到顶部按钮标准化与动态避让】**：
+              - 适配系统毛玻璃透明度，支持后台下载时自动抬升避让下载进度条。
           files: |
             hentai_cosplay_downloader.ipa
             hentai_cosplay_downloader-arm64-v8a.apk*

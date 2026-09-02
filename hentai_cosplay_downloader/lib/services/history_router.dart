@@ -24,6 +24,7 @@ import '../ui/pages/spankbang/spankbang_detail_page.dart';
 import '../ui/pages/video/video_detail_page.dart';
 import '../ui/pages/video/video_player_page.dart';
 import '../ui/pages/video/web_video_player_page.dart';
+import '../ui/pages/xvideos/xvideos_detail_page.dart';
 
 class HistoryRouter {
   static void openRecord(BuildContext context, BrowsingHistoryRecord record) {
@@ -47,7 +48,7 @@ class HistoryRouter {
       videoUrl: record.videoUrl,
     );
 
-    Widget? targetPage;
+    final Widget targetPage;
 
     switch (record.siteKey) {
       case 'hc_gallery':
@@ -132,6 +133,9 @@ class HistoryRouter {
       case 'pornhub':
         targetPage = PornhubDetailPage(item: videoItem);
         break;
+      case 'xvideos':
+        targetPage = XVideosDetailPage(item: videoItem);
+        break;
       case 'jable':
         WebVideoPlayerPage.open(context, url: record.detailUrl, title: record.title);
         return;
@@ -145,7 +149,7 @@ class HistoryRouter {
 
     Navigator.push(
       context,
-      CupertinoPageRoute(builder: (_) => targetPage!),
+      CupertinoPageRoute(builder: (_) => targetPage),
     );
   }
 }

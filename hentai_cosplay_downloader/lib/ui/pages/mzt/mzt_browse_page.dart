@@ -146,7 +146,7 @@ class _MztBrowsePageState extends State<MztBrowsePage> {
   void _showBatchDownloadDialog(MztBrowseProvider mztProv) {
     final startCtrl = TextEditingController(text: mztProv.currentPage.toString());
     final endCtrl = TextEditingController(
-      text: (mztProv.currentPage + 4).clamp(1, mztProv.totalPages).toString(),
+      text: (mztProv.currentPage + 4).clamp(1, mztProv.totalPages > 0 ? mztProv.totalPages : 1).toString(),
     );
 
     showDialog(

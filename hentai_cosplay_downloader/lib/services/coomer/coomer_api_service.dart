@@ -159,12 +159,11 @@ class CoomerApiService {
 
     for (final domain in kDomains) {
       try {
-        kBaseUrl = domain;
-        _dio.options.baseUrl = domain;
         debugPrint('[CoomerApiService] Fetching posts from $domain: /api/v1/posts $queryParams (filter: $targetService)');
         final response = await _dio.get(
-          '/api/v1/posts',
+          '$domain/api/v1/posts',
           queryParameters: queryParams,
+          options: Options(headers: {'Referer': '$domain/', 'Origin': domain}),
         );
 
         if (response.statusCode == 200 && response.data != null) {
@@ -196,8 +195,8 @@ class CoomerApiService {
             items: items,
             offset: offset,
             limit: limit,
-            hasMore: list.length >= 20,
-            total: offset + items.length + (list.length >= 20 ? limit : 0),
+            hasMore: list.length >= limit,
+            total: offset + items.length + (list.length >= limit ? limit : 0),
           );
         }
       } catch (e) {
@@ -219,12 +218,11 @@ class CoomerApiService {
 
     for (final domain in kDomains) {
       try {
-        kBaseUrl = domain;
-        _dio.options.baseUrl = domain;
         debugPrint('[CoomerApiService] Fetching creator posts from $domain: $path $queryParams');
         final response = await _dio.get(
-          path,
+          '$domain$path',
           queryParameters: queryParams,
+          options: Options(headers: {'Referer': '$domain/', 'Origin': domain}),
         );
 
         if (response.statusCode == 200 && response.data != null) {
@@ -264,10 +262,11 @@ class CoomerApiService {
   }) async {
     for (final domain in kDomains) {
       try {
-        kBaseUrl = domain;
-        _dio.options.baseUrl = domain;
         debugPrint('[CoomerApiService] Fetching creators from $domain');
-        final response = await _dio.get('/api/v1/creators');
+        final response = await _dio.get(
+          '$domain/api/v1/creators',
+          options: Options(headers: {'Referer': '$domain/', 'Origin': domain}),
+        );
 
         if (response.statusCode == 200 && response.data != null) {
           final List<dynamic> list = response.data is List
@@ -329,10 +328,11 @@ class CoomerApiService {
 
     for (final domain in kDomains) {
       try {
-        kBaseUrl = domain;
-        _dio.options.baseUrl = domain;
         debugPrint('[CoomerApiService] Fetching post detail from $domain: $path');
-        final response = await _dio.get(path);
+        final response = await _dio.get(
+          '$domain$path',
+          options: Options(headers: {'Referer': '$domain/', 'Origin': domain}),
+        );
 
         if (response.statusCode == 200 && response.data != null) {
           final data = response.data is Map<String, dynamic>

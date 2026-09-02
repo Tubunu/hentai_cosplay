@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import '../models/video_item.dart';
@@ -23,6 +24,8 @@ class LocalVideoProvider extends ChangeNotifier {
   VideoSortOption _sortOption = VideoSortOption.dateDesc;
   int _totalBytes = 0;
   List<LocalVideoItem>? _cachedVideos;
+  final Set<String> _videoTitles = {};
+  final Set<String> _videoSourceUrls = {};
   bool _disposed = false;
 
   @override
@@ -47,6 +50,21 @@ class LocalVideoProvider extends ChangeNotifier {
   VideoSortOption get sortOption => _sortOption;
   int get totalCount => _videos.length;
   int get totalBytes => _totalBytes;
+
+  bool isVideoDownloaded({required String title, String detailUrl = ''}) {
+    if (_videoTitles.contains(title)) return true;
+    if (detailUrl.isNotEmpty && _videoSourceUrls.contains(detailUrl)) return true;
+    return false;
+  }
+
+  void _rebuildIndex() {
+    _videoTitles.clear();
+    _videoSourceUrls.clear();
+    for (final v in _videos) {
+      if (v.title.isNotEmpty) _videoTitles.add(v.title);
+      if (v.sourceUrl.isNotEmpty) _videoSourceUrls.add(v.sourceUrl);
+    }
+  }
 
   String get formattedTotalSize {
     if (_totalBytes <= 0) return '0 MB';
@@ -84,81 +102,89 @@ class LocalVideoProvider extends ChangeNotifier {
       _videos = [];
       _totalBytes = 0;
       _cachedVideos = null;
+      _rebuildIndex();
       _isScanning = false;
       notifyListeners();
       return;
     }
 
     try {
-      final List<LocalVideoItem> found = [];
-      int totalSize = 0;
-
-      final entities = await videoDir.list(recursive: true, followLinks: false).toList();
-      const videoExtensions = ['.mp4', '.mkv', '.webm', '.mov', '.avi', '.flv', '.ts'];
-
-      for (final entity in entities) {
-        if (entity is File) {
-          final ext = p.extension(entity.path).toLowerCase();
-          if (videoExtensions.contains(ext)) {
-            final stat = await entity.stat();
-            totalSize += stat.size;
-
-            final baseNameNoExt = p.basenameWithoutExtension(entity.path);
-            final parentDir = entity.parent.path;
-
-            // Check if companion metadata exists
-            final metaFile = File(p.join(parentDir, '$baseNameNoExt.json'));
-            Map<String, dynamic>? meta;
-            if (await metaFile.exists()) {
-              try {
-                final metaContent = await metaFile.readAsString();
-                meta = jsonDecode(metaContent) as Map<String, dynamic>?;
-              } catch (_) {}
-            }
-
-            // Check companion cover
-            String? coverPath;
-            final coverJpg = File(p.join(parentDir, '$baseNameNoExt.jpg'));
-            final coverPng = File(p.join(parentDir, '$baseNameNoExt.png'));
-            if (await coverJpg.exists()) {
-              coverPath = coverJpg.path;
-            } else if (await coverPng.exists()) {
-              coverPath = coverPng.path;
-            }
-
-            final title = meta?['title'] as String? ?? baseNameNoExt;
-            final author = meta?['author'] as String? ?? p.basename(parentDir);
-            final duration = meta?['duration'] as String? ?? '';
-            final sourceUrl = meta?['sourceUrl'] as String? ?? '';
-            final tags = (meta?['tags'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
-
-            found.add(
-              LocalVideoItem(
-                id: entity.path,
-                title: title,
-                author: author.isEmpty || author == 'video' ? '未知作者' : author,
-                filePath: entity.path,
-                coverPath: coverPath,
-                fileSizeBytes: stat.size,
-                createdAt: stat.modified,
-                duration: duration,
-                sourceUrl: sourceUrl,
-                tags: tags,
-              ),
-            );
-          }
-        }
-      }
-
-      _videos = found;
-      _totalBytes = totalSize;
+      final res = await Isolate.run(() => _scanVideosSync(videoDir.path));
+      _videos = res.$1;
+      _totalBytes = res.$2;
       _cachedVideos = null;
+      _rebuildIndex();
     } catch (e) {
       debugPrint('Error scanning local videos: $e');
     } finally {
       _isScanning = false;
       notifyListeners();
     }
+  }
+
+  static (List<LocalVideoItem>, int) _scanVideosSync(String videoDirPath) {
+    final List<LocalVideoItem> found = [];
+    int totalSize = 0;
+    final videoDir = Directory(videoDirPath);
+    if (!videoDir.existsSync()) return (found, 0);
+
+    final entities = videoDir.listSync(recursive: true, followLinks: false);
+    const videoExtensions = ['.mp4', '.mkv', '.webm', '.mov', '.avi', '.flv', '.ts'];
+
+    for (final entity in entities) {
+      if (entity is File) {
+        final ext = p.extension(entity.path).toLowerCase();
+        if (videoExtensions.contains(ext)) {
+          final stat = entity.statSync();
+          totalSize += stat.size;
+
+          final baseNameNoExt = p.basenameWithoutExtension(entity.path);
+          final parentDir = entity.parent.path;
+
+          // Check if companion metadata exists
+          final metaFile = File(p.join(parentDir, '$baseNameNoExt.json'));
+          Map<String, dynamic>? meta;
+          if (metaFile.existsSync()) {
+            try {
+              final metaContent = metaFile.readAsStringSync();
+              meta = jsonDecode(metaContent) as Map<String, dynamic>?;
+            } catch (_) {}
+          }
+
+          // Check companion cover
+          String? coverPath;
+          final coverJpg = File(p.join(parentDir, '$baseNameNoExt.jpg'));
+          final coverPng = File(p.join(parentDir, '$baseNameNoExt.png'));
+          if (coverJpg.existsSync()) {
+            coverPath = coverJpg.path;
+          } else if (coverPng.existsSync()) {
+            coverPath = coverPng.path;
+          }
+
+          final title = meta?['title'] as String? ?? baseNameNoExt;
+          final author = meta?['author'] as String? ?? p.basename(parentDir);
+          final duration = meta?['duration'] as String? ?? '';
+          final sourceUrl = meta?['sourceUrl'] as String? ?? '';
+          final tags = (meta?['tags'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
+
+          found.add(
+            LocalVideoItem(
+              id: entity.path,
+              title: title,
+              author: author.isEmpty || author == 'video' ? '未知作者' : author,
+              filePath: entity.path,
+              coverPath: coverPath,
+              fileSizeBytes: stat.size,
+              createdAt: stat.modified,
+              duration: duration,
+              sourceUrl: sourceUrl,
+              tags: tags,
+            ),
+          );
+        }
+      }
+    }
+    return (found, totalSize);
   }
 
   Future<bool> deleteVideo(LocalVideoItem item) async {
@@ -183,6 +209,7 @@ class LocalVideoProvider extends ChangeNotifier {
       _videos.removeWhere((v) => v.id == item.id);
       _totalBytes -= item.fileSizeBytes;
       _cachedVideos = null;
+      _rebuildIndex();
       notifyListeners();
       return true;
     } catch (e) {

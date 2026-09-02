@@ -121,7 +121,7 @@ class _PornboxBrowsePageState extends State<PornboxBrowsePage> {
   void _showBatchRangeDialog(PornboxBrowseProvider prov) {
     final startController = TextEditingController(text: '${prov.currentPage}');
     final endController = TextEditingController(
-      text: '${(prov.currentPage + 2).clamp(1, prov.totalPages)}',
+      text: '${(prov.currentPage + 2).clamp(1, prov.totalPages > 0 ? prov.totalPages : 1)}',
     );
 
     showDialog(

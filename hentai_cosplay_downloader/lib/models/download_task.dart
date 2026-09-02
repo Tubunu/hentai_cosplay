@@ -51,18 +51,50 @@ class ImageDownloadTask {
 
   factory ImageDownloadTask.fromJson(Map<String, dynamic> json) {
     return ImageDownloadTask(
-      index: ((json['index'] ?? 1) as num).toInt(),
+      index: (json['index'] as num?)?.toInt() ?? 0,
       originalUrl: json['originalUrl'] as String? ?? '',
       savePath: json['savePath'] as String? ?? '',
       status: ImageTaskStatus.values.firstWhere(
         (e) => e.name == json['status'],
         orElse: () => ImageTaskStatus.pending,
       ),
-      downloadedBytes: ((json['downloadedBytes'] ?? 0) as num).toInt(),
-      totalBytes: ((json['totalBytes'] ?? 0) as num).toInt(),
+      downloadedBytes: (json['downloadedBytes'] as num?)?.toInt() ?? 0,
+      totalBytes: (json['totalBytes'] as num?)?.toInt() ?? 0,
       error: json['error'] as String?,
     );
   }
+
+  ImageDownloadTask copyWith({
+    int? index,
+    String? originalUrl,
+    String? savePath,
+    ImageTaskStatus? status,
+    int? downloadedBytes,
+    int? totalBytes,
+    String? error,
+  }) {
+    return ImageDownloadTask(
+      index: index ?? this.index,
+      originalUrl: originalUrl ?? this.originalUrl,
+      savePath: savePath ?? this.savePath,
+      status: status ?? this.status,
+      downloadedBytes: downloadedBytes ?? this.downloadedBytes,
+      totalBytes: totalBytes ?? this.totalBytes,
+      error: error ?? this.error,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is ImageDownloadTask &&
+        other.index == index &&
+        other.originalUrl == originalUrl &&
+        other.savePath == savePath;
+  }
+
+  @override
+  int get hashCode => Object.hash(index, originalUrl, savePath);
 }
 
 class AlbumDownloadTask {
@@ -195,4 +227,13 @@ class AlbumDownloadTask {
   static String listToJson(List<AlbumDownloadTask> tasks) {
     return jsonEncode(tasks.map((e) => e.toJson()).toList());
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is AlbumDownloadTask && other.id == id;
+  }
+
+  @override
+  int get hashCode => id.hashCode;
 }

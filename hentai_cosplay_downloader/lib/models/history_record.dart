@@ -7,7 +7,7 @@ class HistoryRecord {
   final String? coverUrl;
   final String targetFolder;
   final int imageCount;
-  int downloadedBytes;
+  final int downloadedBytes;
   final DateTime completedAt;
   final String detailUrl;
   final bool isVideo;
@@ -57,6 +57,46 @@ class HistoryRecord {
     'duration': duration,
   };
 
+  HistoryRecord copyWith({
+    String? id,
+    String? title,
+    String? author,
+    String? coverUrl,
+    String? targetFolder,
+    int? imageCount,
+    int? downloadedBytes,
+    DateTime? completedAt,
+    String? detailUrl,
+    bool? isVideo,
+    String? duration,
+  }) {
+    return HistoryRecord(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      author: author ?? this.author,
+      coverUrl: coverUrl ?? this.coverUrl,
+      targetFolder: targetFolder ?? this.targetFolder,
+      imageCount: imageCount ?? this.imageCount,
+      downloadedBytes: downloadedBytes ?? this.downloadedBytes,
+      completedAt: completedAt ?? this.completedAt,
+      detailUrl: detailUrl ?? this.detailUrl,
+      isVideo: isVideo ?? this.isVideo,
+      duration: duration ?? this.duration,
+    );
+  }
+
   String toRawJson() => jsonEncode(toJson());
   factory HistoryRecord.fromRawJson(String str) => HistoryRecord.fromJson(jsonDecode(str));
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is HistoryRecord &&
+        other.id == id &&
+        other.title == title &&
+        other.detailUrl == detailUrl;
+  }
+
+  @override
+  int get hashCode => Object.hash(id, title, detailUrl);
 }

@@ -509,6 +509,13 @@ class JableDownloadEngine {
             const JsonEncoder.withIndent('  ').convert(metaPayload),
           );
 
+          // Clean up task temp folder if it exists
+          try {
+            if (await taskTempFolder.exists()) {
+              await taskTempFolder.delete(recursive: true);
+            }
+          } catch (_) {}
+
           task.status = JableDownloadStatus.completed;
           task.progress = 100.0;
           task.speed = "0 KB/s";
@@ -704,7 +711,19 @@ class JableDownloadEngine {
         task.errorMsg = e.toString();
         onTaskUpdated(task);
       }
+      try {
+        if (await taskTempFolder.exists()) {
+          await taskTempFolder.delete(recursive: true);
+        }
+      } catch (_) {}
     } finally {
+      if (_isCancelled || task.status == JableDownloadStatus.cancelled) {
+        try {
+          if (await taskTempFolder.exists()) {
+            await taskTempFolder.delete(recursive: true);
+          }
+        } catch (_) {}
+      }
       PersistentChromiumTunnel.release();
     }
   }

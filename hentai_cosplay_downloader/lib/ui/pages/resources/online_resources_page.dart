@@ -23,6 +23,7 @@ import '../../../providers/settings_provider.dart';
 import '../../../providers/spankbang_browse_provider.dart';
 import '../../../providers/twitter_browse_provider.dart';
 import '../../../providers/video_browse_provider.dart';
+import '../../../providers/xvideos_browse_provider.dart';
 import '../../widgets/bouncing_button.dart';
 import '../../widgets/liquid_glass.dart';
 import '../history/browsing_history_page.dart';
@@ -155,6 +156,10 @@ class _OnlineResourcesPageState extends State<OnlineResourcesPage> {
         final p = context.read<PornhubBrowseProvider>();
         if (p.items.isEmpty && !p.isLoading && p.errorMessage == null) p.loadPage(1);
         break;
+      case 'xvideos':
+        final p = context.read<XVideosBrowseProvider>();
+        if (p.items.isEmpty && !p.isLoading && p.errorMessage == null) p.loadPage(1);
+        break;
     }
   }
 
@@ -220,7 +225,7 @@ class _OnlineResourcesPageState extends State<OnlineResourcesPage> {
               if (!_visitedSiteKeys.contains(site.key)) {
                 return const SizedBox.shrink();
               }
-              return site.widget;
+              return site.builder(context);
             }).toList(),
           ),
 

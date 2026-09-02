@@ -26,14 +26,9 @@ class AlbumCard extends StatelessWidget {
     final isSelectionMode = context.select<BrowseProvider, bool>((p) => p.isSelectionMode);
 
     // Check if album is in download queue or completed
-    final existingTask = context.select<DownloadProvider, AlbumDownloadTask?>((p) {
-      for (final t in p.allTasks) {
-        if (t.albumItem.slug == item.slug || t.albumItem.detailUrl == item.detailUrl) {
-          return t;
-        }
-      }
-      return null;
-    });
+    final existingTask = context.select<DownloadProvider, AlbumDownloadTask?>(
+      (p) => p.getTaskForAlbum(item),
+    );
 
     return BouncingButton(
       onTap: () {

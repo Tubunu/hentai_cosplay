@@ -6,23 +6,23 @@ import '../../../models/download_task.dart';
 import '../../../models/video_item.dart';
 import '../../../providers/browsing_history_provider.dart';
 import '../../../providers/download_provider.dart';
-import '../../../services/pornhub/pornhub_api_service.dart';
+import '../../../services/xvideos/xvideos_api_service.dart';
 import '../../widgets/random_action_button.dart';
 import '../../widgets/scroll_to_top_button.dart';
 import '../video/video_player_page.dart';
 import '../video/web_video_player_page.dart';
-import 'pornhub_author_page.dart';
+import 'xvideos_author_page.dart';
 
-class PornhubDetailPage extends StatefulWidget {
+class XVideosDetailPage extends StatefulWidget {
   final VideoItem item;
 
-  const PornhubDetailPage({super.key, required this.item});
+  const XVideosDetailPage({super.key, required this.item});
 
   @override
-  State<PornhubDetailPage> createState() => _PornhubDetailPageState();
+  State<XVideosDetailPage> createState() => _XVideosDetailPageState();
 }
 
-class _PornhubDetailPageState extends State<PornhubDetailPage> {
+class _XVideosDetailPageState extends State<XVideosDetailPage> {
   final ScrollController _scrollController = ScrollController();
   late VideoItem _item;
   bool _isLoading = true;
@@ -44,9 +44,9 @@ class _PornhubDetailPageState extends State<PornhubDetailPage> {
       if (mounted) {
         context.read<BrowsingHistoryProvider>().recordVideo(
           _item,
-          siteKey: 'pornhub',
-          siteName: 'Pornhub',
-          siteColor: const Color(0xFFFF9900),
+          siteKey: 'xvideos',
+          siteName: 'XVideos',
+          siteColor: const Color(0xFFE50914),
         );
       }
     });
@@ -59,7 +59,7 @@ class _PornhubDetailPageState extends State<PornhubDetailPage> {
     });
 
     try {
-      final resolved = await PornhubApiService.resolveVideoDetail(_item);
+      final resolved = await XVideosApiService.resolveVideoDetail(_item);
       if (mounted) {
         setState(() {
           _item = resolved;
@@ -92,10 +92,9 @@ class _PornhubDetailPageState extends State<PornhubDetailPage> {
         headers: const {
           'User-Agent':
               'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-          'Referer': 'https://cn.pornhub.com/',
-          'Origin': 'https://cn.pornhub.com',
-          'Cookie':
-              'age_verified=1; platform=pc; accessAgeDisclaimerPH=1; cookie_preferences=%7B%221%22%3A1%2C%222%22%3A1%2C%223%22%3A1%2C%224%22%3A1%7D; hasVisited=1;',
+          'Referer': 'https://www.xvideos.com/',
+          'Origin': 'https://www.xvideos.com',
+          'Cookie': 'hasVisited=1; age_verified=1;',
         },
       );
     } else {
@@ -122,7 +121,7 @@ class _PornhubDetailPageState extends State<PornhubDetailPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('已添加 "${_item.title}" 到视频下载队列'),
-        backgroundColor: const Color(0xFFFF9900),
+        backgroundColor: const Color(0xFFE50914),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -131,7 +130,7 @@ class _PornhubDetailPageState extends State<PornhubDetailPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    const themeColor = Color(0xFFFF9900);
+    const themeColor = Color(0xFFE50914);
 
     final existingTask = context.select<DownloadProvider, AlbumDownloadTask?>((p) {
       for (final t in p.allTasks) {
@@ -147,7 +146,7 @@ class _PornhubDetailPageState extends State<PornhubDetailPage> {
         title: Text(_item.title, maxLines: 1, overflow: TextOverflow.ellipsis),
         actions: [
           const RandomActionButton.video(
-            videoSite: VideoSiteType.pornhub,
+            videoSite: VideoSiteType.xvideos,
             replace: true,
             color: themeColor,
           ),
@@ -187,7 +186,7 @@ class _PornhubDetailPageState extends State<PornhubDetailPage> {
                                     imageUrl: _item.coverUrl!,
                                     fit: BoxFit.cover,
                                     httpHeaders: const {
-                                      'Referer': 'https://cn.pornhub.com/',
+                                      'Referer': 'https://www.xvideos.com/',
                                       'User-Agent':
                                           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
                                     },
@@ -223,7 +222,7 @@ class _PornhubDetailPageState extends State<PornhubDetailPage> {
                                           ),
                                         ],
                                       ),
-                                      child: const Icon(CupertinoIcons.play_arrow_solid, color: Colors.black, size: 32),
+                                      child: const Icon(CupertinoIcons.play_arrow_solid, color: Colors.white, size: 32),
                                     ),
                                   ),
                                 ),
@@ -238,8 +237,8 @@ class _PornhubDetailPageState extends State<PornhubDetailPage> {
                                       borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: const Text(
-                                      'Pornhub HD',
-                                      style: TextStyle(color: Colors.black, fontSize: 11, fontWeight: FontWeight.bold),
+                                      'XVideos 1080P',
+                                      style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
                                     ),
                                   ),
                                 ),
@@ -270,11 +269,11 @@ class _PornhubDetailPageState extends State<PornhubDetailPage> {
                                     GestureDetector(
                                       behavior: HitTestBehavior.opaque,
                                       onTap: () {
-                                        if (_item.author.isNotEmpty && _item.author != 'Pornhub') {
+                                        if (_item.author.isNotEmpty && _item.author != 'XVideos') {
                                           Navigator.push(
                                             context,
                                             CupertinoPageRoute(
-                                              builder: (_) => PornhubAuthorPage(
+                                              builder: (_) => XVideosAuthorPage(
                                                 authorName: _item.author,
                                                 authorUrl: _item.rawData['authorUrl']?.toString(),
                                               ),
@@ -314,7 +313,7 @@ class _PornhubDetailPageState extends State<PornhubDetailPage> {
                                       child: ElevatedButton.icon(
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: themeColor,
-                                          foregroundColor: Colors.black,
+                                          foregroundColor: Colors.white,
                                           padding: const EdgeInsets.symmetric(vertical: 12),
                                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                         ),

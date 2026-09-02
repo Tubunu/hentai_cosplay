@@ -105,8 +105,12 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
   }
 
   void _downloadSelectedImages() {
-    if (_selectedIndices.isEmpty) return;
-    final selectedUrls = _selectedIndices.map((i) => _item.imageUrls[i]).toList();
+    if (_selectedIndices.isEmpty) {
+      setState(() => _isSelectionMode = false);
+      return;
+    }
+    final sortedIndices = _selectedIndices.toList()..sort();
+    final selectedUrls = sortedIndices.map((i) => _item.imageUrls[i]).toList();
     final customItem = _item.copyWith(
       title: '${_item.title} (精选${selectedUrls.length}张)',
       imageUrls: selectedUrls,
@@ -635,9 +639,10 @@ class _PhotoGalleryViewerState extends State<_PhotoGalleryViewer> {
   }
 
   void _preloadSurroundingImages(int centerIndex) {
-    if (_isDisposed) return;
+    if (_isDisposed || !mounted) return;
     final images = widget.item.imageUrls;
     for (int step = 0; step <= 5; step++) {
+      if (!mounted) return;
       final forward = centerIndex + step;
       if (forward < images.length && !_precachedIndices.contains(forward)) {
         _precachedIndices.add(forward);
@@ -653,6 +658,7 @@ class _PhotoGalleryViewerState extends State<_PhotoGalleryViewer> {
       }
     }
     for (int step = 1; step <= 2; step++) {
+      if (!mounted) return;
       final backward = centerIndex - step;
       if (backward >= 0 && !_precachedIndices.contains(backward)) {
         _precachedIndices.add(backward);

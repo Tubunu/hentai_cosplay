@@ -185,28 +185,18 @@ class VideoCard extends StatelessWidget {
     final isSelectionMode = context.select<VideoBrowseProvider, bool>((p) => p.isSelectionMode);
 
     // Check if task exists in download queue or completed
-    final existingTask = context.select<DownloadProvider, AlbumDownloadTask?>((p) {
-      for (final t in p.allTasks) {
-        if (t.isVideo && (
-          (item.slug.isNotEmpty && t.albumItem.slug == item.slug) ||
-          t.albumItem.title == item.title ||
-          (item.detailUrl.isNotEmpty && t.albumItem.detailUrl == item.detailUrl)
-        )) {
-          return t;
-        }
-      }
-      return null;
-    });
+    final existingTask = context.select<DownloadProvider, AlbumDownloadTask?>(
+      (p) => p.findTask(slug: item.slug, detailUrl: item.detailUrl, title: item.title, videoUrl: item.videoUrl),
+    );
 
-    // Check if video is downloaded locally or recorded in history
-    final isLocalDownloaded = context.select<LocalVideoProvider, bool>((p) => p.videos.any((v) =>
-        v.title == item.title ||
-        (item.detailUrl.isNotEmpty && v.sourceUrl == item.detailUrl)));
+    // Check if video is downloaded locally or recorded in history (O(1) index lookup)
+    final isLocalDownloaded = context.select<LocalVideoProvider, bool>(
+      (p) => p.isVideoDownloaded(title: item.title, detailUrl: item.detailUrl),
+    );
 
-    final isHistoryRecorded = context.select<HistoryProvider, bool>((p) => p.records.any((r) =>
-        r.isVideo == true &&
-        (r.title == item.title ||
-         (item.detailUrl.isNotEmpty && r.detailUrl == item.detailUrl))));
+    final isHistoryRecorded = context.select<HistoryProvider, bool>(
+      (p) => p.isVideoRecorded(title: item.title, detailUrl: item.detailUrl),
+    );
 
     final isDownloaded = existingTask?.status == TaskStatus.completed || isLocalDownloaded || isHistoryRecorded;
 

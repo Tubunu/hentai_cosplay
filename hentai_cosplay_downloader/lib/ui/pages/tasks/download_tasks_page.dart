@@ -48,32 +48,32 @@ class _DownloadTasksPageState extends State<DownloadTasksPage> {
     final isJableMode = _resourceSegment == 2;
     final isHistoryMode = _selectedStatusSegment == 2;
 
-    // Image & Video tasks
-    final imageTasks = downloadProv.allTasks.where((t) => !t.isVideo).toList();
-    final videoTasks = downloadProv.allTasks.where((t) => t.isVideo).toList();
+    // Image & Video tasks (using cached collections from DownloadProvider)
+    final imageTasks = downloadProv.imageTasks;
+    final videoTasks = downloadProv.videoTasks;
     final jableTasks = jableProv.allTasks;
 
-    // Active, completed, failed
-    final imageActive = imageTasks.where((t) => t.status == TaskStatus.downloading || t.status == TaskStatus.queued || t.status == TaskStatus.paused).toList();
-    final imageCompleted = imageTasks.where((t) => t.status == TaskStatus.completed).toList();
-    final imageFailed = imageTasks.where((t) => t.status == TaskStatus.failed).toList();
+    // Active, completed, failed (using cached collections from DownloadProvider)
+    final imageActive = downloadProv.imageActiveTasks;
+    final imageCompleted = downloadProv.imageCompletedTasks;
+    final imageFailed = downloadProv.imageFailedTasks;
 
-    final videoActive = videoTasks.where((t) => t.status == TaskStatus.downloading || t.status == TaskStatus.queued || t.status == TaskStatus.paused).toList();
-    final videoCompleted = videoTasks.where((t) => t.status == TaskStatus.completed).toList();
-    final videoFailed = videoTasks.where((t) => t.status == TaskStatus.failed).toList();
+    final videoActive = downloadProv.videoActiveTasks;
+    final videoCompleted = downloadProv.videoCompletedTasks;
+    final videoFailed = downloadProv.videoFailedTasks;
 
     final jableActive = jableProv.activeTasks + jableProv.queuedTasks + jableProv.pausedTasks;
     final jableCompleted = jableProv.completedTasks;
     final jableFailed = jableProv.failedTasks;
 
-    // History Records
-    final imageRecords = historyProv.records.where((r) => !r.isVideo).toList();
-    final videoRecords = historyProv.records.where((r) => r.isVideo).toList();
+    // History Records (using cached precalculated collections and statistics from HistoryProvider)
+    final imageRecords = historyProv.imageRecords;
+    final videoRecords = historyProv.videoRecords;
     final jableRecords = jableProv.historyRecords;
 
-    final imageTotalImages = imageRecords.fold<int>(0, (sum, r) => sum + r.imageCount);
-    final imageTotalBytes = imageRecords.fold<int>(0, (sum, r) => sum + r.downloadedBytes);
-    final videoTotalBytes = videoRecords.fold<int>(0, (sum, r) => sum + r.downloadedBytes);
+    final imageTotalImages = historyProv.imageTotalImages;
+    final imageTotalBytes = historyProv.imageTotalBytes;
+    final videoTotalBytes = historyProv.videoTotalBytes;
 
     int currentResourceCount = 0;
     int currentActiveCount = 0;
@@ -1478,9 +1478,7 @@ class _DownloadTasksPageState extends State<DownloadTasksPage> {
                 final records = resourceSegment == 0
                     ? historyProv.records.where((r) => !r.isVideo).toList()
                     : historyProv.records.where((r) => r.isVideo).toList();
-                for (final r in records) {
-                  historyProv.removeRecord(r.id);
-                }
+                historyProv.removeRecords(records.map((r) => r.id).toList());
               }
             },
           ),

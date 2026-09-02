@@ -532,8 +532,8 @@ class CfCookieHarvester {
     }
 
     // 2. If genuine challenge exists, check if interactive UI context is available
-    final context = navigatorKey.currentContext;
-    if (context == null) {
+    final ctx = navigatorKey.currentContext;
+    if (ctx == null || !ctx.mounted) {
       return headlessResult.isNotEmpty ? headlessResult : await _harvestHeadless(finalSiteName, url);
     }
 
@@ -544,7 +544,7 @@ class CfCookieHarvester {
 
     // Show a modal bottom sheet containing the WebView
     showModalBottomSheet(
-      context: context,
+      context: ctx,
       isDismissible: false,
       enableDrag: false,
       backgroundColor: Colors.transparent,

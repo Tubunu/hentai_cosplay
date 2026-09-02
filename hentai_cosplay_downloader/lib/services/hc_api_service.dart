@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:isolate';
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
@@ -292,93 +293,105 @@ class HCApiService {
     return null;
   }
 
-  /// Parse detail page: extract full resolution images and previews from ALL pages
+  /// Parse detail page: extract full resolution images and previews from ALL pages in an Isolate
   static Future<AlbumItem?> fetchAlbumDetail(AlbumItem item, {int retryCount = 3}) async {
     if (!_initialized) _recreateDio();
 
     final page1Html = await _fetchHtml(item.detailUrl, retryCount: retryCount);
     if (page1Html == null || page1Html.isEmpty) return null;
 
+    final totalPages = parseDetailTotalPages(page1Html);
+    final List<String> subPageHtmls = [];
+    if (totalPages > 1) {
+      final cleanBaseUrl = item.detailUrl.replaceAll(RegExp(r'/+$'), '');
+      const batchSize = 4;
+      for (int pStart = 2; pStart <= totalPages; pStart += batchSize) {
+        final pEnd = (pStart + batchSize - 1) < totalPages ? (pStart + batchSize - 1) : totalPages;
+        final batchFutures = <Future<String?>>[];
+        for (int p = pStart; p <= pEnd; p++) {
+          final subPageUrl = '$cleanBaseUrl/page/$p/';
+          batchFutures.add(_fetchHtml(subPageUrl, retryCount: retryCount));
+        }
+        final batchHtmls = await Future.wait(batchFutures);
+        for (final subHtml in batchHtmls) {
+          if (subHtml != null && subHtml.isNotEmpty) {
+            subPageHtmls.add(subHtml);
+          }
+        }
+      }
+    }
+
     try {
-      final doc1 = html_parser.parse(page1Html);
-      // Extract title
-      final titleTag = doc1.querySelector('title')?.text.replaceAll('- Hentai Cosplay', '').trim();
-      final title = (titleTag != null && titleTag.isNotEmpty) ? titleTag : item.title;
-
-      final List<String> imageUrls = [];
-      final List<String> previewUrls = [];
-      final Set<String> seenUrls = {};
-
-      void addImagesFromDoc(dom.Document doc) {
-        final overlays = doc.querySelectorAll('.icon-overlay');
-        for (final el in overlays) {
-          final linkEl = el.querySelector('a');
-          final imgEl = el.querySelector('img');
-          final full = linkEl?.attributes['href']?.trim();
-          final thumb = imgEl?.attributes['src']?.trim();
-          if (full != null && full.isNotEmpty && !seenUrls.contains(full)) {
-            seenUrls.add(full);
-            imageUrls.add(full);
-            previewUrls.add(thumb ?? full);
-          }
-        }
-        // Fallback for direct image container
-        if (overlays.isEmpty) {
-          final imgs = doc.querySelectorAll('#display_area_image img, #image-list img');
-          for (final img in imgs) {
-            final src = img.attributes['src']?.trim();
-            if (src != null && src.isNotEmpty && !seenUrls.contains(src)) {
-              seenUrls.add(src);
-              imageUrls.add(src);
-              previewUrls.add(src);
-            }
-          }
-        }
-      }
-
-      // Add page 1 images
-      addImagesFromDoc(doc1);
-
-      // Check if the album has multiple pages (e.g. >100 images)
-      final totalPages = parseDetailTotalPages(page1Html);
-      if (totalPages > 1) {
-        final cleanBaseUrl = item.detailUrl.replaceAll(RegExp(r'/+$'), '');
-        const batchSize = 4;
-        for (int pStart = 2; pStart <= totalPages; pStart += batchSize) {
-          final pEnd = (pStart + batchSize - 1) < totalPages ? (pStart + batchSize - 1) : totalPages;
-          final batchFutures = <Future<String?>>[];
-          for (int p = pStart; p <= pEnd; p++) {
-            final subPageUrl = '$cleanBaseUrl/page/$p/';
-            batchFutures.add(_fetchHtml(subPageUrl, retryCount: retryCount));
-          }
-          final batchHtmls = await Future.wait(batchFutures);
-          for (final subHtml in batchHtmls) {
-            if (subHtml != null && subHtml.isNotEmpty) {
-              addImagesFromDoc(html_parser.parse(subHtml));
-            }
-          }
-        }
-      }
-
-      // Extract tags if any
-      final List<String> tags = [];
-      final tagElements = doc1.querySelectorAll('#detail_tag a, .detail_tag a');
-      for (final el in tagElements) {
-        final t = el.text.trim();
-        if (t.isNotEmpty && !tags.contains(t)) tags.add(t);
-      }
-
-      return item.copyWith(
-        title: title,
-        imageUrls: imageUrls,
-        previewUrls: previewUrls,
-        tags: tags,
-        isDetailLoaded: true,
-      );
+      return await Isolate.run(() => _parseAlbumDetailPayload((page1Html, subPageHtmls, item)));
     } catch (e) {
       debugPrint('Error parsing album detail: $e');
       return null;
     }
+  }
+
+  static AlbumItem _parseAlbumDetailPayload((String page1Html, List<String> subPageHtmls, AlbumItem initialItem) args) {
+    final (page1Html, subPageHtmls, item) = args;
+    final doc1 = html_parser.parse(page1Html);
+    // Extract title
+    final titleTag = doc1.querySelector('title')?.text.replaceAll('- Hentai Cosplay', '').trim();
+    final title = (titleTag != null && titleTag.isNotEmpty) ? titleTag : item.title;
+
+    final List<String> imageUrls = [];
+    final List<String> previewUrls = [];
+    final Set<String> seenUrls = {};
+
+    void addImagesFromDoc(dom.Document doc) {
+      final overlays = doc.querySelectorAll('.icon-overlay');
+      for (final el in overlays) {
+        final linkEl = el.querySelector('a');
+        final imgEl = el.querySelector('img');
+        final full = linkEl?.attributes['href']?.trim();
+        final thumb = imgEl?.attributes['src']?.trim();
+        if (full != null && full.isNotEmpty && !seenUrls.contains(full)) {
+          seenUrls.add(full);
+          imageUrls.add(full);
+          previewUrls.add(thumb ?? full);
+        }
+      }
+      // Fallback for direct image container
+      if (overlays.isEmpty) {
+        final imgs = doc.querySelectorAll('#display_area_image img, #image-list img');
+        for (final img in imgs) {
+          final src = img.attributes['src']?.trim();
+          if (src != null && src.isNotEmpty && !seenUrls.contains(src)) {
+            seenUrls.add(src);
+            imageUrls.add(src);
+            previewUrls.add(src);
+          }
+        }
+      }
+    }
+
+    // Add page 1 images
+    addImagesFromDoc(doc1);
+
+    // Add subpage images
+    for (final subHtml in subPageHtmls) {
+      if (subHtml.isNotEmpty) {
+        addImagesFromDoc(html_parser.parse(subHtml));
+      }
+    }
+
+    // Extract tags if any
+    final List<String> tags = [];
+    final tagElements = doc1.querySelectorAll('#detail_tag a, .detail_tag a');
+    for (final el in tagElements) {
+      final t = el.text.trim();
+      if (t.isNotEmpty && !tags.contains(t)) tags.add(t);
+    }
+
+    return item.copyWith(
+      title: title,
+      imageUrls: imageUrls,
+      previewUrls: previewUrls,
+      tags: tags,
+      isDetailLoaded: true,
+    );
   }
 
   /// Parse ranking tags or keywords from HTML using DOM parser
@@ -457,8 +470,11 @@ class HCApiService {
 
         if (response.statusCode == 200 && response.data != null) {
           final html = response.data.toString();
-          final items = parseRankingTags(html, isTag);
-          final totalPages = parseTotalPages(html, items.length);
+          final (items, totalPages) = await Isolate.run(() {
+            final parsedItems = parseRankingTags(html, isTag);
+            final pages = parseTotalPages(html, parsedItems.length);
+            return (parsedItems, pages);
+          });
 
           return RankingTagsResponse(
             items: items,
@@ -506,8 +522,11 @@ class HCApiService {
 
         if (response.statusCode == 200 && response.data != null) {
           final html = response.data.toString();
-          final items = parseAlbumList(html);
-          final totalPages = parseTotalPages(html, items.length);
+          final (items, totalPages) = await Isolate.run(() {
+            final parsedItems = parseAlbumList(html);
+            final pages = parseTotalPages(html, parsedItems.length);
+            return (parsedItems, pages);
+          });
           final totalItems = totalPages * 32;
 
           return HCApiResponse(

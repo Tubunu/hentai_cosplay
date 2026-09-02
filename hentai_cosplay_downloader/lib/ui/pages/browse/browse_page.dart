@@ -120,7 +120,8 @@ class _BrowsePageState extends State<BrowsePage> {
             ),
             onPressed: () {
               final page = int.tryParse(_pageJumpController.text.trim());
-              if (page != null && page >= 1) {
+              final maxPage = browseProv.totalPages > 0 ? browseProv.totalPages : 99999;
+              if (page != null && page >= 1 && page <= maxPage) {
                 Navigator.pop(ctx);
                 browseProv.loadPage(page);
                 _scrollToTop();
@@ -209,7 +210,7 @@ class _BrowsePageState extends State<BrowsePage> {
                         onTap: () => BatchDownloadDialog.show(
                           context,
                           initialStart: browseProv.currentPage,
-                          initialEnd: (browseProv.currentPage + 4).clamp(1, browseProv.totalPages),
+                          initialEnd: (browseProv.currentPage + 4).clamp(1, browseProv.totalPages > 0 ? browseProv.totalPages : 1),
                         ),
                         child: FrostedGlass(
                           borderRadius: 16,

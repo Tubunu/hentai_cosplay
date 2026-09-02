@@ -276,6 +276,66 @@ class PornhubApiService {
     return null;
   }
 
+  /// Fetch videos from a specific Pornhub author / model / pornstar / channel / user
+  static Future<PornhubApiResponse?> fetchAuthorVideos({
+    required String authorName,
+    String? authorUrl,
+    int page = 1,
+    PornhubSortOrder sortOrder = PornhubSortOrder.mostViewed,
+  }) async {
+    try {
+      // 1. If authorUrl is a profile/model/pornstar/channels/users link, try direct endpoint
+      if (authorUrl != null &&
+          authorUrl.isNotEmpty &&
+          (authorUrl.contains('/model/') ||
+              authorUrl.contains('/pornstar/') ||
+              authorUrl.contains('/channels/') ||
+              authorUrl.contains('/users/'))) {
+        final cleanUrl = authorUrl.replaceAll(RegExp(r'/videos.*$'), '');
+        final targetUrl = '$cleanUrl/videos?o=${sortOrder.orderCode}&page=$page';
+        debugPrint('[PornhubApiService] Fetching Author direct URL: $targetUrl');
+        final response = await _dio.get<String>(
+          targetUrl,
+          options: Options(
+            responseType: ResponseType.plain,
+            followRedirects: true,
+            validateStatus: (status) => status != null && status < 500,
+          ),
+        );
+
+        if (response.statusCode == 200 && response.data != null) {
+          final parsed = _parseListPageHtml(response.data!, page);
+          if (parsed.items.isNotEmpty) {
+            return parsed;
+          }
+        }
+      }
+
+      // 2. Direct / Fallback Author Search
+      debugPrint('[PornhubApiService] Fetching Author via keyword search: $authorName, sort: $sortOrder, page: $page');
+      final searchUrl = buildUrl(
+        page: page,
+        keyword: authorName,
+        sortOrder: sortOrder,
+      );
+      final response = await _dio.get<String>(
+        searchUrl,
+        options: Options(
+          responseType: ResponseType.plain,
+          followRedirects: true,
+          validateStatus: (status) => status != null && status < 500,
+        ),
+      );
+
+      if (response.statusCode == 200 && response.data != null) {
+        return _parseListPageHtml(response.data!, page);
+      }
+    } catch (e) {
+      debugPrint('[PornhubApiService] Error fetching author videos: $e');
+    }
+    return null;
+  }
+
   /// Parse HTML list
   static PornhubApiResponse _parseListPageHtml(String html, int requestedPage) {
     final document = html_parser.parse(html);
@@ -350,10 +410,15 @@ class PornhubApiService {
         }
 
         // Uploader / Author
-        final authorElem = elem.querySelector('.usernameWrap a, .videoUploader a, .username, .author');
+        final authorElem = elem.querySelector('.usernameWrap a, .videoUploader a, .username, .author, a[href*="/model/"], a[href*="/pornstar/"], a[href*="/channels/"], a[href*="/users/"]');
         final author = authorElem?.text.trim().isNotEmpty == true
             ? authorElem!.text.trim()
             : 'Pornhub';
+        var authorHref = authorElem?.attributes['href'] ?? '';
+        if (authorHref.isNotEmpty && !authorHref.startsWith('http')) {
+          if (!authorHref.startsWith('/')) authorHref = '/$authorHref';
+          authorHref = '$kBaseUrl$authorHref';
+        }
 
         items.add(
           VideoItem(
@@ -368,7 +433,11 @@ class PornhubApiService {
             tags: ['Pornhub', '1080P/HD', author],
             videoUrl: null,
             isDetailLoaded: false,
-            rawData: {'vkey': vkey, 'detailUrl': href},
+            rawData: {
+              'vkey': vkey,
+              'detailUrl': href,
+              if (authorHref.isNotEmpty) 'authorUrl': authorHref,
+            },
           ),
         );
       } catch (e) {

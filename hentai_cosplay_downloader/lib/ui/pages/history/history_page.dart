@@ -82,9 +82,7 @@ class _HistoryPageState extends State<HistoryPage> {
                                 child: const Text('清空'),
                                 onPressed: () {
                                   Navigator.pop(ctx);
-                                  for (final r in currentRecords) {
-                                    historyProv.removeRecord(r.id);
-                                  }
+                                  historyProv.removeRecords(currentRecords.map((r) => r.id).toList());
                                 },
                               ),
                             ],

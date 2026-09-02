@@ -17,9 +17,12 @@ import 'nucosplay/nucosplay_api_service.dart';
 import 'eporner/eporner_api_service.dart';
 import 'hanime1/hanime1_api_service.dart';
 import 'hqporner/hqporner_api_service.dart';
+import 'iwara/iwara_api_service.dart';
+import 'rule34video/rule34video_api_service.dart';
 import 'spankbang/spankbang_api_service.dart';
 import 'twitter_rankings/twitter_ranking_api_service.dart';
 import 'video_api_service.dart';
+import 'xvideos/xvideos_api_service.dart';
 
 class ConfigService {
   static const String _kConfigKey = 'hentai_cosplay_app_config';
@@ -46,6 +49,9 @@ class ConfigService {
     HqpornerApiService.setProxy(p);
     SpankbangApiService.setProxy(p);
     PornhubApiService.setProxy(p);
+    XVideosApiService.setProxy(p);
+    IwaraApiService.setProxy(p);
+    Rule34VideoApiService.setProxy(p);
   }
 
   static Future<void> init() async {
