@@ -75,8 +75,55 @@ class DownloadProvider extends ChangeNotifier {
   DateTime _lastProgressNotifyTime = DateTime.fromMillisecondsSinceEpoch(0);
   Timer? _progressThrottleTimer;
 
-  void Function(HistoryRecord record)? onAlbumCompleted;
-  void Function()? onAlbumsChanged;
+  final List<void Function(HistoryRecord record)> _albumCompletedListeners = [];
+  final List<void Function()> _albumsChangedListeners = [];
+
+  void addAlbumCompletedListener(void Function(HistoryRecord record) listener) {
+    _albumCompletedListeners.add(listener);
+  }
+
+  void removeAlbumCompletedListener(void Function(HistoryRecord record) listener) {
+    _albumCompletedListeners.remove(listener);
+  }
+
+  void addAlbumsChangedListener(void Function() listener) {
+    _albumsChangedListeners.add(listener);
+  }
+
+  void removeAlbumsChangedListener(void Function() listener) {
+    _albumsChangedListeners.remove(listener);
+  }
+
+  void notifyAlbumCompleted(HistoryRecord record) {
+    for (final l in List.of(_albumCompletedListeners)) {
+      try {
+        l(record);
+      } catch (_) {}
+    }
+  }
+
+  void notifyAlbumsChanged() {
+    for (final l in List.of(_albumsChangedListeners)) {
+      try {
+        l();
+      } catch (_) {}
+    }
+  }
+
+  // Backward-compatible setters
+  void Function(HistoryRecord record)? get onAlbumCompleted => null;
+  set onAlbumCompleted(void Function(HistoryRecord record)? callback) {
+    if (callback != null) {
+      addAlbumCompletedListener(callback);
+    }
+  }
+
+  void Function()? get onAlbumsChanged => null;
+  set onAlbumsChanged(void Function()? callback) {
+    if (callback != null) {
+      addAlbumsChangedListener(callback);
+    }
+  }
 
   List<AlbumDownloadTask> get allTasks => List.unmodifiable(_allTasks);
   List<AlbumDownloadTask> get activeTasks =>
@@ -895,8 +942,8 @@ class DownloadProvider extends ChangeNotifier {
           isVideo: task.isVideo,
           duration: task.duration,
         );
-        onAlbumCompleted?.call(record);
-        onAlbumsChanged?.call();
+        notifyAlbumCompleted(record);
+        notifyAlbumsChanged();
       }
     } catch (e) {
       debugPrint('Task ${task.id} execution error: $e');
@@ -941,7 +988,7 @@ class DownloadProvider extends ChangeNotifier {
     }
     _batchStartTime = null;
     _currentBatchTaskIds.clear();
-    onAlbumsChanged?.call();
+    notifyAlbumsChanged();
   }
 
   void _updateNotification() {

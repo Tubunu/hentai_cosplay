@@ -6,6 +6,7 @@ import '../../../providers/download_provider.dart';
 import '../../../providers/nucosplay_browse_provider.dart';
 import '../../../services/nucosplay/nucosplay_api_service.dart';
 import '../../widgets/bouncing_button.dart';
+import '../../widgets/jump_page_dialog.dart';
 import '../../widgets/random_action_button.dart';
 import '../../widgets/scroll_to_top_button.dart';
 import 'nucosplay_detail_page.dart';
@@ -185,49 +186,14 @@ class _NucosplayBrowsePageState extends State<NucosplayBrowsePage> {
   }
 
   void _showJumpPageDialog(BuildContext context, NucosplayBrowseProvider provider) {
-    int selected = provider.currentPage;
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-        const themeColor = Color(0xFF7E57C2);
-        return AlertDialog(
-          backgroundColor: isDark ? const Color(0xFF1C1C1E) : Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text('跳转页码', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-          content: SizedBox(
-            height: 150,
-            child: CupertinoPicker(
-              itemExtent: 40,
-              scrollController: FixedExtentScrollController(initialItem: provider.currentPage - 1),
-              onSelectedItemChanged: (index) {
-                selected = index + 1;
-              },
-              children: List.generate(
-                provider.totalPages > 0 ? provider.totalPages : 50,
-                (index) => Center(child: Text('第 ${index + 1} 页')),
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('取消'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: themeColor,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              onPressed: () {
-                Navigator.pop(ctx);
-                provider.loadPage(selected);
-                _scrollToTop();
-              },
-              child: const Text('跳转', style: TextStyle(color: Colors.white)),
-            ),
-          ],
-        );
+    JumpPageDialog.show(
+      context,
+      currentPage: provider.currentPage,
+      totalPages: provider.totalPages,
+      themeColor: const Color(0xFF7E57C2),
+      onPageSelected: (selected) {
+        provider.loadPage(selected);
+        _scrollToTop();
       },
     );
   }

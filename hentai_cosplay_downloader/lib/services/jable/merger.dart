@@ -24,9 +24,8 @@ class Merger {
       return MergeResult(success: false, error: "分片列表为空");
     }
 
-    // Use the cache folder of the first segment for temporary concatenated TS
+    // Use the cache folder of the first segment for temporary work
     final cacheFolder = File(tempSegmentPaths.first).parent.path;
-    final tempMergedTs = "$cacheFolder/raw_combined_${DateTime.now().millisecondsSinceEpoch}.ts";
     String targetMp4Path = outputMp4Path;
     
     try {
@@ -44,30 +43,79 @@ class Merger {
         }
       }
 
-      onProgress("正在合并视频分片...");
+      // Filter valid segment paths
+      final validSegmentPaths = <String>[];
+      for (final path in tempSegmentPaths) {
+        final f = File(path);
+        if (await f.exists() && await f.length() > 0) {
+          validSegmentPaths.add(path);
+        }
+      }
+
+      if (validSegmentPaths.isEmpty) {
+        return MergeResult(success: false, error: "未找到任何已下载的有效视频分片");
+      }
+
+      // 1. Primary Strategy: FFmpeg Concat Demuxer (Zero intermediate TS copy, saves 1x video size storage & disk wear)
+      final concatListFile = File("$cacheFolder/concat_${DateTime.now().millisecondsSinceEpoch}.txt");
+      try {
+        final fileEntries = validSegmentPaths.map((seg) {
+          final normalized = seg.replaceAll(r'\', '/').replaceAll("'", r"'\''");
+          return "file '$normalized'";
+        }).join('\n');
+        await concatListFile.writeAsString(fileEntries);
+
+        onProgress("正在快速封装并修复播放索引...");
+        final session = await FFmpegKit.executeWithArguments([
+          '-y',
+          '-err_detect',
+          'ignore_err',
+          '-f',
+          'concat',
+          '-safe',
+          '0',
+          '-i',
+          concatListFile.path,
+          '-c',
+          'copy',
+          '-bsf:a',
+          'aac_adtstoasc',
+          '-movflags',
+          '+faststart',
+          targetMp4Path,
+        ]);
+        final returnCode = await session.getReturnCode();
+        final targetMp4 = File(targetMp4Path);
+
+        if (ReturnCode.isSuccess(returnCode) && await targetMp4.exists() && await targetMp4.length() > 0) {
+          try {
+            if (await concatListFile.exists()) await concatListFile.delete();
+          } catch (_) {}
+          return MergeResult(success: true, finalPath: targetMp4Path);
+        }
+      } catch (_) {
+      } finally {
+        try {
+          if (await concatListFile.exists()) await concatListFile.delete();
+        } catch (_) {}
+      }
+
+      // 2. Secondary Strategy Fallback: Binary RAF concatenation + FFmpeg remux / stream copy
+      onProgress("正在合并视频分片 (回落模式)...");
+      final tempMergedTs = "$cacheFolder/raw_combined_${DateTime.now().millisecondsSinceEpoch}.ts";
       final mergedFile = File(tempMergedTs);
       
-      // Clean up pre-existing merge files
       if (await mergedFile.exists()) {
         await mergedFile.delete();
       }
-      
-      // Use RandomAccessFile for fast, reliable native binary concatenation without stream memory issues
-      final raf = await mergedFile.open(mode: FileMode.write);
-      int writtenSegments = 0;
 
+      final raf = await mergedFile.open(mode: FileMode.write);
       try {
-        for (final path in tempSegmentPaths) {
+        for (final path in validSegmentPaths) {
           try {
             final file = File(path);
-            if (await file.exists()) {
-              final len = await file.length();
-              if (len > 0) {
-                final bytes = await file.readAsBytes();
-                await raf.writeFrom(bytes);
-                writtenSegments++;
-              }
-            }
+            final bytes = await file.readAsBytes();
+            await raf.writeFrom(bytes);
           } catch (_) {}
         }
         await raf.flush();
@@ -75,18 +123,7 @@ class Merger {
         await raf.close();
       }
 
-      if (writtenSegments == 0) {
-        if (await mergedFile.exists()) {
-          try {
-            await mergedFile.delete();
-          } catch (_) {}
-        }
-        return MergeResult(success: false, error: "未找到任何已下载的有效视频分片");
-      }
-
       onProgress("正在修复播放索引...");
-      // Execute FFmpeg to remux container format without transcoding
-      // Include -bsf:a aac_adtstoasc which is required when remuxing AAC from TS to MP4 container
       try {
         final session = await FFmpegKit.executeWithArguments([
           '-y',
@@ -106,7 +143,6 @@ class Merger {
 
         final targetMp4 = File(targetMp4Path);
         if (ReturnCode.isSuccess(returnCode) && await targetMp4.exists() && await targetMp4.length() > 0) {
-          // Successful remux: Delete temporary merged TS file
           if (await mergedFile.exists()) {
             try {
               await mergedFile.delete();
@@ -116,7 +152,7 @@ class Merger {
         }
       } catch (_) {}
 
-      // Fallback: Copy the concatenated TS stream directly to destination MP4 (cross-device safe)
+      // Final fallback: Stream copy TS directly to destination
       if (await mergedFile.exists()) {
         try {
           final targetMp4 = File(targetMp4Path);
@@ -141,9 +177,6 @@ class Merger {
       }
       return MergeResult(success: false, error: "分片合并失败且临时文件不可用");
     } catch (e) {
-      try {
-        if (await File(tempMergedTs).exists()) await File(tempMergedTs).delete();
-      } catch (_) {}
       return MergeResult(success: false, error: "分片合并异常: $e");
     }
   }

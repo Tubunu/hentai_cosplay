@@ -6,10 +6,12 @@ import 'providers/browse_provider.dart';
 import 'providers/browsing_history_provider.dart';
 import 'providers/coomer_browse_provider.dart';
 import 'providers/cosplaytele_browse_provider.dart';
+import 'providers/cosvault_browse_provider.dart';
 import 'providers/download_provider.dart';
 import 'providers/eporner_browse_provider.dart';
 import 'providers/exhentai_browse_provider.dart';
 import 'providers/gallery_provider.dart';
+import 'providers/galleryepic_browse_provider.dart';
 import 'providers/hanime1_browse_provider.dart';
 import 'providers/history_provider.dart';
 import 'providers/hqporner_browse_provider.dart';
@@ -32,11 +34,23 @@ import 'providers/spankbang_browse_provider.dart';
 import 'providers/twitter_browse_provider.dart';
 import 'providers/video_browse_provider.dart';
 import 'providers/xvideos_browse_provider.dart';
+import 'providers/cosxplay_browse_provider.dart';
+import 'providers/cosplayporntube_browse_provider.dart';
+import 'providers/xhamster_browse_provider.dart';
+import 'providers/xnxx_browse_provider.dart';
+import 'providers/nsfwpub_browse_provider.dart';
+import 'providers/thothub_browse_provider.dart';
+import 'providers/njav_browse_provider.dart';
+import 'providers/vjav_browse_provider.dart';
+import 'providers/javguru_browse_provider.dart';
+import 'providers/av123_browse_provider.dart';
+import 'providers/javmost_browse_provider.dart';
+import 'providers/disguise_provider.dart';
 import 'services/config_service.dart';
 import 'services/jable/navigator_service.dart';
 import 'services/notification_service.dart';
-import 'ui/pages/home_scaffold.dart';
 import 'ui/theme/ios_theme.dart';
+import 'ui/widgets/app_lock_gate.dart';
 
 void main() async {
   runZonedGuarded(() async {
@@ -84,6 +98,8 @@ void main() async {
           ChangeNotifierProvider(create: (_) => PixibbBrowseProvider()),
           ChangeNotifierProvider(create: (_) => CosplayteleBrowseProvider()),
           ChangeNotifierProvider(create: (_) => NucosplayBrowseProvider()),
+          ChangeNotifierProvider(create: (_) => CosvaultBrowseProvider()),
+          ChangeNotifierProvider(create: (_) => GalleryepicBrowseProvider()),
           ChangeNotifierProvider(create: (_) => Hanime1BrowseProvider()),
           ChangeNotifierProvider(create: (_) => IwaraBrowseProvider()),
           ChangeNotifierProvider(create: (_) => Rule34VideoBrowseProvider()),
@@ -92,6 +108,17 @@ void main() async {
           ChangeNotifierProvider(create: (_) => SpankbangBrowseProvider()),
           ChangeNotifierProvider(create: (_) => PornhubBrowseProvider()),
           ChangeNotifierProvider(create: (_) => XVideosBrowseProvider()),
+          ChangeNotifierProvider(create: (_) => CosxplayBrowseProvider()),
+          ChangeNotifierProvider(create: (_) => CosplayporntubeBrowseProvider()),
+          ChangeNotifierProvider(create: (_) => XhamsterBrowseProvider()),
+          ChangeNotifierProvider(create: (_) => XnxxBrowseProvider()),
+          ChangeNotifierProvider(create: (_) => NsfwpubBrowseProvider()),
+          ChangeNotifierProvider(create: (_) => ThothubBrowseProvider()),
+          ChangeNotifierProvider(create: (_) => NjavBrowseProvider()),
+          ChangeNotifierProvider(create: (_) => VjavBrowseProvider()),
+          ChangeNotifierProvider(create: (_) => JavguruBrowseProvider()),
+          ChangeNotifierProvider(create: (_) => Av123BrowseProvider()),
+          ChangeNotifierProvider(create: (_) => JavmostBrowseProvider()),
           ChangeNotifierProvider(create: (_) => JableBrowseProvider()),
           ChangeNotifierProvider(create: (_) => DownloadProvider()),
           ChangeNotifierProvider(create: (_) => JableDownloadProvider()),
@@ -100,6 +127,11 @@ void main() async {
           ChangeNotifierProvider(create: (_) => GalleryProvider()),
           ChangeNotifierProvider(create: (_) => LocalVideoProvider()),
           ChangeNotifierProvider(create: (_) => LocalJableProvider()),
+          ChangeNotifierProvider(
+            create: (ctx) => DisguiseProvider(
+              disguiseMode: ctx.read<SettingsProvider>().config.disguiseMode,
+            ),
+          ),
         ],
         child: const HentaiCosplayApp(),
       ),
@@ -109,8 +141,47 @@ void main() async {
   });
 }
 
-class HentaiCosplayApp extends StatelessWidget {
+class HentaiCosplayApp extends StatefulWidget {
   const HentaiCosplayApp({super.key});
+
+  @override
+  State<HentaiCosplayApp> createState() => _HentaiCosplayAppState();
+}
+
+class _HentaiCosplayAppState extends State<HentaiCosplayApp> with WidgetsBindingObserver {
+  final ViewingRouteObserver _routeObserver = ViewingRouteObserver();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      // Release decoded image bitmaps to drastically reduce background memory footprint
+      // and prevent iOS Jetsam / Android LMK process termination
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
+      debugPrint('[Memory] Cleared in-memory image cache on entering background');
+
+      try {
+        final settings = context.read<SettingsProvider>();
+        context.read<DisguiseProvider>().onLifecycleStateChanged(
+              state,
+              settings.config.disguiseMode,
+              settings.config.disguiseRelockOnBackground,
+            );
+      } catch (_) {}
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -118,12 +189,13 @@ class HentaiCosplayApp extends StatelessWidget {
 
     return MaterialApp(
       navigatorKey: navigatorKey,
+      navigatorObservers: [_routeObserver],
       title: 'Hentai Cosplay Downloader',
       debugShowCheckedModeBanner: false,
       theme: IosTheme.lightTheme,
       darkTheme: IosTheme.darkTheme,
       themeMode: themeMode,
-      home: const HomeScaffold(),
+      home: const AppLockGate(),
     );
   }
 }

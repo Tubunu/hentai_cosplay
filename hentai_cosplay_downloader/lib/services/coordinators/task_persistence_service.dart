@@ -1,18 +1,47 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/download_task.dart';
 
 class TaskPersistenceService {
   static const String _kTasksKey = 'hc_saved_download_tasks';
+  static const String _kTasksFileName = 'hc_download_tasks.json';
   Timer? _debounceTimer;
   List<AlbumDownloadTask>? _pendingTasksToSave;
 
-  /// Load tasks from SharedPreferences
+  Future<File> _getStorageFile() async {
+    try {
+      final docDir = await getApplicationDocumentsDirectory();
+      return File('${docDir.path}/$_kTasksFileName');
+    } catch (_) {
+      return File('${Directory.systemTemp.path}/$_kTasksFileName');
+    }
+  }
+
+  /// Load tasks from dedicated file or auto-migrate legacy data from SharedPreferences
   Future<List<AlbumDownloadTask>> loadTasks() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(_kTasksKey);
+      final file = await _getStorageFile();
+      String? raw;
+
+      if (await file.exists()) {
+        raw = await file.readAsString();
+      } else {
+        // Auto-migration from legacy SharedPreferences key
+        final prefs = await SharedPreferences.getInstance();
+        final legacy = prefs.getString(_kTasksKey);
+        if (legacy != null && legacy.isNotEmpty) {
+          raw = legacy;
+          // Migrate immediately to file storage and clean up SharedPreferences
+          try {
+            await file.writeAsString(legacy);
+            await prefs.remove(_kTasksKey);
+          } catch (_) {}
+        }
+      }
+
       if (raw != null && raw.isNotEmpty) {
         final loaded = AlbumDownloadTask.listFromJson(raw);
         for (final t in loaded) {
@@ -50,11 +79,23 @@ class TaskPersistenceService {
   Future<void> _writeToDisk() async {
     final tasks = _pendingTasksToSave;
     if (tasks == null) return;
+    File? tempFile;
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_kTasksKey, AlbumDownloadTask.listToJson(tasks));
+      final file = await _getStorageFile();
+      tempFile = File('${file.path}.tmp_${DateTime.now().microsecondsSinceEpoch}');
+      await tempFile.writeAsString(AlbumDownloadTask.listToJson(tasks));
+
+      if (await file.exists()) {
+        await file.delete();
+      }
+      await tempFile.rename(file.path);
     } catch (e) {
-      debugPrint('Error persisting tasks: $e');
+      debugPrint('Error persisting tasks to file: $e');
+      if (tempFile != null && await tempFile.exists()) {
+        try {
+          await tempFile.delete();
+        } catch (_) {}
+      }
     }
   }
 

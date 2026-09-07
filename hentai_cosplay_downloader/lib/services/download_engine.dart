@@ -21,6 +21,8 @@ import 'pornbox/pornbox_api_service.dart';
 import 'pornhub/pornhub_api_service.dart';
 import 'pixibb/pixibb_api_service.dart';
 import 'cosplaytele/cosplaytele_api_service.dart';
+import 'cosvault/cosvault_api_service.dart';
+import 'galleryepic/galleryepic_api_service.dart';
 import 'nucosplay/nucosplay_api_service.dart';
 import 'hanime1/hanime1_api_service.dart';
 import 'iwara/iwara_api_service.dart';
@@ -28,6 +30,14 @@ import 'rule34video/rule34video_api_service.dart';
 import 'storage_service.dart';
 import 'video_api_service.dart';
 import 'xvideos/xvideos_api_service.dart';
+import 'cosxplay/cosxplay_api_service.dart';
+import 'cosplayporntube/cosplayporntube_api_service.dart';
+import 'xhamster/xhamster_api_service.dart';
+import 'xnxx/xnxx_api_service.dart';
+import 'nsfwpub/nsfwpub_api_service.dart';
+import 'thothub/thothub_api_service.dart';
+import 'njav/njav_api_service.dart';
+import 'vjav/vjav_api_service.dart';
 
 typedef DownloadLogCallback = void Function(String message, String level);
 typedef TaskProgressCallback = void Function(AlbumDownloadTask task);
@@ -334,6 +344,10 @@ class DownloadEngine {
                   'Referer': 'https://coomer.st/'
                 else if (targetUrl.contains('ex.810114.xyz') || targetUrl.contains('exhentai.org') || targetUrl.contains('hath.network') || targetUrl.contains('ehgt.org'))
                   'Referer': 'https://ex.810114.xyz/'
+                else if (targetUrl.contains('galleryepic.xyz'))
+                  'Referer': 'https://galleryepic.xyz/'
+                else if (targetUrl.contains('cosvault.top'))
+                  'Referer': 'https://cosvault.top/'
                 else
                   'Referer': '${HCApiService.kBaseUrl}/',
               },
@@ -517,6 +531,97 @@ class DownloadEngine {
         );
       } else if (item.detailUrl.contains('xvideos.com')) {
         vDetail = await XVideosApiService.resolveVideoDetail(
+          VideoItem(
+            title: item.title,
+            slug: item.slug,
+            detailUrl: item.detailUrl,
+            coverUrl: item.coverUrl,
+            date: item.date,
+            author: item.author,
+            tags: item.tags,
+            rawData: item.rawData,
+          ),
+        );
+      } else if (item.detailUrl.contains('cosxplay.com')) {
+        vDetail = await CosxplayApiService.resolveVideoDetail(
+          VideoItem(
+            title: item.title,
+            slug: item.slug,
+            detailUrl: item.detailUrl,
+            coverUrl: item.coverUrl,
+            date: item.date,
+            author: item.author,
+            tags: item.tags,
+            rawData: item.rawData,
+          ),
+        );
+      } else if (item.detailUrl.contains('cosplayporntube.com')) {
+        vDetail = await CosplayporntubeApiService.resolveVideoDetail(
+          VideoItem(
+            title: item.title,
+            slug: item.slug,
+            detailUrl: item.detailUrl,
+            coverUrl: item.coverUrl,
+            date: item.date,
+            author: item.author,
+            tags: item.tags,
+            rawData: item.rawData,
+          ),
+        );
+      } else if (item.detailUrl.contains('xhamster.com')) {
+        vDetail = await XhamsterApiService.resolveVideoDetail(
+          VideoItem(
+            title: item.title,
+            slug: item.slug,
+            detailUrl: item.detailUrl,
+            coverUrl: item.coverUrl,
+            date: item.date,
+            author: item.author,
+            tags: item.tags,
+            rawData: item.rawData,
+          ),
+        );
+      } else if (item.detailUrl.contains('xnxx.com')) {
+        vDetail = await XnxxApiService.resolveVideoDetail(
+          VideoItem(
+            title: item.title,
+            slug: item.slug,
+            detailUrl: item.detailUrl,
+            coverUrl: item.coverUrl,
+            date: item.date,
+            author: item.author,
+            tags: item.tags,
+            rawData: item.rawData,
+          ),
+        );
+      } else if (item.detailUrl.contains('thothub.to')) {
+        vDetail = await ThothubApiService.resolveVideoDetail(
+          VideoItem(
+            title: item.title,
+            slug: item.slug,
+            detailUrl: item.detailUrl,
+            coverUrl: item.coverUrl,
+            date: item.date,
+            author: item.author,
+            tags: item.tags,
+            rawData: item.rawData,
+          ),
+        );
+      } else if (item.detailUrl.contains('njav.com')) {
+        vDetail = await NjavApiService.resolveVideoDetail(
+          VideoItem(
+            title: item.title,
+            slug: item.slug,
+            detailUrl: item.detailUrl,
+            coverUrl: item.coverUrl,
+            date: item.date,
+            author: item.author,
+            tags: item.tags,
+            rawData: item.rawData,
+          ),
+        );
+      } else if (item.detailUrl.contains('vjav.com')) {
+        vDetail = await VjavApiService.resolveVideoDetail(
           VideoItem(
             title: item.title,
             slug: item.slug,
@@ -999,6 +1104,12 @@ class DownloadEngine {
         detailedItem = await CosplayteleApiService.fetchAlbumDetail(item);
       } else if (item.sourceType == MediaSourceType.nucosplay) {
         detailedItem = await NucosplayApiService.fetchAlbumDetail(item);
+      } else if (item.sourceType == MediaSourceType.cosvault) {
+        detailedItem = await CosvaultApiService.fetchAlbumDetail(item);
+      } else if (item.sourceType == MediaSourceType.galleryepic) {
+        detailedItem = await GalleryepicApiService.fetchAlbumDetail(item);
+      } else if (item.sourceType == MediaSourceType.nsfwpub) {
+        detailedItem = await NsfwpubApiService.fetchAlbumDetail(item);
       } else if (item.sourceType == MediaSourceType.hc) {
         detailedItem = await HCApiService.fetchAlbumDetail(item);
       } else {

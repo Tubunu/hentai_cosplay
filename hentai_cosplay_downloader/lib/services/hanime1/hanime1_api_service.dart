@@ -2,13 +2,14 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
-import 'package:dio/io.dart';
 import 'package:html/parser.dart' as html_parser;
 import '../../models/video_item.dart';
 import '../../models/hanime1_category.dart';
 import '../config_service.dart';
 import '../jable/api_client.dart';
 import '../jable/cf_cookie_harvester.dart';
+
+import '../network_client.dart';
 
 class Hanime1ApiResponse {
   final List<VideoItem> items;
@@ -36,41 +37,20 @@ class Hanime1ApiService {
   }
 
   static Dio _createDio([bool direct = false]) {
-    final dio = Dio(
-      BaseOptions(
-        baseUrl: kBaseUrl,
-        connectTimeout: const Duration(seconds: 15),
-        receiveTimeout: const Duration(seconds: 15),
-        headers: {
-          'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          'Referer': '$kBaseUrl/',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-          'Accept-Language': 'zh-TW,zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7',
-        },
-      ),
+    final effectiveProxy = direct ? '' : (_configuredProxy ?? ConfigService.loadConfig().customProxy);
+    return NetworkClient.createDio(
+      baseUrl: kBaseUrl,
+      connectTimeout: const Duration(seconds: 15),
+      receiveTimeout: const Duration(seconds: 15),
+      specificProxy: effectiveProxy,
+      headers: {
+        'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Referer': '$kBaseUrl/',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'zh-TW,zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+      },
     );
-
-    final adapter = IOHttpClientAdapter();
-    adapter.createHttpClient = () {
-      final client = HttpClient();
-      client.badCertificateCallback = (cert, host, port) => true;
-      final effectiveProxy = _configuredProxy ?? ConfigService.loadConfig().customProxy;
-      if (!direct && effectiveProxy.isNotEmpty) {
-        final clean = effectiveProxy.replaceAll(RegExp(r'https?://|socks5?://'), '');
-        if (effectiveProxy.startsWith('socks')) {
-          client.findProxy = (uri) => 'SOCKS5 $clean; DIRECT';
-        } else {
-          client.findProxy = (uri) => 'PROXY $clean; DIRECT';
-        }
-      } else {
-        client.findProxy = HttpClient.findProxyFromEnvironment;
-      }
-      return client;
-    };
-    dio.httpClientAdapter = adapter;
-
-    return dio;
   }
 
   /// Build list / search / ranking URL
@@ -135,15 +115,16 @@ class Hanime1ApiService {
           'Accept-Language: zh-TW,zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7',
           '-H',
           'Referer: $kBaseUrl/',
+          '--fail',
           '--max-time',
           '15',
           safeUrl,
         ];
         final result = await Process.run('curl', args);
         debugPrint('[Hanime1ApiService] Desktop curl code: ${result.exitCode}, stdout length: ${(result.stdout as String).length}, stderr: ${result.stderr}');
-        if (result.exitCode == 0) {
-          final stdout = result.stdout as String;
-          if (stdout.length > 500) {
+        if (result.exitCode == 0 && result.stdout is String) {
+          final stdout = (result.stdout as String).trim();
+          if (stdout.length > 500 && !stdout.contains('Attention Required! | Cloudflare')) {
             return stdout;
           }
         }

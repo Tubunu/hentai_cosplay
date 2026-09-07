@@ -1,13 +1,13 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:dio/dio.dart';
-import 'package:dio/io.dart';
 import 'package:flutter/foundation.dart';
 import 'package:html/parser.dart' as html_parser;
 import '../../models/rule34video_category.dart';
 import '../../models/video_item.dart';
 import '../config_service.dart';
 import '../jable/cf_cookie_harvester.dart';
+import '../network_client.dart';
 
 class Rule34VideoPageData {
   final List<VideoItem> items;
@@ -31,32 +31,17 @@ class Rule34VideoApiService {
   }
 
   static Dio _createDio() {
-    final dio = Dio(
-      BaseOptions(
-        connectTimeout: const Duration(seconds: 15),
-        receiveTimeout: const Duration(seconds: 20),
-        headers: {
-          'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-          'Referer': 'https://rule34video.com/',
-        },
-      ),
+    return NetworkClient.createDio(
+      connectTimeout: const Duration(seconds: 15),
+      receiveTimeout: const Duration(seconds: 20),
+      specificProxy: _configuredProxy,
+      headers: {
+        'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Referer': 'https://rule34video.com/',
+      },
     );
-
-    final adapter = IOHttpClientAdapter();
-    adapter.createHttpClient = () {
-      final client = HttpClient();
-      client.badCertificateCallback = (cert, host, port) => true;
-      final effectiveProxy = _configuredProxy ?? ConfigService.loadConfig().customProxy;
-      if (effectiveProxy.isNotEmpty) {
-        final clean = effectiveProxy.replaceAll(RegExp(r'https?://|socks5?://'), '');
-        client.findProxy = (uri) => 'PROXY $clean';
-      }
-      return client;
-    };
-    dio.httpClientAdapter = adapter;
-    return dio;
   }
 
   /// Internal HTML fetcher with multi-tier fallback (curl on desktop, Dio on mobile)
@@ -77,6 +62,9 @@ class Rule34VideoApiService {
           'Referer: https://rule34video.com/',
           '-H',
           'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          '--fail',
+          '--max-time',
+          '15',
         ];
         if (proxy != null && proxy.isNotEmpty) {
           final p = proxy.startsWith('http') ? proxy : 'http://$proxy';
@@ -85,8 +73,11 @@ class Rule34VideoApiService {
         args.add(url);
 
         final result = await Process.run('curl', args, runInShell: true);
-        if (result.exitCode == 0 && (result.stdout as String).isNotEmpty) {
-          return result.stdout as String;
+        if (result.exitCode == 0 && result.stdout is String) {
+          final stdout = (result.stdout as String).trim();
+          if (stdout.isNotEmpty && !stdout.contains('Attention Required! | Cloudflare')) {
+            return stdout;
+          }
         }
       } catch (e) {
         debugPrint('[Rule34VideoApiService] Desktop curl failed, falling back to Dio: $e');

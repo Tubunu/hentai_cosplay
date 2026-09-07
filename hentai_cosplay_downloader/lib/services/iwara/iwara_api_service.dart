@@ -2,12 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:dio/dio.dart';
-import 'package:dio/io.dart';
 import 'package:flutter/foundation.dart';
 import '../../models/iwara_category.dart';
 import '../../models/video_item.dart';
 import '../config_service.dart';
 import '../jable/cf_cookie_harvester.dart';
+
+import '../network_client.dart';
 
 class IwaraPageData {
   final List<VideoItem> items;
@@ -37,39 +38,18 @@ class IwaraApiService {
   }
 
   static Dio _createDio() {
-    final dio = Dio(
-      BaseOptions(
-        connectTimeout: const Duration(seconds: 15),
-        receiveTimeout: const Duration(seconds: 20),
-        headers: {
-          'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          'Accept': 'application/json, text/plain, */*',
-          'Referer': 'https://www.iwara.tv/',
-          'Origin': 'https://www.iwara.tv',
-        },
-      ),
+    return NetworkClient.createDio(
+      connectTimeout: const Duration(seconds: 15),
+      receiveTimeout: const Duration(seconds: 20),
+      specificProxy: _configuredProxy,
+      headers: {
+        'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*',
+        'Referer': 'https://www.iwara.tv/',
+        'Origin': 'https://www.iwara.tv',
+      },
     );
-
-    final adapter = IOHttpClientAdapter();
-    adapter.createHttpClient = () {
-      final client = HttpClient();
-      client.badCertificateCallback = (cert, host, port) => true;
-      final effectiveProxy = _configuredProxy ?? ConfigService.loadConfig().customProxy;
-      if (effectiveProxy.isNotEmpty) {
-        final clean = effectiveProxy.replaceAll(RegExp(r'https?://|socks5?://'), '');
-        if (effectiveProxy.startsWith('socks')) {
-          client.findProxy = (uri) => 'SOCKS5 $clean; DIRECT';
-        } else {
-          client.findProxy = (uri) => 'PROXY $clean; DIRECT';
-        }
-      } else {
-        client.findProxy = HttpClient.findProxyFromEnvironment;
-      }
-      return client;
-    };
-    dio.httpClientAdapter = adapter;
-    return dio;
   }
 
   /// Internal JSON fetcher with multi-tier fallback (curl on desktop, WebView/Dio on mobile)
@@ -82,6 +62,7 @@ class IwaraApiService {
         final args = <String>[
           '-s',
           '-L',
+          '--fail',
           '--compressed',
           if (effectiveProxy.isNotEmpty) ...[
             '-x',

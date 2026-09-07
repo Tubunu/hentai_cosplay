@@ -31,7 +31,31 @@ class JableDownloadProvider extends ChangeNotifier {
   DateTime _lastProgressNotifyTime = DateTime.fromMillisecondsSinceEpoch(0);
   Timer? _progressThrottleTimer;
 
-  void Function()? onTasksChanged;
+  final List<void Function()> _tasksChangedListeners = [];
+
+  void addTasksChangedListener(void Function() listener) {
+    _tasksChangedListeners.add(listener);
+  }
+
+  void removeTasksChangedListener(void Function() listener) {
+    _tasksChangedListeners.remove(listener);
+  }
+
+  void notifyTasksChanged() {
+    for (final l in List.of(_tasksChangedListeners)) {
+      try {
+        l();
+      } catch (_) {}
+    }
+  }
+
+  // Backward-compatible setter
+  void Function()? get onTasksChanged => null;
+  set onTasksChanged(void Function()? callback) {
+    if (callback != null) {
+      addTasksChangedListener(callback);
+    }
+  }
 
   List<JableDownloadTask> get allTasks => List.unmodifiable(_tasks);
   List<JableDownloadTask> get activeTasks =>
@@ -445,7 +469,7 @@ class JableDownloadProvider extends ChangeNotifier {
         _historyRecords.insert(0, record);
         await _persistHistory();
 
-        onTasksChanged?.call();
+        notifyTasksChanged();
       }
     } catch (e) {
       debugPrint('Jable task ${task.name} execution error: $e');

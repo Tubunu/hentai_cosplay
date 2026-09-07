@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/album_item.dart';
 import '../models/browsing_history_record.dart';
 import '../models/video_item.dart';
+import '../services/config_service.dart';
 
 class BrowsingHistoryProvider extends ChangeNotifier {
   static const String _kStorageKey = 'hentai_cosplay_browsing_history_v1';
@@ -107,6 +108,7 @@ class BrowsingHistoryProvider extends ChangeNotifier {
 
     notifyListeners();
     await _saveHistory();
+    await ConfigService.setActiveViewingRecord(record);
   }
 
   /// Convenience for AlbumItem

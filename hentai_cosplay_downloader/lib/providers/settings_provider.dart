@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/app_config.dart';
+import '../models/resource_site_item.dart';
 import '../services/config_service.dart';
 import '../services/hc_api_service.dart';
 import '../services/mzt_api_service.dart';
@@ -165,8 +166,118 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> updateHiddenResourceSites(List<String> hiddenSites) async {
+    _config.hiddenResourceSites = List.from(hiddenSites);
+    await ConfigService.saveConfig(_config);
+    notifyListeners();
+  }
+
+  Future<bool> toggleHideResourceSite(String siteKey, {int totalSitesCount = 35}) async {
+    final list = List<String>.from(_config.hiddenResourceSites);
+    if (list.contains(siteKey)) {
+      list.remove(siteKey);
+    } else {
+      // Ensure at least 1 site remains visible
+      if (list.length >= totalSitesCount - 1) {
+        return false;
+      }
+      list.add(siteKey);
+    }
+    _config.hiddenResourceSites = list;
+    await ConfigService.saveConfig(_config);
+    notifyListeners();
+    return true;
+  }
+
+  bool isFavoriteResourceSite(String key) {
+    return _config.favoriteResourceSites.contains(key);
+  }
+
+  Future<void> toggleFavoriteResourceSite(String key) async {
+    final list = List<String>.from(_config.favoriteResourceSites);
+    if (list.contains(key)) {
+      list.remove(key);
+    } else {
+      list.add(key);
+    }
+    _config.favoriteResourceSites = list;
+    await ConfigService.saveConfig(_config);
+    notifyListeners();
+  }
+
+  Future<void> batchSetCategoryVisibility(List<String> keysInCategory, bool show) async {
+    final list = List<String>.from(_config.hiddenResourceSites);
+    if (show) {
+      list.removeWhere((k) => keysInCategory.contains(k));
+    } else {
+      for (final k in keysInCategory) {
+        if (!list.contains(k)) {
+          list.add(k);
+        }
+      }
+    }
+    _config.hiddenResourceSites = list;
+    await ConfigService.saveConfig(_config);
+    notifyListeners();
+  }
+
+  Future<void> unhideAllResourceSites() async {
+    _config.hiddenResourceSites = [];
+    await ConfigService.saveConfig(_config);
+    notifyListeners();
+  }
+
+  Future<void> resetOnlineResourceOrderAndVisibility() async {
+    _config.onlineResourceSortOrder = [];
+    _config.hiddenResourceSites = [];
+    _config.favoriteResourceSites = List.from(kDefaultFavoriteResourceSites);
+    await ConfigService.saveConfig(_config);
+    notifyListeners();
+  }
+
   Future<void> persistConfig() async {
     await ConfigService.saveConfig(_config);
+  }
+
+  Future<void> setLastActiveTabIndex(int index) async {
+    if (_config.lastActiveTabIndex == index) return;
+    _config.lastActiveTabIndex = index;
+    await ConfigService.saveConfig(_config);
+  }
+
+  Future<void> setLastSiteKey(ResourceMediaType mediaType, String siteKey) async {
+    if (mediaType == ResourceMediaType.image) {
+      if (_config.lastImageSiteKey == siteKey) return;
+      _config.lastImageSiteKey = siteKey;
+    } else {
+      if (_config.lastVideoSiteKey == siteKey) return;
+      _config.lastVideoSiteKey = siteKey;
+    }
+    await ConfigService.saveConfig(_config);
+  }
+
+  Future<void> setDisguiseMode(bool enabled) async {
+    _config.disguiseMode = enabled;
+    await ConfigService.saveConfig(_config);
+    notifyListeners();
+  }
+
+  Future<void> setDisguiseUnlockCode(String code) async {
+    _config.disguiseUnlockCode = code.trim();
+    await ConfigService.saveConfig(_config);
+    notifyListeners();
+  }
+
+  Future<void> setDisguiseQuickUnlock(bool enabled) async {
+    _config.disguiseQuickUnlock = enabled;
+    await ConfigService.saveConfig(_config);
+    notifyListeners();
+  }
+
+  Future<void> setDisguiseRelockOnBackground(bool enabled) async {
+    _config.disguiseRelockOnBackground = enabled;
+    await ConfigService.saveConfig(_config);
+    notifyListeners();
   }
 
   Future<int?> testConnectivity() async {

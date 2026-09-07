@@ -24,6 +24,8 @@ enum GallerySourceFilter {
   pixibb('PixiBB', MediaSourceType.pixibb),
   cosplaytele('CosplayTele', MediaSourceType.cosplaytele),
   nucosplay('NuCosplay', MediaSourceType.nucosplay),
+  cosvault('CosVault', MediaSourceType.cosvault),
+  galleryepic('GalleryEpic', MediaSourceType.galleryepic),
   coomer('Coomer', MediaSourceType.coomer),
   kuraa('Kuraa', MediaSourceType.kuraa);
 
@@ -124,6 +126,8 @@ class GalleryProvider extends ChangeNotifier {
   int get pixibbCount => _localAlbums.where((a) => a.sourceType == MediaSourceType.pixibb).length;
   int get cosplayteleCount => _localAlbums.where((a) => a.sourceType == MediaSourceType.cosplaytele).length;
   int get nucosplayCount => _localAlbums.where((a) => a.sourceType == MediaSourceType.nucosplay).length;
+  int get cosvaultCount => _localAlbums.where((a) => a.sourceType == MediaSourceType.cosvault).length;
+  int get galleryepicCount => _localAlbums.where((a) => a.sourceType == MediaSourceType.galleryepic).length;
   int get coomerCount => _localAlbums.where((a) => a.sourceType == MediaSourceType.coomer).length;
   int get kuraaCount => _localAlbums.where((a) => a.sourceType == MediaSourceType.kuraa).length;
 

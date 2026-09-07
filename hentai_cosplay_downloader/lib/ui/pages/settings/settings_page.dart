@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../models/app_config.dart';
 import '../../../providers/browsing_history_provider.dart';
+import '../../../providers/disguise_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../services/storage_service.dart';
 import '../../theme/ios_theme.dart';
@@ -590,12 +591,12 @@ class _SettingsPageState extends State<SettingsPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              '自定义站点排序',
+                              '在线图片与视频管理 (排序与显示)',
                               style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5),
                             ),
                             SizedBox(height: 2),
                             Text(
-                              '长按拖拽调整【在线资源】顶部标签与页面排列顺序',
+                              '图片11站与视频24站独立分段排序，自由设置显示或隐藏特定网站',
                               style: TextStyle(fontSize: 11.5, color: Colors.grey),
                             ),
                           ],
@@ -612,7 +613,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           child: const Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text('去排序', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12)),
+                              Text('去管理', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12)),
                               SizedBox(width: 2),
                               Icon(CupertinoIcons.chevron_right, color: Colors.white, size: 12),
                             ],
@@ -621,6 +622,218 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                     ],
                   ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+
+            // Section: App Disguise & Privacy Protection
+            _buildSectionHeader('应用伪装与隐私保护'),
+            _buildSettingCard(
+              isDark: isDark,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Disguise Switch
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFFFF2D55), Color(0xFF5856D6)],
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Center(
+                              child: Text(
+                                'S',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 20,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          const Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '开启 SomeACG 壁纸伪装',
+                                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                '未解锁时伪装成二次元壁纸站，隐藏真实内容',
+                                style: TextStyle(fontSize: 11, color: Colors.grey),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      CupertinoSwitch(
+                        activeTrackColor: const Color(0xFFFF2D55),
+                        value: config.disguiseMode,
+                        onChanged: (val) {
+                          settingsProv.setDisguiseMode(val);
+                        },
+                      ),
+                    ],
+                  ),
+
+                  if (config.disguiseMode) ...[
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Divider(height: 1, thickness: 0.5),
+                    ),
+
+                    // Unlock Passcode setting
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '搜索栏解锁暗号',
+                              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              '在壁纸站搜索框输入此暗号点击搜索即可解锁',
+                              style: TextStyle(fontSize: 11, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                        BouncingButton(
+                          onTap: () => _showEditUnlockCodeDialog(config.disguiseUnlockCode, settingsProv),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.08),
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  config.disguiseUnlockCode.isNotEmpty ? config.disguiseUnlockCode : 'open',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFFFF2D55),
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                const Icon(CupertinoIcons.pencil, size: 12, color: Colors.grey),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Quick Gesture Unlock Switch
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '长按 Logo 快捷解锁 (3秒)',
+                              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              '在壁纸站长按左上角 SomeACG 标志直接进入',
+                              style: TextStyle(fontSize: 11, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                        CupertinoSwitch(
+                          activeTrackColor: const Color(0xFFFF2D55),
+                          value: config.disguiseQuickUnlock,
+                          onChanged: (val) {
+                            settingsProv.setDisguiseQuickUnlock(val);
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Relock on background switch
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '切到后台自动锁上',
+                              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              '应用退入后台后重新切回时再次进入伪装',
+                              style: TextStyle(fontSize: 11, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                        CupertinoSwitch(
+                          activeTrackColor: const Color(0xFFFF2D55),
+                          value: config.disguiseRelockOnBackground,
+                          onChanged: (val) {
+                            settingsProv.setDisguiseRelockOnBackground(val);
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Immediate Lock / Preview Button
+                    BouncingButton(
+                      onTap: () {
+                        context.read<DisguiseProvider>().lock();
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFFF2D55), Color(0xFF5856D6)],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(CupertinoIcons.lock_shield_fill, color: Colors.white, size: 16),
+                            SizedBox(width: 6),
+                            Text(
+                              '立即进入伪装状态 (测试或应急锁定)',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -780,6 +993,51 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  void _showEditUnlockCodeDialog(String currentCode, SettingsProvider settingsProv) {
+    final controller = TextEditingController(text: currentCode);
+    showCupertinoDialog(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('修改搜索栏解锁暗号'),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                '在伪装壁纸页的搜索框输入此暗号并点击搜索，即可解除伪装。',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 10),
+              CupertinoTextField(
+                controller: controller,
+                placeholder: '例如: open 或 6666',
+                autofocus: true,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('取消'),
+            onPressed: () => Navigator.pop(ctx),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            child: const Text('保存'),
+            onPressed: () {
+              final newCode = controller.text.trim();
+              if (newCode.isNotEmpty) {
+                settingsProv.setDisguiseUnlockCode(newCode);
+              }
+              Navigator.pop(ctx);
+            },
+          ),
+        ],
       ),
     );
   }

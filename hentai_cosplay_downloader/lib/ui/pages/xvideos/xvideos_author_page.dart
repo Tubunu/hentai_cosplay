@@ -6,6 +6,7 @@ import '../../../providers/download_provider.dart';
 import '../../../providers/xvideos_author_provider.dart';
 import '../../../services/xvideos/xvideos_api_service.dart';
 import '../../widgets/bouncing_button.dart';
+import '../../widgets/jump_page_dialog.dart';
 import '../../widgets/scroll_to_top_button.dart';
 import 'widgets/xvideos_video_card.dart';
 import 'xvideos_detail_page.dart';
@@ -59,45 +60,14 @@ class _XVideosAuthorPageViewState extends State<_XVideosAuthorPageView> {
   }
 
   void _showJumpPageDialog(BuildContext context, XVideosAuthorProvider provider) {
-    int selected = provider.currentPage;
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-        const themeColor = Color(0xFFE50914);
-        return AlertDialog(
-          backgroundColor: isDark ? const Color(0xFF1C1C1E) : Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text('跳转页码', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-          content: SizedBox(
-            height: 150,
-            child: CupertinoPicker(
-              itemExtent: 40,
-              scrollController: FixedExtentScrollController(initialItem: provider.currentPage - 1),
-              onSelectedItemChanged: (index) {
-                selected = index + 1;
-              },
-              children: List.generate(
-                provider.totalPages > 0 ? provider.totalPages : 50,
-                (index) => Center(child: Text('第 ${index + 1} 页')),
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('取消', style: TextStyle(color: Colors.grey)),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                provider.loadPage(selected, clearItems: true);
-                _scrollToTop();
-              },
-              child: const Text('确定', style: TextStyle(color: themeColor, fontWeight: FontWeight.bold)),
-            ),
-          ],
-        );
+    JumpPageDialog.show(
+      context,
+      currentPage: provider.currentPage,
+      totalPages: provider.totalPages,
+      themeColor: const Color(0xFFE50914),
+      onPageSelected: (selected) {
+        provider.loadPage(selected, clearItems: true);
+        _scrollToTop();
       },
     );
   }

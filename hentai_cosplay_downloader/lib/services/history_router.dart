@@ -6,8 +6,10 @@ import '../services/kuraa/kuraa_api_service.dart';
 import '../ui/pages/browse/album_detail_page.dart';
 import '../ui/pages/coomer/coomer_detail_page.dart';
 import '../ui/pages/cosplaytele/cosplaytele_detail_page.dart';
+import '../ui/pages/cosvault/cosvault_detail_page.dart';
 import '../ui/pages/eporner/eporner_detail_page.dart';
 import '../ui/pages/exhentai/exhentai_detail_page.dart';
+import '../ui/pages/galleryepic/galleryepic_detail_page.dart';
 import '../ui/pages/hanime1/hanime1_detail_page.dart';
 import '../ui/pages/hqporner/hqporner_detail_page.dart';
 import '../ui/pages/iwara/iwara_detail_page.dart';
@@ -25,6 +27,10 @@ import '../ui/pages/video/video_detail_page.dart';
 import '../ui/pages/video/video_player_page.dart';
 import '../ui/pages/video/web_video_player_page.dart';
 import '../ui/pages/xvideos/xvideos_detail_page.dart';
+import '../ui/pages/cosxplay/cosxplay_detail_page.dart';
+import '../ui/pages/cosplayporntube/cosplayporntube_detail_page.dart';
+import '../ui/pages/xhamster/xhamster_detail_page.dart';
+import '../ui/pages/xnxx/xnxx_detail_page.dart';
 
 class HistoryRouter {
   static void openRecord(BuildContext context, BrowsingHistoryRecord record) {
@@ -112,6 +118,12 @@ class HistoryRouter {
       case 'nucosplay':
         targetPage = NucosplayDetailPage(item: albumItem);
         break;
+      case 'cosvault':
+        targetPage = CosvaultDetailPage(item: albumItem);
+        break;
+      case 'galleryepic':
+        targetPage = GalleryepicDetailPage(item: albumItem);
+        break;
       case 'hanime1':
         targetPage = Hanime1DetailPage(item: videoItem);
         break;
@@ -135,6 +147,18 @@ class HistoryRouter {
         break;
       case 'xvideos':
         targetPage = XVideosDetailPage(item: videoItem);
+        break;
+      case 'cosxplay':
+        targetPage = CosxplayDetailPage(item: videoItem);
+        break;
+      case 'cosplayporntube':
+        targetPage = CosplayporntubeDetailPage(item: videoItem);
+        break;
+      case 'xhamster':
+        targetPage = XhamsterDetailPage(item: videoItem);
+        break;
+      case 'xnxx':
+        targetPage = XnxxDetailPage(item: videoItem);
         break;
       case 'jable':
         WebVideoPlayerPage.open(context, url: record.detailUrl, title: record.title);

@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import '../models/album_item.dart';
 import 'coomer/coomer_api_service.dart';
 import 'cosplaytele/cosplaytele_api_service.dart';
+import 'cosvault/cosvault_api_service.dart';
 import 'eporner/eporner_api_service.dart';
 import 'exhentai/exhentai_api_service.dart';
+import 'galleryepic/galleryepic_api_service.dart';
 import 'hanime1/hanime1_api_service.dart';
 import 'hc_api_service.dart';
 import 'hqporner/hqporner_api_service.dart';
@@ -21,12 +23,25 @@ import 'rule34video/rule34video_api_service.dart';
 import 'spankbang/spankbang_api_service.dart';
 import 'video_api_service.dart';
 import 'xvideos/xvideos_api_service.dart';
+import 'cosxplay/cosxplay_api_service.dart';
+import 'cosplayporntube/cosplayporntube_api_service.dart';
+import 'xhamster/xhamster_api_service.dart';
+import 'xnxx/xnxx_api_service.dart';
+import 'nsfwpub/nsfwpub_api_service.dart';
+import 'thothub/thothub_api_service.dart';
+import 'njav/njav_api_service.dart';
+import 'vjav/vjav_api_service.dart';
+import 'javguru/javguru_api_service.dart';
+import 'av123/av123_api_service.dart';
+import 'javmost/javmost_api_service.dart';
 
 import '../ui/pages/browse/album_detail_page.dart';
 import '../ui/pages/coomer/coomer_detail_page.dart';
 import '../ui/pages/cosplaytele/cosplaytele_detail_page.dart';
+import '../ui/pages/cosvault/cosvault_detail_page.dart';
 import '../ui/pages/eporner/eporner_detail_page.dart';
 import '../ui/pages/exhentai/exhentai_detail_page.dart';
+import '../ui/pages/galleryepic/galleryepic_detail_page.dart';
 import '../ui/pages/hanime1/hanime1_detail_page.dart';
 import '../ui/pages/hqporner/hqporner_detail_page.dart';
 import '../ui/pages/iwara/iwara_detail_page.dart';
@@ -42,6 +57,17 @@ import '../ui/pages/rule34video/rule34video_detail_page.dart';
 import '../ui/pages/spankbang/spankbang_detail_page.dart';
 import '../ui/pages/video/video_detail_page.dart';
 import '../ui/pages/xvideos/xvideos_detail_page.dart';
+import '../ui/pages/cosxplay/cosxplay_detail_page.dart';
+import '../ui/pages/cosplayporntube/cosplayporntube_detail_page.dart';
+import '../ui/pages/xhamster/xhamster_detail_page.dart';
+import '../ui/pages/xnxx/xnxx_detail_page.dart';
+import '../ui/pages/nsfwpub/nsfwpub_detail_page.dart';
+import '../ui/pages/thothub/thothub_detail_page.dart';
+import '../ui/pages/njav/njav_detail_page.dart';
+import '../ui/pages/vjav/vjav_detail_page.dart';
+import '../ui/pages/javguru/javguru_detail_page.dart';
+import '../ui/pages/av123/av123_detail_page.dart';
+import '../ui/pages/javmost/javmost_detail_page.dart';
 
 enum VideoSiteType {
   hcVideo('HC影视'),
@@ -54,7 +80,17 @@ enum VideoSiteType {
   hqporner('HQPorner'),
   spankbang('SpankBang'),
   pornhub('Pornhub'),
-  xvideos('XVideos');
+  xvideos('XVideos'),
+  cosxplay('CosXPlay'),
+  cosplayporntube('CosplayPornTube'),
+  xhamster('xHamster'),
+  xnxx('XNXX'),
+  thothub('Thothub'),
+  njav('NJAV'),
+  vjav('VJAV'),
+  javguru('JavGuru'),
+  av123('123AV'),
+  javmost('JavMost');
 
   final String label;
   const VideoSiteType(this.label);
@@ -153,6 +189,28 @@ class RandomDiscoveryService {
             final item = res.items[_rng.nextInt(res.items.length)];
             if (!context.mounted) return;
             _navigateTo(context, NucosplayDetailPage(item: item), replace);
+            return;
+          }
+          break;
+
+        case MediaSourceType.cosvault:
+          final randomPage = _rng.nextInt(90) + 1;
+          final res = await CosvaultApiService.fetchPageData(page: randomPage);
+          if (res != null && res.items.isNotEmpty) {
+            final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
+            _navigateTo(context, CosvaultDetailPage(item: item), replace);
+            return;
+          }
+          break;
+
+        case MediaSourceType.galleryepic:
+          final randomPage = _rng.nextInt(150) + 1;
+          final res = await GalleryepicApiService.fetchPageData(page: randomPage);
+          if (res != null && res.items.isNotEmpty) {
+            final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
+            _navigateTo(context, GalleryepicDetailPage(item: item), replace);
             return;
           }
           break;
@@ -262,6 +320,17 @@ class RandomDiscoveryService {
               );
               return;
             }
+          }
+          break;
+
+        case MediaSourceType.nsfwpub:
+          final randomPage = _rng.nextInt(30) + 1;
+          final res = await NsfwpubApiService.fetchPageData(page: randomPage);
+          if (res.items.isNotEmpty) {
+            final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
+            _navigateTo(context, NsfwpubDetailPage(item: item), replace);
+            return;
           }
           break;
       }
@@ -413,6 +482,116 @@ class RandomDiscoveryService {
             final item = res.items[_rng.nextInt(res.items.length)];
             if (!context.mounted) return;
             _navigateTo(context, XVideosDetailPage(item: item), replace);
+            return;
+          }
+          break;
+
+        case VideoSiteType.cosxplay:
+          final randomPage = _rng.nextInt(100) + 1;
+          final res = await CosxplayApiService.fetchPageData(page: randomPage);
+          if (res.items.isNotEmpty) {
+            final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
+            _navigateTo(context, CosxplayDetailPage(item: item), replace);
+            return;
+          }
+          break;
+
+        case VideoSiteType.cosplayporntube:
+          final randomPage = _rng.nextInt(100) + 1;
+          final res = await CosplayporntubeApiService.fetchPageData(page: randomPage);
+          if (res.items.isNotEmpty) {
+            final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
+            _navigateTo(context, CosplayporntubeDetailPage(item: item), replace);
+            return;
+          }
+          break;
+
+        case VideoSiteType.xhamster:
+          final randomPage = _rng.nextInt(50) + 1;
+          final res = await XhamsterApiService.fetchPageData(page: randomPage);
+          if (res.items.isNotEmpty) {
+            final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
+            _navigateTo(context, XhamsterDetailPage(item: item), replace);
+            return;
+          }
+          break;
+
+        case VideoSiteType.xnxx:
+          final randomPage = _rng.nextInt(50) + 1;
+          final res = await XnxxApiService.fetchPageData(page: randomPage);
+          if (res.items.isNotEmpty) {
+            final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
+            _navigateTo(context, XnxxDetailPage(item: item), replace);
+            return;
+          }
+          break;
+
+        case VideoSiteType.thothub:
+          final randomPage = _rng.nextInt(50) + 1;
+          final res = await ThothubApiService.fetchPageData(page: randomPage);
+          if (res.items.isNotEmpty) {
+            final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
+            _navigateTo(context, ThothubDetailPage(item: item), replace);
+            return;
+          }
+          break;
+
+        case VideoSiteType.njav:
+          final randomPage = _rng.nextInt(20) + 1;
+          final res = await NjavApiService.fetchVideos(page: randomPage);
+          if (res.items.isNotEmpty) {
+            final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
+            _navigateTo(context, NjavDetailPage(item: item), replace);
+            return;
+          }
+          break;
+
+        case VideoSiteType.vjav:
+          final randomPage = _rng.nextInt(20) + 1;
+          final res = await VjavApiService.fetchVideos(page: randomPage);
+          if (res.items.isNotEmpty) {
+            final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
+            _navigateTo(context, VjavDetailPage(item: item), replace);
+            return;
+          }
+          break;
+
+        case VideoSiteType.javguru:
+          final randomPage = _rng.nextInt(20) + 1;
+          final res = await JavguruApiService.fetchVideos(page: randomPage);
+          if (res.items.isNotEmpty) {
+            final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
+            _navigateTo(context, JavguruDetailPage(item: item), replace);
+            return;
+          }
+          break;
+
+        case VideoSiteType.av123:
+          final randomPage = _rng.nextInt(20) + 1;
+          final res = await Av123ApiService.fetchVideos(page: randomPage);
+          if (res.items.isNotEmpty) {
+            final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
+            _navigateTo(context, Av123DetailPage(item: item), replace);
+            return;
+          }
+          break;
+
+        case VideoSiteType.javmost:
+          final randomPage = _rng.nextInt(20) + 1;
+          final res = await JavmostApiService.fetchVideos(page: randomPage);
+          if (res.items.isNotEmpty) {
+            final item = res.items[_rng.nextInt(res.items.length)];
+            if (!context.mounted) return;
+            _navigateTo(context, JavmostDetailPage(item: item), replace);
             return;
           }
           break;

@@ -10,6 +10,15 @@ const List<String> kDefaultMztProxyDomains = [
   'https://tgproxy2.1258012.xyz',
 ];
 
+const List<String> kDefaultFavoriteResourceSites = [
+  'hc_gallery',
+  'jable',
+  'mzt',
+  'hanime1',
+  'njav',
+  'misskon',
+];
+
 class AppConfig {
   String savePath;
   int packWorkers;
@@ -27,6 +36,15 @@ class AppConfig {
   String jableResolutionPref; // '1080p', 'highest', '720p', '480p', 'lowest'
   int jableWorkers;
   List<String> onlineResourceSortOrder;
+  List<String> hiddenResourceSites;
+  List<String> favoriteResourceSites;
+  int lastActiveTabIndex;
+  String lastImageSiteKey;
+  String lastVideoSiteKey;
+  bool disguiseMode;
+  String disguiseUnlockCode;
+  bool disguiseQuickUnlock;
+  bool disguiseRelockOnBackground;
 
   AppConfig({
     this.savePath = '',
@@ -45,8 +63,19 @@ class AppConfig {
     this.jableResolutionPref = '1080p',
     this.jableWorkers = 3,
     List<String>? onlineResourceSortOrder,
+    List<String>? hiddenResourceSites,
+    List<String>? favoriteResourceSites,
+    this.lastActiveTabIndex = 0,
+    this.lastImageSiteKey = 'hc_gallery',
+    this.lastVideoSiteKey = 'jable',
+    this.disguiseMode = false,
+    this.disguiseUnlockCode = 'open',
+    this.disguiseQuickUnlock = true,
+    this.disguiseRelockOnBackground = false,
   })  : mztProxyDomains = mztProxyDomains ?? List.from(kDefaultMztProxyDomains),
-        onlineResourceSortOrder = onlineResourceSortOrder ?? [];
+        onlineResourceSortOrder = onlineResourceSortOrder ?? [],
+        hiddenResourceSites = hiddenResourceSites ?? [],
+        favoriteResourceSites = favoriteResourceSites ?? List.from(kDefaultFavoriteResourceSites);
 
   AppConfig copyWith({
     String? savePath,
@@ -65,6 +94,15 @@ class AppConfig {
     String? jableResolutionPref,
     int? jableWorkers,
     List<String>? onlineResourceSortOrder,
+    List<String>? hiddenResourceSites,
+    List<String>? favoriteResourceSites,
+    int? lastActiveTabIndex,
+    String? lastImageSiteKey,
+    String? lastVideoSiteKey,
+    bool? disguiseMode,
+    String? disguiseUnlockCode,
+    bool? disguiseQuickUnlock,
+    bool? disguiseRelockOnBackground,
   }) {
     return AppConfig(
       savePath: savePath ?? this.savePath,
@@ -83,6 +121,15 @@ class AppConfig {
       jableResolutionPref: jableResolutionPref ?? this.jableResolutionPref,
       jableWorkers: jableWorkers ?? this.jableWorkers,
       onlineResourceSortOrder: onlineResourceSortOrder ?? List.from(this.onlineResourceSortOrder),
+      hiddenResourceSites: hiddenResourceSites ?? List.from(this.hiddenResourceSites),
+      favoriteResourceSites: favoriteResourceSites ?? List.from(this.favoriteResourceSites),
+      lastActiveTabIndex: lastActiveTabIndex ?? this.lastActiveTabIndex,
+      lastImageSiteKey: lastImageSiteKey ?? this.lastImageSiteKey,
+      lastVideoSiteKey: lastVideoSiteKey ?? this.lastVideoSiteKey,
+      disguiseMode: disguiseMode ?? this.disguiseMode,
+      disguiseUnlockCode: disguiseUnlockCode ?? this.disguiseUnlockCode,
+      disguiseQuickUnlock: disguiseQuickUnlock ?? this.disguiseQuickUnlock,
+      disguiseRelockOnBackground: disguiseRelockOnBackground ?? this.disguiseRelockOnBackground,
     );
   }
 
@@ -108,6 +155,21 @@ class AppConfig {
               ?.map((e) => e.toString())
               .toList() ??
           [],
+      hiddenResourceSites: (json['hiddenResourceSites'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
+      favoriteResourceSites: (json['favoriteResourceSites'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          List.from(kDefaultFavoriteResourceSites),
+      lastActiveTabIndex: (json['lastActiveTabIndex'] as num?)?.toInt().clamp(0, 4) ?? 0,
+      lastImageSiteKey: json['lastImageSiteKey'] as String? ?? 'hc_gallery',
+      lastVideoSiteKey: json['lastVideoSiteKey'] as String? ?? 'jable',
+      disguiseMode: json['disguiseMode'] as bool? ?? false,
+      disguiseUnlockCode: json['disguiseUnlockCode'] as String? ?? 'open',
+      disguiseQuickUnlock: json['disguiseQuickUnlock'] as bool? ?? true,
+      disguiseRelockOnBackground: json['disguiseRelockOnBackground'] as bool? ?? false,
     );
   }
 
@@ -128,6 +190,15 @@ class AppConfig {
     'jableResolutionPref': jableResolutionPref,
     'jableWorkers': jableWorkers,
     'onlineResourceSortOrder': onlineResourceSortOrder,
+    'hiddenResourceSites': hiddenResourceSites,
+    'favoriteResourceSites': favoriteResourceSites,
+    'lastActiveTabIndex': lastActiveTabIndex,
+    'lastImageSiteKey': lastImageSiteKey,
+    'lastVideoSiteKey': lastVideoSiteKey,
+    'disguiseMode': disguiseMode,
+    'disguiseUnlockCode': disguiseUnlockCode,
+    'disguiseQuickUnlock': disguiseQuickUnlock,
+    'disguiseRelockOnBackground': disguiseRelockOnBackground,
   };
 
   String toRawJson() => jsonEncode(toJson());
@@ -152,11 +223,20 @@ class AppConfig {
         other.navBarOpacity == navBarOpacity &&
         other.jableResolutionPref == jableResolutionPref &&
         other.jableWorkers == jableWorkers &&
-        listEquals(other.onlineResourceSortOrder, onlineResourceSortOrder);
+        listEquals(other.onlineResourceSortOrder, onlineResourceSortOrder) &&
+        listEquals(other.hiddenResourceSites, hiddenResourceSites) &&
+        listEquals(other.favoriteResourceSites, favoriteResourceSites) &&
+        other.lastActiveTabIndex == lastActiveTabIndex &&
+        other.lastImageSiteKey == lastImageSiteKey &&
+        other.lastVideoSiteKey == lastVideoSiteKey &&
+        other.disguiseMode == disguiseMode &&
+        other.disguiseUnlockCode == disguiseUnlockCode &&
+        other.disguiseQuickUnlock == disguiseQuickUnlock &&
+        other.disguiseRelockOnBackground == disguiseRelockOnBackground;
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
         savePath,
         packWorkers,
         imgWorkers,
@@ -173,5 +253,14 @@ class AppConfig {
         jableResolutionPref,
         jableWorkers,
         Object.hashAll(onlineResourceSortOrder),
-      );
+        Object.hashAll(hiddenResourceSites),
+        Object.hashAll(favoriteResourceSites),
+        lastActiveTabIndex,
+        lastImageSiteKey,
+        lastVideoSiteKey,
+        disguiseMode,
+        disguiseUnlockCode,
+        disguiseQuickUnlock,
+        disguiseRelockOnBackground,
+      ]);
 }

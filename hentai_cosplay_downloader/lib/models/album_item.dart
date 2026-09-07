@@ -10,7 +10,10 @@ enum MediaSourceType {
   exhentai('ExHentai', 'EX'),
   pixibb('PixiBB', 'PBB'),
   cosplaytele('CosplayTele', 'CPT'),
-  nucosplay('NuCosplay', 'NCP');
+  nucosplay('NuCosplay', 'NCP'),
+  cosvault('CosVault', 'CV'),
+  galleryepic('GalleryEpic', 'GE'),
+  nsfwpub('NSFWPub', 'NFP');
 
   final String label;
   final String badge;
@@ -316,6 +319,21 @@ class AlbumItem {
     // 8. Kuraa
     if (combined.contains('kuraa') || combined.contains('185.207.153.226')) {
       return MediaSourceType.kuraa;
+    }
+
+    // 9. CosVault
+    if (combined.contains('cosvault') || combined.contains('cosvault.top')) {
+      return MediaSourceType.cosvault;
+    }
+
+    // 10. GalleryEpic
+    if (combined.contains('galleryepic') || combined.contains('galleryepic.xyz') || combined.contains('galleryepic.com')) {
+      return MediaSourceType.galleryepic;
+    }
+
+    // 11. NSFWPub
+    if (combined.contains('nsfwpub') || combined.contains('nsfwpub.com')) {
+      return MediaSourceType.nsfwpub;
     }
 
     if (sourceTypeName == 'hc' || sourceTypeName == 'hentai_cosplay') {

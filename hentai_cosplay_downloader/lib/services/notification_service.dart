@@ -75,6 +75,7 @@ class NotificationService {
     required int totalCount,
     bool isPaused = false,
   }) async {
+    if (!Platform.isAndroid && !Platform.isIOS) return;
     if (!_isInitialized) await init();
 
     final now = DateTime.now().millisecondsSinceEpoch;
@@ -99,6 +100,10 @@ class NotificationService {
       maxProgress: 100,
       progress: percent,
       color: const Color(0xFFFF2D55),
+      channelShowBadge: false,
+      category: AndroidNotificationCategory.progress,
+      playSound: false,
+      enableVibration: false,
     );
 
     const darwinDetails = DarwinNotificationDetails(
@@ -130,6 +135,7 @@ class NotificationService {
     required String title,
     required int imagesCount,
   }) async {
+    if (!Platform.isAndroid && !Platform.isIOS) return;
     if (!_isInitialized) await init();
 
     const androidDetails = AndroidNotificationDetails(
@@ -173,6 +179,7 @@ class NotificationService {
     required int imagesCount,
     required double durationSec,
   }) async {
+    if (!Platform.isAndroid && !Platform.isIOS) return;
     if (!_isInitialized) await init();
 
     // Cancel ongoing progress notification first
@@ -214,6 +221,7 @@ class NotificationService {
 
   /// Cancel download progress notification
   static Future<void> cancelNotification() async {
+    if (!Platform.isAndroid && !Platform.isIOS) return;
     if (!_isInitialized) return;
     try {
       await _notificationsPlugin.cancel(_downloadNotificationId);

@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../models/history_record.dart';
 import '../../providers/download_provider.dart';
 import '../../providers/gallery_provider.dart';
 import '../../providers/history_provider.dart';
@@ -8,11 +9,12 @@ import '../../providers/jable_download_provider.dart';
 import '../../providers/local_jable_provider.dart';
 import '../../providers/local_video_provider.dart';
 import '../../providers/settings_provider.dart';
+import '../../services/config_service.dart';
+import '../../services/history_router.dart';
 import '../theme/ios_theme.dart';
 import '../widgets/bouncing_button.dart';
 import '../widgets/liquid_glass.dart';
 import '../widgets/mini_download_bar.dart';
-import 'jable/jable_browse_page.dart';
 import 'resources/local_resources_page.dart';
 import 'resources/online_resources_page.dart';
 import 'settings/settings_page.dart';
@@ -27,13 +29,15 @@ class HomeScaffold extends StatefulWidget {
 
 class _HomeScaffoldState extends State<HomeScaffold> {
   int _currentIndex = 0;
-  bool _jableActivated = false;
   DownloadProvider? _downloadProv;
   JableDownloadProvider? _jableDownloadProv;
+  void Function(HistoryRecord)? _albumCompletedHandler;
+  void Function()? _albumsChangedHandler;
+  void Function()? _jableTasksChangedHandler;
 
   List<Widget> get _pages => [
-    const OnlineResourcesPage(),                                          // 0: 在线资源
-    _jableActivated ? const JableBrowsePage() : const SizedBox.shrink(), // 1: Jable 专区 (仅在点击激活后挂载)
+    const OnlineImagesPage(),                                             // 0: 在线图片
+    const OnlineVideosPage(),                                             // 1: 在线视频 (含 Jable 及全部视频源)
     const DownloadTasksPage(),                                            // 2: 下载任务 (内置历史与三分类)
     const LocalResourcesPage(),                                           // 3: 本地资源 (图片、视频、Jable)
     const SettingsPage(),                                                 // 4: 系统设置
@@ -42,6 +46,7 @@ class _HomeScaffoldState extends State<HomeScaffold> {
   @override
   void initState() {
     super.initState();
+    _currentIndex = ConfigService.loadConfig().lastActiveTabIndex.clamp(0, 4);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _downloadProv = context.read<DownloadProvider>();
@@ -53,39 +58,58 @@ class _HomeScaffoldState extends State<HomeScaffold> {
       final localJableProv = context.read<LocalJableProvider>();
       final settingsProv = context.read<SettingsProvider>();
 
-      _downloadProv?.onAlbumCompleted = (record) {
+      _albumCompletedHandler = (record) {
+        if (!mounted) return;
         historyProv.addRecord(record);
       };
-      _downloadProv?.onAlbumsChanged = () {
+      _albumsChangedHandler = () {
+        if (!mounted) return;
         galleryProv.scanLocalDirectory(settingsProv.config.savePath);
         localVideoProv.scanLocalVideos(settingsProv.config.savePath);
       };
-
-      _jableDownloadProv?.onTasksChanged = () {
+      _jableTasksChangedHandler = () {
+        if (!mounted) return;
         localJableProv.scanLocalVideos();
       };
+
+      if (_albumCompletedHandler != null) {
+        _downloadProv?.addAlbumCompletedListener(_albumCompletedHandler!);
+      }
+      if (_albumsChangedHandler != null) {
+        _downloadProv?.addAlbumsChangedListener(_albumsChangedHandler!);
+      }
+      if (_jableTasksChangedHandler != null) {
+        _jableDownloadProv?.addTasksChangedListener(_jableTasksChangedHandler!);
+      }
+
+      // Check if there was an active viewing record before process termination
+      final activeRecord = ConfigService.getActiveViewingRecord();
+      if (activeRecord != null) {
+        HistoryRouter.openRecord(context, activeRecord);
+      }
     });
   }
 
   @override
   void dispose() {
-    _downloadProv?.onAlbumCompleted = null;
-    _downloadProv?.onAlbumsChanged = null;
+    if (_albumCompletedHandler != null) {
+      _downloadProv?.removeAlbumCompletedListener(_albumCompletedHandler!);
+    }
+    if (_albumsChangedHandler != null) {
+      _downloadProv?.removeAlbumsChangedListener(_albumsChangedHandler!);
+    }
+    if (_jableTasksChangedHandler != null) {
+      _jableDownloadProv?.removeTasksChangedListener(_jableTasksChangedHandler!);
+    }
     _downloadProv = null;
-    _jableDownloadProv?.onTasksChanged = null;
     _jableDownloadProv = null;
     super.dispose();
   }
 
   void _switchIndex(int index) {
-    if (index == 1 && !_jableActivated) {
-      setState(() {
-        _jableActivated = true;
-        _currentIndex = index;
-      });
-      return;
-    }
+    if (_currentIndex == index) return;
     setState(() => _currentIndex = index);
+    context.read<SettingsProvider>().setLastActiveTabIndex(index);
   }
 
   @override
@@ -133,16 +157,16 @@ class _HomeScaffoldState extends State<HomeScaffold> {
                     children: [
                       _buildNavItem(
                         index: 0,
-                        icon: CupertinoIcons.compass,
-                        activeIcon: CupertinoIcons.compass_fill,
-                        label: '在线资源',
+                        icon: CupertinoIcons.photo_on_rectangle,
+                        activeIcon: CupertinoIcons.photo_fill_on_rectangle_fill,
+                        label: '在线图片',
                         isDark: isDark,
                       ),
                       _buildNavItem(
                         index: 1,
                         icon: CupertinoIcons.play_rectangle,
                         activeIcon: CupertinoIcons.play_rectangle_fill,
-                        label: 'Jable',
+                        label: '在线视频',
                         isDark: isDark,
                       ),
                       _buildNavItem(

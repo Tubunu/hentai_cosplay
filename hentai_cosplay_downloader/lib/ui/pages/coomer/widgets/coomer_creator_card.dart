@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import '../../../../services/coomer/coomer_api_service.dart';
 import '../../../theme/ios_theme.dart';
 import '../../../widgets/bouncing_button.dart';
-import '../../../widgets/frosted_glass.dart';
 
 class CoomerCreatorCard extends StatelessWidget {
   final CoomerCreator creator;
@@ -23,11 +22,23 @@ class CoomerCreatorCard extends StatelessWidget {
 
     return BouncingButton(
       onTap: onTap,
-      child: FrostedGlass(
-        borderRadius: 18,
-        blur: 15,
+      child: Container(
         padding: const EdgeInsets.all(12),
-        backgroundColor: isDark ? const Color(0x991E1E24) : Colors.white,
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E1E24) : Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06),
+            width: 0.8,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
         child: Row(
           children: [
             // Creator Avatar
