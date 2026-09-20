@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hentai_cosplay_downloader/main.dart';
 import 'package:hentai_cosplay_downloader/providers/browse_provider.dart';
+import 'package:hentai_cosplay_downloader/providers/disguise_provider.dart';
 import 'package:hentai_cosplay_downloader/providers/download_provider.dart';
+import 'package:hentai_cosplay_downloader/providers/favorite_provider.dart';
 import 'package:hentai_cosplay_downloader/providers/gallery_provider.dart';
 import 'package:hentai_cosplay_downloader/providers/history_provider.dart';
 import 'package:hentai_cosplay_downloader/providers/local_video_provider.dart';
@@ -34,11 +36,15 @@ void main() {
     final galleryProv = GalleryProvider();
     final localVideoProv = LocalVideoProvider();
     final localJableProv = LocalJableProvider();
+    final disguiseProv = DisguiseProvider(disguiseMode: false);
+    final favoriteProv = FavoriteProvider();
 
     await tester.pumpWidget(
       MultiProvider(
         providers: [
           ChangeNotifierProvider.value(value: settingsProv),
+          ChangeNotifierProvider.value(value: disguiseProv),
+          ChangeNotifierProvider.value(value: favoriteProv),
           ChangeNotifierProvider.value(value: browseProv),
           ChangeNotifierProvider.value(value: mztBrowseProv),
           ChangeNotifierProvider.value(value: videoBrowseProv),
@@ -57,12 +63,15 @@ void main() {
     // Initial frame check
     expect(find.byType(MaterialApp), findsOneWidget);
 
+    // Let any pending retry timers/async calls settle
+    await tester.pump(const Duration(seconds: 3));
+
+    // Unmount widget tree before disposing providers
+    await tester.pumpWidget(const SizedBox.shrink());
+
     // Dispose manually instantiated providers that own timers
     downloadProv.dispose();
     jableDownloadProv.dispose();
     historyProv.dispose();
-
-    // Let any pending retry timers/async calls settle
-    await tester.pump(const Duration(seconds: 5));
   });
 }

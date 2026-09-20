@@ -33,9 +33,14 @@ class XhamsterApiService {
   static const String kBaseUrl = 'https://xhamster.com';
 
   static String? _configuredProxy;
+  static Dio _dio = _createDio();
 
   static void setProxy(String? proxy) {
     _configuredProxy = proxy?.trim();
+    try {
+      _dio.close(force: true);
+    } catch (_) {}
+    _dio = _createDio();
   }
 
   static Dio _createDio() {
@@ -80,7 +85,7 @@ class XhamsterApiService {
     XhamsterCategory category = XhamsterCategory.trending,
     String? keyword,
   }) async {
-    final dio = _createDio();
+    final dio = _dio;
     final url = buildUrl(page: page, category: category, keyword: keyword);
     debugPrint('[XhamsterApiService] Fetching list: $url');
 
@@ -289,7 +294,7 @@ class XhamsterApiService {
 
   /// Resolve full video details including direct HLS m3u8 or MP4 streaming URLs
   static Future<VideoItem> resolveVideoDetail(VideoItem item) async {
-    final dio = _createDio();
+    final dio = _dio;
     debugPrint('[XhamsterApiService] Resolving detail: ${item.detailUrl}');
 
     final response = await dio.get<String>(

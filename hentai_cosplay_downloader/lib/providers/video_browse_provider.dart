@@ -65,32 +65,42 @@ class VideoBrowseProvider extends ChangeNotifier {
     }
   }
 
+  void _resetSelection() {
+    _selectedSlugs.clear();
+    _isSelectionMode = false;
+  }
+
   void setCategory(VideoCategory newCat) {
     _category = newCat;
     _searchKeyword = '';
     _currentTag = null;
+    _resetSelection();
     loadPage(1);
   }
 
   void setSearchKeyword(String keyword) {
     _searchKeyword = keyword.trim();
     _currentTag = null;
+    _resetSelection();
     loadPage(1);
   }
 
   void setTag(String tag) {
     _currentTag = tag.trim();
     _searchKeyword = '';
+    _resetSelection();
     loadPage(1);
   }
 
   void clearSearch() {
     _searchKeyword = '';
+    _resetSelection();
     loadPage(1);
   }
 
   void clearTag() {
     _currentTag = null;
+    _resetSelection();
     loadPage(1);
   }
 
@@ -98,6 +108,7 @@ class VideoBrowseProvider extends ChangeNotifier {
     _category = VideoCategory.latest;
     _searchKeyword = '';
     _currentTag = null;
+    _resetSelection();
     loadPage(1);
   }
 
@@ -174,8 +185,6 @@ class VideoBrowseProvider extends ChangeNotifier {
     } finally {
       if (currentReq == _requestId && !_disposed) {
         _isLoading = false;
-        _selectedSlugs.clear();
-        _isSelectionMode = false;
         notifyListeners();
       }
     }

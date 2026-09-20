@@ -1,21 +1,20 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:photo_view/photo_view.dart';
-import 'package:photo_view/photo_view_gallery.dart';
 import 'package:provider/provider.dart';
-import 'package:share_plus/share_plus.dart';
+import '../../widgets/unified_photo_viewer.dart';
 import '../../../models/album_item.dart';
+import '../../../models/download_task.dart';
 import '../../../providers/browse_provider.dart';
 import '../../../providers/browsing_history_provider.dart';
 import '../../../providers/download_provider.dart';
+import '../../../providers/favorite_provider.dart';
 import '../../../services/hc_api_service.dart';
 import '../../theme/ios_theme.dart';
 import '../../widgets/bouncing_button.dart';
-import '../../widgets/frosted_glass.dart';
 import '../../widgets/random_action_button.dart';
 import '../../widgets/scroll_to_top_button.dart';
+import 'package:hentai_cosplay_downloader/utils/app_share.dart';
 
 class AlbumDetailPage extends StatefulWidget {
   final AlbumItem initialItem;
@@ -49,21 +48,29 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        context.read<BrowsingHistoryProvider>().recordAlbum(
-          _item,
-          siteKey: 'hc_gallery',
-          siteName: 'HC 图集',
-          siteColor: IosTheme.primaryPink,
-        );
+        try {
+          context.read<BrowsingHistoryProvider>().recordAlbum(
+            _item,
+            siteKey: 'hc_gallery',
+            siteName: 'HC 图集',
+            siteColor: IosTheme.primaryPink,
+          );
+        } catch (e) {
+          debugPrint('[AlbumDetail] History recording error: $e');
+        }
       }
     });
   }
 
   Future<void> _loadAlbumDetails() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+    if (!_isLoading || _errorMessage != null) {
+      if (mounted) {
+        setState(() {
+          _isLoading = true;
+          _errorMessage = null;
+        });
+      }
+    }
 
     try {
       final detailed = await HCApiService.fetchAlbumDetail(_item);
@@ -93,14 +100,15 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
   }
 
   void _openGalleryViewer(BuildContext context, int initialIndex) {
-    Navigator.push(
+    UnifiedPhotoViewer.open(
       context,
-      MaterialPageRoute(
-        builder: (_) => _PhotoGalleryViewer(
-          item: _item,
-          initialIndex: initialIndex,
-        ),
-      ),
+      imageUrls: _item.imageUrls,
+      initialIndex: initialIndex,
+      title: _item.title,
+      author: _item.author,
+      httpHeaders: const {
+        'Referer': 'https://hentai-cosplay-xxx.com/',
+      },
     );
   }
 
@@ -131,63 +139,142 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final downloadProv = context.read<DownloadProvider>();
+    final isFav = context.select<FavoriteProvider, bool>(
+      (p) => p.isFavoriteItem(
+        id: 'hc_${_item.slug.isNotEmpty ? _item.slug : _item.detailUrl.hashCode}',
+        detailUrl: _item.detailUrl,
+      ),
+    );
+    final taskStatus = context.select<DownloadProvider, TaskStatus?>(
+      (p) => p.getTaskStatus(slug: _item.slug, detailUrl: _item.detailUrl),
+    );
+    final isDownloaded = taskStatus == TaskStatus.completed;
+    final isDownloading = taskStatus == TaskStatus.downloading ||
+        taskStatus == TaskStatus.queued;
 
-    return Scaffold(
-      body: Stack(
-        children: [
-          CustomScrollView(
-            controller: _scrollController,
-            physics: const BouncingScrollPhysics(),
-            slivers: [
-          // Parallax Header
-          SliverAppBar(
-            expandedHeight: 320,
-            pinned: true,
-            stretch: true,
-            leading: BouncingButton(
-              onTap: () => Navigator.pop(context),
-              child: Container(
-                margin: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.black45,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white24, width: 0.5),
+    return PopScope(
+      canPop: !_isSelectionMode,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _isSelectionMode) {
+          setState(() {
+            _isSelectionMode = false;
+            _selectedIndices.clear();
+          });
+        }
+      },
+      child: Scaffold(
+        backgroundColor: isDark ? const Color(0xFF0C0C0E) : const Color(0xFFF2F2F7),
+        body: Stack(
+          children: [
+            CustomScrollView(
+              controller: _scrollController,
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+            // Parallax Header
+            SliverAppBar(
+              backgroundColor: isDark ? const Color(0xFF141416) : Colors.white,
+              expandedHeight: 320,
+              pinned: true,
+              stretch: true,
+              leading: Semantics(
+                button: true,
+                label: '返回',
+                child: Tooltip(
+                  message: '返回',
+                  child: BouncingButton(
+                    onTap: () {
+                      if (_isSelectionMode) {
+                        setState(() {
+                          _isSelectionMode = false;
+                          _selectedIndices.clear();
+                        });
+                      } else {
+                        Navigator.pop(context);
+                      }
+                    },
+                  child: Container(
+                    margin: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.black45,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white24, width: 0.5),
+                    ),
+                    child: const Icon(CupertinoIcons.back, color: Colors.white, size: 20),
+                  ),
                 ),
-                child: const Icon(CupertinoIcons.back, color: Colors.white, size: 20),
               ),
             ),
             actions: [
+              Semantics(
+                button: true,
+                label: isFav ? '取消收藏' : '收藏图集',
+                child: Tooltip(
+                  message: isFav ? '取消收藏' : '收藏图集',
+                  child: BouncingButton(
+                    onTap: () {
+                      context.read<FavoriteProvider>().toggleAlbum(_item, siteKey: 'hc', siteName: 'Hentai Cosplay');
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(isFav ? '已从我的收藏中移除' : '已收藏图集: ${_item.title}'),
+                          behavior: SnackBarBehavior.floating,
+                          duration: const Duration(seconds: 1),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.black45,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white24, width: 0.5),
+                      ),
+                      child: Icon(
+                        isFav ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
+                        color: isFav ? const Color(0xFFFF2D55) : Colors.white,
+                        size: 18,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
               const RandomActionButton.album(
                 albumSource: MediaSourceType.hc,
                 replace: true,
                 color: IosTheme.primaryPink,
               ),
               Builder(
-                builder: (btnCtx) => BouncingButton(
-                  onTap: () {
-                    final box = btnCtx.findRenderObject() as RenderBox?;
-                    Share.share(
-                      '【Cosplay图集】${_item.title}\n${_item.detailUrl}',
-                      subject: _item.title,
-                      sharePositionOrigin: box != null ? (box.localToGlobal(Offset.zero) & box.size) : null,
-                    );
-                  },
-                  child: Container(
-                    margin: const EdgeInsets.all(8),
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.black45,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white24, width: 0.5),
+                builder: (btnCtx) => Semantics(
+                  button: true,
+                  label: '分享图集',
+                  child: Tooltip(
+                    message: '分享图集',
+                    child: BouncingButton(
+                      onTap: () {
+                        final box = btnCtx.findRenderObject() as RenderBox?;
+                        AppShare.share(context, 
+                          '【Cosplay图集】${_item.title}\n${_item.detailUrl}',
+                          subject: _item.title,
+                          sharePositionOrigin: box != null ? (box.localToGlobal(Offset.zero) & box.size) : null,
+                        );
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.all(8),
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.black45,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white24, width: 0.5),
+                        ),
+                        child: const Icon(CupertinoIcons.share, color: Colors.white, size: 18),
+                      ),
                     ),
-                    child: const Icon(CupertinoIcons.share, color: Colors.white, size: 18),
                   ),
                 ),
               ),
             ],
             flexibleSpace: FlexibleSpaceBar(
-              stretchModes: const [StretchMode.zoomBackground, StretchMode.blurBackground],
+              stretchModes: const [StretchMode.zoomBackground],
               background: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -298,37 +385,56 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
                   Expanded(
                     flex: 3,
                     child: BouncingButton(
-                      onTap: () {
-                        downloadProv.addAlbumTask(_item);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('已加入下载队列: ${_item.title}'),
-                            behavior: SnackBarBehavior.floating,
-                            duration: const Duration(seconds: 1),
-                          ),
-                        );
-                      },
+                      onTap: isDownloaded || isDownloading
+                          ? null
+                          : () {
+                              context.read<DownloadProvider>().addAlbumTask(_item);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('已加入下载队列: ${_item.title}'),
+                                  behavior: SnackBarBehavior.floating,
+                                  duration: const Duration(seconds: 1),
+                                ),
+                              );
+                            },
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         decoration: BoxDecoration(
-                          color: IosTheme.primaryPink,
+                          color: isDownloaded
+                              ? IosTheme.primaryGreen
+                              : (isDownloading
+                                  ? IosTheme.primaryPink.withValues(alpha: 0.6)
+                                  : IosTheme.primaryPink),
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
-                              color: IosTheme.primaryPink.withValues(alpha: 0.4),
+                              color: (isDownloaded ? IosTheme.primaryGreen : IosTheme.primaryPink)
+                                  .withValues(alpha: 0.4),
                               blurRadius: 12,
                               offset: const Offset(0, 4),
                             ),
                           ],
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(CupertinoIcons.arrow_down_circle_fill, color: Colors.white, size: 18),
-                            SizedBox(width: 8),
+                            Icon(
+                              isDownloaded
+                                  ? CupertinoIcons.checkmark_alt
+                                  : (isDownloading
+                                      ? CupertinoIcons.arrow_down_circle
+                                      : CupertinoIcons.arrow_down_circle_fill),
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
                             Text(
-                              '一键下载全集',
-                              style: TextStyle(
+                              isDownloaded
+                                  ? '图集已下载完成'
+                                  : (isDownloading
+                                      ? '正在下载中...'
+                                      : '一键下载全集'),
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w800,
@@ -596,194 +702,8 @@ class _AlbumDetailPageState extends State<AlbumDetailPage> {
         ),
       ],
     ),
+  ),
   );
   }
 }
 
-class _PhotoGalleryViewer extends StatefulWidget {
-  final AlbumItem item;
-  final int initialIndex;
-
-  const _PhotoGalleryViewer({
-    required this.item,
-    required this.initialIndex,
-  });
-
-  @override
-  State<_PhotoGalleryViewer> createState() => _PhotoGalleryViewerState();
-}
-
-class _PhotoGalleryViewerState extends State<_PhotoGalleryViewer> {
-  late int _currentIndex;
-  late PageController _pageController;
-  final Set<int> _precachedIndices = {};
-  bool _isDisposed = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _currentIndex = widget.initialIndex;
-    _pageController = PageController(initialPage: widget.initialIndex);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_isDisposed) {
-        _preloadSurroundingImages(_currentIndex);
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _isDisposed = true;
-    _pageController.dispose();
-    super.dispose();
-  }
-
-  void _preloadSurroundingImages(int centerIndex) {
-    if (_isDisposed || !mounted) return;
-    final images = widget.item.imageUrls;
-    for (int step = 0; step <= 5; step++) {
-      if (!mounted) return;
-      final forward = centerIndex + step;
-      if (forward < images.length && !_precachedIndices.contains(forward)) {
-        _precachedIndices.add(forward);
-        precacheImage(
-          CachedNetworkImageProvider(
-            images[forward],
-            headers: const {
-              'Referer': 'https://hentai-cosplay-xxx.com/',
-            },
-          ),
-          context,
-        ).catchError((_) {});
-      }
-    }
-    for (int step = 1; step <= 2; step++) {
-      if (!mounted) return;
-      final backward = centerIndex - step;
-      if (backward >= 0 && !_precachedIndices.contains(backward)) {
-        _precachedIndices.add(backward);
-        precacheImage(
-          CachedNetworkImageProvider(
-            images[backward],
-            headers: const {
-              'Referer': 'https://hentai-cosplay-xxx.com/',
-            },
-          ),
-          context,
-        ).catchError((_) {});
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final images = widget.item.imageUrls;
-
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // PhotoView Gallery
-          PhotoViewGallery.builder(
-            itemCount: images.length,
-            pageController: _pageController,
-            onPageChanged: (idx) {
-              setState(() => _currentIndex = idx);
-              _preloadSurroundingImages(idx);
-            },
-            builder: (context, index) {
-              final url = images[index];
-              return PhotoViewGalleryPageOptions(
-                imageProvider: CachedNetworkImageProvider(
-                  url,
-                  headers: const {
-                    'Referer': 'https://hentai-cosplay-xxx.com/',
-                  },
-                ),
-                minScale: PhotoViewComputedScale.contained,
-                maxScale: PhotoViewComputedScale.covered * 3.0,
-                heroAttributes: PhotoViewHeroAttributes(
-                  tag: 'album_${widget.item.slug.isNotEmpty ? widget.item.slug : widget.item.title.hashCode}_$index',
-                ),
-              );
-            },
-            loadingBuilder: (context, event) => const Center(
-              child: CupertinoActivityIndicator(color: Colors.white, radius: 14),
-            ),
-          ),
-
-          // Top App Bar Controls
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Close Button
-                    BouncingButton(
-                      onTap: () => Navigator.pop(context),
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.black54,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white24, width: 0.5),
-                        ),
-                        child: const Icon(CupertinoIcons.xmark, color: Colors.white, size: 18),
-                      ),
-                    ),
-
-                    // Page counter indicator
-                    FrostedGlass(
-                      borderRadius: 16,
-                      blur: 16,
-                      backgroundColor: Colors.black45,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                      child: Text(
-                        '${_currentIndex + 1} / ${images.length}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-
-                    // Copy Image URL Button
-                    BouncingButton(
-                      onTap: () {
-                        final currentUrl = images[_currentIndex];
-                        Clipboard.setData(ClipboardData(text: currentUrl));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('已复制高清原图链接'),
-                            duration: Duration(seconds: 1),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.black54,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white24, width: 0.5),
-                        ),
-                        child: const Icon(CupertinoIcons.link, color: Colors.white, size: 18),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

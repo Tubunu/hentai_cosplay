@@ -31,16 +31,18 @@ class TwitterVideoCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     // Check download status from DownloadProvider
-    final existingTask = context.select<DownloadProvider, AlbumDownloadTask?>((p) {
-      for (final t in p.allTasks) {
-        if (t.albumItem.slug == video.slug || t.albumItem.title == video.title) {
-          return t;
-        }
-      }
-      return null;
-    });
+    final taskStatus = context.select<DownloadProvider, TaskStatus?>(
+      (p) => p.getTaskStatus(
+        slug: video.slug,
+        detailUrl: video.detailUrl,
+        videoUrl: video.videoUrl,
+        title: video.title,
+      ),
+    );
 
-    final isDownloaded = existingTask?.status == TaskStatus.completed;
+    final isDownloaded = taskStatus == TaskStatus.completed;
+    final isDownloading = taskStatus == TaskStatus.downloading ||
+        taskStatus == TaskStatus.queued;
 
     return BouncingButton(
       onTap: isSelectionMode ? onSelectToggle : onTap,
@@ -250,30 +252,38 @@ class TwitterVideoCard extends StatelessWidget {
 
                       // Quick 1-click Download button
                       BouncingButton(
-                        onTap: () {
-                          final downloadProv = context.read<DownloadProvider>();
-                          downloadProv.addVideoTask(video);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('已添加 "${video.title}" 到下载队列'),
-                              backgroundColor: site.themeColor,
-                              duration: const Duration(seconds: 2),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        },
+                        onTap: isDownloaded || isDownloading
+                            ? null
+                            : () {
+                                final downloadProv = context.read<DownloadProvider>();
+                                downloadProv.addVideoTask(video);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('已添加 "${video.title}" 到下载队列'),
+                                    backgroundColor: site.themeColor,
+                                    duration: const Duration(seconds: 2),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              },
                         child: Container(
                           padding: const EdgeInsets.all(4),
                           decoration: BoxDecoration(
-                            color: site.themeColor.withValues(alpha: 0.12),
+                            color: isDownloaded
+                                ? const Color(0xFF34C759).withValues(alpha: 0.15)
+                                : site.themeColor.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Icon(
                             isDownloaded
-                                ? CupertinoIcons.arrow_down_doc_fill
-                                : CupertinoIcons.cloud_download,
+                                ? CupertinoIcons.checkmark_alt
+                                : (isDownloading
+                                    ? CupertinoIcons.arrow_down_circle
+                                    : CupertinoIcons.cloud_download),
                             size: 13,
-                            color: site.themeColor,
+                            color: isDownloaded
+                                ? const Color(0xFF34C759)
+                                : site.themeColor,
                           ),
                         ),
                       ),

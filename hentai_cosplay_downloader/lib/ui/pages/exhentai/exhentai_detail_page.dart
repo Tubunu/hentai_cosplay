@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:provider/provider.dart';
 import '../../../models/album_item.dart';
+import '../../../models/download_task.dart';
 import '../../../providers/browsing_history_provider.dart';
 import '../../../providers/download_provider.dart';
 import '../../../providers/exhentai_browse_provider.dart';
@@ -101,6 +102,13 @@ class _ExDetailPageState extends State<ExDetailPage> {
     final themeColor = const Color(0xFF9C27B0);
     final category = _item.author.isNotEmpty ? _item.author : 'ExHentai';
     final catColor = _getCategoryColor(category);
+
+    final taskStatus = context.select<DownloadProvider, TaskStatus?>(
+      (p) => p.getTaskStatus(slug: _item.slug, detailUrl: _item.detailUrl),
+    );
+    final isDownloaded = taskStatus == TaskStatus.completed;
+    final isDownloading = taskStatus == TaskStatus.downloading ||
+        taskStatus == TaskStatus.queued;
 
     final titleEn = _item.rawData['title_en']?.toString() ?? _item.title;
     final titleJpn = _item.rawData['title_jpn']?.toString() ?? '';
@@ -514,39 +522,58 @@ class _ExDetailPageState extends State<ExDetailPage> {
         ),
         child: SafeArea(
           child: BouncingButton(
-            onTap: () {
-              context.read<DownloadProvider>().addBatchAlbumTasks([_item]);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('已添加至下载队列: ${_item.title}'),
-                  duration: const Duration(seconds: 2),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
+            onTap: isDownloaded || isDownloading
+                ? null
+                : () {
+                    context.read<DownloadProvider>().addBatchAlbumTasks([_item]);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('已添加至下载队列: ${_item.title}'),
+                        duration: const Duration(seconds: 2),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
             child: Container(
               height: 48,
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFAB47BC), Color(0xFF8E24AA)],
+                gradient: LinearGradient(
+                  colors: isDownloaded
+                      ? [const Color(0xFF4CAF50), const Color(0xFF388E3C)]
+                      : (isDownloading
+                          ? [const Color(0xFFBA68C8), const Color(0xFF9C27B0)]
+                          : [const Color(0xFFAB47BC), const Color(0xFF8E24AA)]),
                 ),
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF8E24AA).withValues(alpha: 0.4),
+                    color: (isDownloaded ? const Color(0xFF388E3C) : const Color(0xFF8E24AA))
+                        .withValues(alpha: 0.4),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
                 ],
               ),
-              child: const Row(
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(CupertinoIcons.arrow_down_to_line, color: Colors.white, size: 20),
-                  SizedBox(width: 8),
+                  Icon(
+                    isDownloaded
+                        ? CupertinoIcons.checkmark_alt
+                        : (isDownloading
+                            ? CupertinoIcons.arrow_down_circle
+                            : CupertinoIcons.arrow_down_to_line),
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
                   Text(
-                    '一键下载全本画廊',
-                    style: TextStyle(
+                    isDownloaded
+                        ? '画廊已下载完成'
+                        : (isDownloading
+                            ? '正在下载中...'
+                            : '一键下载全本画廊'),
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,

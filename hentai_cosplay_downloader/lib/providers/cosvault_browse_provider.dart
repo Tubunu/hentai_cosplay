@@ -3,6 +3,21 @@ import '../models/album_item.dart';
 import '../services/cosvault/cosvault_api_service.dart';
 
 class CosvaultBrowseProvider extends ChangeNotifier {
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) {
+      super.notifyListeners();
+    }
+  }
+
   List<AlbumItem> _items = [];
   bool _isLoading = false;
   String? _errorMessage;
@@ -130,15 +145,13 @@ class CosvaultBrowseProvider extends ChangeNotifier {
         modelSlug: _selectedModel?.slug,
       );
 
-      if (requestId != _currentRequestId) return;
+      if (_disposed || requestId != _currentRequestId) return;
 
       if (response != null) {
         _items = response.items;
         _currentPage = response.page;
         _totalPages = response.totalPages;
         _totalItems = response.total;
-        _selectedSlugs.clear();
-        _isSelectionMode = false;
         if (_items.isEmpty && isSearchMode) {
           _errorMessage = '未找到与 "$_searchKeyword" 相关的图包，建议尝试搜索模特名（如 atsuki、byoru）或作品标签（如 genshin-impact）';
         }
@@ -151,12 +164,12 @@ class CosvaultBrowseProvider extends ChangeNotifier {
         }
       }
     } catch (e) {
-      if (requestId != _currentRequestId) return;
+      if (_disposed || requestId != _currentRequestId) return;
       _errorMessage = isSearchMode
           ? '未找到与 "$_searchKeyword" 相关的图包'
           : '请求错误: $e';
     } finally {
-      if (requestId == _currentRequestId) {
+      if (!_disposed && requestId == _currentRequestId) {
         _isLoading = false;
         notifyListeners();
       }

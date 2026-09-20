@@ -4,7 +4,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:video_player/video_player.dart';
 import '../../../models/video_item.dart';
 import '../../../providers/browsing_history_provider.dart';
@@ -12,6 +11,7 @@ import '../../../providers/download_provider.dart';
 import '../../../services/twitter_rankings/twitter_ranking_api_service.dart';
 import '../../../services/twitter_rankings/twitter_site_config.dart';
 import '../../widgets/bouncing_button.dart';
+import 'package:hentai_cosplay_downloader/utils/app_share.dart';
 
 class TwitterReelPlayerPage extends StatefulWidget {
   final List<VideoItem> playlist;
@@ -425,7 +425,7 @@ class _TwitterReelPlayerPageState extends State<TwitterReelPlayerPage> {
                             icon: CupertinoIcons.share,
                             label: '分享',
                             onTap: () {
-                              Share.share('${video.title}\n${video.detailUrl}');
+                              AppShare.share(context, '${video.title}\n${video.detailUrl}');
                             },
                           ),
                           const SizedBox(height: 16),

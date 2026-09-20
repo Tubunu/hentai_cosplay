@@ -594,7 +594,7 @@ class _PinseBrowsePageState extends State<PinseBrowsePage> {
                       crossAxisCount: 2,
                       crossAxisSpacing: 10,
                       mainAxisSpacing: 10,
-                      childAspectRatio: 0.72,
+                      childAspectRatio: 1.45,
                     ),
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {

@@ -89,12 +89,13 @@ class _BatchDownloadDialogState extends State<BatchDownloadDialog> {
     final downloadProv = context.read<DownloadProvider>();
     final browseProv = context.read<BrowseProvider>();
     final keyword = browseProv.searchKeyword.isNotEmpty ? browseProv.searchKeyword : null;
+    final messenger = ScaffoldMessenger.of(context);
 
     Navigator.pop(context);
 
     // Asynchronously fetch and add page range to queue
     downloadProv.addPageRange(start, end, keyword: keyword);
-    ScaffoldMessenger.of(context).showSnackBar(
+    messenger.showSnackBar(
       SnackBar(
         content: Text('正在批量抓取第 $start 到 $end 页图集并加入下载队列...'),
         backgroundColor: IosTheme.primaryPink,

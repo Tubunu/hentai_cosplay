@@ -1,23 +1,33 @@
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../models/wallpaper_item.dart';
 import '../../../services/network_client.dart';
+import '../../../services/storage_service.dart';
 import '../../theme/ios_theme.dart';
 import '../../widgets/bouncing_button.dart';
 import '../../widgets/liquid_glass.dart';
+import 'package:hentai_cosplay_downloader/utils/app_share.dart';
 
 class WallpaperDetailPage extends StatefulWidget {
   final WallpaperItem item;
+  final VoidCallback? onBack;
 
-  const WallpaperDetailPage({super.key, required this.item});
+  const WallpaperDetailPage({
+    super.key,
+    required this.item,
+    this.onBack,
+  });
 
   static void open(BuildContext context, WallpaperItem item) {
     Navigator.of(context).push(
-      CupertinoPageRoute(
+      MaterialPageRoute(
         builder: (_) => WallpaperDetailPage(item: item),
       ),
     );
@@ -30,39 +40,111 @@ class WallpaperDetailPage extends StatefulWidget {
 class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
   bool _isDownloading = false;
   bool _isLiked = false;
+  bool _showChrome = true;
+  bool _showLockMock = false;
+  String? _downloadedFilePath;
+
+  void _toggleChrome() {
+    setState(() {
+      _showChrome = !_showChrome;
+      if (_showChrome) {
+        _showLockMock = false;
+      }
+    });
+  }
+
+  void _toggleLockMock() {
+    HapticFeedback.selectionClick();
+    setState(() {
+      _showLockMock = !_showLockMock;
+      if (_showLockMock) {
+        _showChrome = false;
+      }
+    });
+  }
 
   Future<void> _downloadWallpaper() async {
     if (_isDownloading) return;
     setState(() => _isDownloading = true);
+    HapticFeedback.lightImpact();
 
     try {
-      final dio = NetworkClient.createDio();
-      final dir = Platform.isAndroid
-          ? Directory('/storage/emulated/0/Pictures/SomeACG')
-          : await getApplicationDocumentsDirectory();
+      await StorageService.requestStoragePermissions();
 
-      if (!await dir.exists()) {
-        await dir.create(recursive: true);
+      Directory? targetDir;
+      if (Platform.isAndroid) {
+        final pictures = Directory('/storage/emulated/0/Pictures/SomeACG');
+        try {
+          if (!await pictures.exists()) {
+            await pictures.create(recursive: true);
+          }
+          targetDir = pictures;
+        } catch (_) {
+          final downloads = Directory('/storage/emulated/0/Download/SomeACG');
+          try {
+            if (!await downloads.exists()) {
+              await downloads.create(recursive: true);
+            }
+            targetDir = downloads;
+          } catch (_) {
+            final ext = await getExternalStorageDirectory();
+            if (ext != null) {
+              final sub = Directory(p.join(ext.path, 'SomeACG'));
+              if (!await sub.exists()) await sub.create(recursive: true);
+              targetDir = sub;
+            }
+          }
+        }
       }
 
-      final fileName = 'SomeACG_${widget.item.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final savePath = '${dir.path}/$fileName';
+      if (targetDir == null) {
+        final doc = await getApplicationDocumentsDirectory();
+        final sub = Directory(p.join(doc.path, 'SomeACG'));
+        if (!await sub.exists()) await sub.create(recursive: true);
+        targetDir = sub;
+      }
 
-      await dio.download(widget.item.rawUrl, savePath);
+      final ext = widget.item.rawUrl.endsWith('.png') ? 'png' : 'jpg';
+      final fileName = 'SomeACG_${widget.item.id}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+      final savePath = p.join(targetDir.path, fileName);
+
+      final dio = NetworkClient.createDio(
+        connectTimeout: const Duration(seconds: 15),
+        receiveTimeout: const Duration(seconds: 40),
+      );
+
+      final headers = widget.item.rawUrl.contains('pixiv') || widget.item.rawUrl.contains('pximg')
+          ? {'Referer': 'https://www.pixiv.net/'}
+          : null;
+
+      await dio.download(
+        widget.item.rawUrl,
+        savePath,
+        options: headers != null ? Options(headers: headers) : null,
+      );
+      _downloadedFilePath = savePath;
 
       if (!mounted) return;
+      HapticFeedback.mediumImpact();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
             children: [
               const Icon(CupertinoIcons.check_mark_circled_solid, color: Colors.white, size: 18),
               const SizedBox(width: 8),
-              Expanded(child: Text('壁纸已保存至: $savePath')),
+              Expanded(child: Text('壁纸已保存至: $savePath', maxLines: 2, overflow: TextOverflow.ellipsis)),
             ],
           ),
           backgroundColor: IosTheme.primaryGreen,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          action: SnackBarAction(
+            label: '分享',
+            textColor: Colors.white,
+            onPressed: () {
+              AppShare.shareXFiles(context, [XFile(savePath)], text: widget.item.title);
+            },
+          ),
         ),
       );
     } catch (e) {
@@ -83,8 +165,8 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
     showCupertinoDialog(
       context: context,
       builder: (ctx) => CupertinoAlertDialog(
-        title: const Text('设为壁纸提示'),
-        content: const Text('已将高清原图缓存。请点击【下载保存】将原图存入系统相册，随后可在手机「设置 - 壁纸」中设置为桌面或锁屏壁纸。'),
+        title: const Text('设为壁纸指南'),
+        content: const Text('已准备好超高清原图！\n\n点击【立即下载】将原画保存至手机相册，随后打开系统「设置 -> 壁纸」即可一键应用为桌面或锁屏壁纸。'),
         actions: [
           CupertinoDialogAction(
             isDefaultAction: true,
@@ -92,10 +174,10 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
               Navigator.pop(ctx);
               _downloadWallpaper();
             },
-            child: const Text('立即下载原图'),
+            child: const Text('立即下载'),
           ),
           CupertinoDialogAction(
-            child: const Text('知道了'),
+            child: const Text('关闭'),
             onPressed: () => Navigator.pop(ctx),
           ),
         ],
@@ -103,92 +185,77 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
     );
   }
 
+  void _shareWallpaper() {
+    if (_downloadedFilePath != null && File(_downloadedFilePath!).existsSync()) {
+      AppShare.shareXFiles(context, [XFile(_downloadedFilePath!)], text: '${widget.item.title} - SomeACG 高清壁纸');
+    } else {
+      AppShare.share(context, '${widget.item.title}\n壁纸原图: ${widget.item.rawUrl}\n来自 SomeACG 高清二次元壁纸站');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
+    final now = DateTime.now();
+    final timeStr = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+    const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
+    final weekdayStr = '星期${weekdays[now.weekday - 1]}';
+    final dateStr = '${now.month}月${now.day}日 $weekdayStr';
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: LiquidGlass(
-            blur: 16,
-            backgroundColor: Colors.black,
-            opacity: 0.45,
-            borderRadius: 20,
-            child: IconButton(
-              icon: const Icon(CupertinoIcons.back, color: Colors.white, size: 20),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ),
-        ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: LiquidGlass(
-              blur: 16,
-              backgroundColor: Colors.black,
-              opacity: 0.45,
-              borderRadius: 20,
-              child: IconButton(
-                icon: Icon(
-                  _isLiked ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
-                  color: _isLiked ? Colors.redAccent : Colors.white,
-                  size: 20,
-                ),
-                onPressed: () => setState(() => _isLiked = !_isLiked),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: LiquidGlass(
-              blur: 16,
-              backgroundColor: Colors.black,
-              opacity: 0.45,
-              borderRadius: 20,
-              child: IconButton(
-                icon: const Icon(CupertinoIcons.share, color: Colors.white, size: 20),
-                onPressed: () => Share.share('${item.title} - SomeACG壁纸分享: ${item.rawUrl}'),
-              ),
-            ),
-          ),
-        ],
-      ),
+    return PopScope(
+      canPop: widget.onBack == null,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (widget.onBack != null) {
+          widget.onBack!();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        extendBodyBehindAppBar: true,
       body: Stack(
         children: [
-          // 1. Pinch to zoom interactive photo viewer
-          Center(
-            child: InteractiveViewer(
-              minScale: 0.8,
-              maxScale: 4.0,
-              child: CachedNetworkImage(
-                imageUrl: item.rawUrl,
-                fit: BoxFit.contain,
-                width: double.infinity,
-                height: double.infinity,
-                placeholder: (context, url) => Center(
-                  child: CachedNetworkImage(
+          // 1. Gesture detector for tapping background to toggle chrome
+          GestureDetector(
+            onTap: _toggleChrome,
+            behavior: HitTestBehavior.opaque,
+            child: Center(
+              child: InteractiveViewer(
+                minScale: 0.8,
+                maxScale: 4.5,
+                child: CachedNetworkImage(
+                  imageUrl: item.rawUrl,
+                  fit: BoxFit.contain,
+                  width: double.infinity,
+                  height: double.infinity,
+                  httpHeaders: item.rawUrl.contains('pixiv') || item.rawUrl.contains('pximg')
+                      ? const {'Referer': 'https://www.pixiv.net/'}
+                      : null,
+                  placeholder: (context, url) => Center(
+                    child: CachedNetworkImage(
+                      imageUrl: item.previewUrl,
+                      fit: BoxFit.contain,
+                      httpHeaders: item.previewUrl.contains('pixiv') || item.previewUrl.contains('pximg')
+                          ? const {'Referer': 'https://www.pixiv.net/'}
+                          : null,
+                      placeholder: (_, __) => const CupertinoActivityIndicator(color: Colors.white),
+                    ),
+                  ),
+                  errorWidget: (context, url, error) => CachedNetworkImage(
                     imageUrl: item.previewUrl,
                     fit: BoxFit.contain,
-                    placeholder: (_, __) => const CupertinoActivityIndicator(color: Colors.white),
-                  ),
-                ),
-                errorWidget: (context, url, error) => CachedNetworkImage(
-                  imageUrl: item.previewUrl,
-                  fit: BoxFit.contain,
-                  errorWidget: (_, __, ___) => const Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(CupertinoIcons.photo, color: Colors.white38, size: 50),
-                        SizedBox(height: 8),
-                        Text('壁纸加载失败', style: TextStyle(color: Colors.white60)),
-                      ],
+                    httpHeaders: item.previewUrl.contains('pixiv') || item.previewUrl.contains('pximg')
+                        ? const {'Referer': 'https://www.pixiv.net/'}
+                        : null,
+                    errorWidget: (_, __, ___) => const Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(CupertinoIcons.photo, color: Colors.white38, size: 50),
+                          SizedBox(height: 8),
+                          Text('壁纸加载失败', style: TextStyle(color: Colors.white60)),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -196,15 +263,144 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
             ),
           ),
 
-          // 2. Bottom Glass Panel with Info & Actions
-          Positioned(
+          // 2. Lock Screen Mock Overlay (to preview as phone lock screen)
+          if (_showLockMock)
+            GestureDetector(
+              onTap: _toggleLockMock,
+              child: Container(
+                color: Colors.transparent,
+                width: double.infinity,
+                height: double.infinity,
+                padding: const EdgeInsets.only(top: 80),
+                child: Column(
+                  children: [
+                    const Icon(CupertinoIcons.lock_fill, color: Colors.white70, size: 22),
+                    const SizedBox(height: 12),
+                    Text(
+                      timeStr,
+                      style: const TextStyle(
+                        fontSize: 76,
+                        fontWeight: FontWeight.w200,
+                        color: Colors.white,
+                        letterSpacing: -2,
+                        shadows: [
+                          Shadow(color: Colors.black54, blurRadius: 16),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      dateStr,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white70,
+                        shadows: [
+                          Shadow(color: Colors.black54, blurRadius: 10),
+                        ],
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 40),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        '点击屏幕任意位置退出锁屏预览',
+                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // 3. Top Navigation Bar (Animated)
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeInOutCubic,
+            top: _showChrome ? MediaQuery.of(context).padding.top + 8 : -80,
             left: 16,
             right: 16,
-            bottom: 36,
+            child: Row(
+              children: [
+                LiquidGlass(
+                  blur: 16,
+                  backgroundColor: Colors.black,
+                  opacity: 0.45,
+                  borderRadius: 20,
+                  child: IconButton(
+                    icon: const Icon(CupertinoIcons.back, color: Colors.white, size: 20),
+                    onPressed: () {
+                      if (widget.onBack != null) {
+                        widget.onBack!();
+                      } else {
+                        Navigator.maybePop(context);
+                      }
+                    },
+                  ),
+                ),
+                const Spacer(),
+                // Lock screen mock toggle
+                LiquidGlass(
+                  blur: 16,
+                  backgroundColor: Colors.black,
+                  opacity: 0.45,
+                  borderRadius: 20,
+                  child: IconButton(
+                    icon: const Icon(CupertinoIcons.device_phone_portrait, color: Colors.white, size: 20),
+                    tooltip: '锁屏预览',
+                    onPressed: _toggleLockMock,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Like button
+                LiquidGlass(
+                  blur: 16,
+                  backgroundColor: Colors.black,
+                  opacity: 0.45,
+                  borderRadius: 20,
+                  child: IconButton(
+                    icon: Icon(
+                      _isLiked ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
+                      color: _isLiked ? Colors.redAccent : Colors.white,
+                      size: 20,
+                    ),
+                    onPressed: () {
+                      HapticFeedback.selectionClick();
+                      setState(() => _isLiked = !_isLiked);
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Share button
+                LiquidGlass(
+                  blur: 16,
+                  backgroundColor: Colors.black,
+                  opacity: 0.45,
+                  borderRadius: 20,
+                  child: IconButton(
+                    icon: const Icon(CupertinoIcons.share, color: Colors.white, size: 20),
+                    onPressed: _shareWallpaper,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // 4. Bottom Glass Panel with Info & Actions (Animated)
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeInOutCubic,
+            left: 16,
+            right: 16,
+            bottom: _showChrome ? MediaQuery.of(context).padding.bottom + 16 : -250,
             child: LiquidGlass(
               blur: 24,
               backgroundColor: const Color(0xFF141416),
-              opacity: 0.82,
+              opacity: 0.85,
               borderRadius: 24,
               border: Border.all(color: Colors.white.withValues(alpha: 0.15), width: 0.8),
               child: Padding(
@@ -250,7 +446,7 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
 
                     // Author & Size Info
                     Text(
-                      '来源: ${item.author}  •  尺寸: ${item.width} × ${item.height}',
+                      '来源: ${item.author}  •  分辨率: ${item.width} × ${item.height}',
                       style: const TextStyle(color: Colors.white60, fontSize: 12),
                     ),
                     const SizedBox(height: 10),
@@ -320,7 +516,7 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
                         ),
                         const SizedBox(width: 10),
 
-                        // Set as Wallpaper Button
+                        // Set as Wallpaper / Guide Button
                         Expanded(
                           flex: 2,
                           child: BouncingButton(
@@ -336,7 +532,7 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(CupertinoIcons.device_phone_portrait, color: Colors.white, size: 16),
+                                    Icon(CupertinoIcons.wand_stars, color: Colors.white, size: 16),
                                     SizedBox(width: 4),
                                     Text(
                                       '设为壁纸',
@@ -357,6 +553,7 @@ class _WallpaperDetailPageState extends State<WallpaperDetailPage> {
           ),
         ],
       ),
+    ),
     );
   }
 }

@@ -1,5 +1,5 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'liquid_glass.dart';
 
 class FrostedGlass extends StatelessWidget {
   final Widget child;
@@ -27,34 +27,17 @@ class FrostedGlass extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final defaultBg = isDark
-        ? const Color(0x991C1C1E)
-        : const Color(0xB3FFFFFF);
-    final defaultBorder = isDark
-        ? const Color(0x33FFFFFF)
-        : const Color(0x1F000000);
-
-    return Container(
+    return AppGlassSurface(
+      blur: blur,
+      borderRadius: borderRadius,
+      padding: padding,
       margin: margin,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(borderRadius),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-          child: Container(
-            padding: padding,
-            decoration: BoxDecoration(
-              color: backgroundColor ?? defaultBg,
-              borderRadius: BorderRadius.circular(borderRadius),
-              border: Border.all(
-                color: borderColor ?? defaultBorder,
-                width: borderWidth,
-              ),
-            ),
-            child: child,
-          ),
-        ),
-      ),
+      backgroundColor: backgroundColor,
+      border: borderColor != null
+          ? Border.all(color: borderColor!, width: borderWidth)
+          : null,
+      tier: GlassTier.chrome,
+      child: child,
     );
   }
 }

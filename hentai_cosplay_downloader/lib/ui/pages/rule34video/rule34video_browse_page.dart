@@ -343,7 +343,7 @@ class _Rule34VideoBrowsePageState extends State<Rule34VideoBrowsePage> {
                           crossAxisCount: 2,
                           crossAxisSpacing: 12,
                           mainAxisSpacing: 12,
-                          childAspectRatio: 0.76,
+                          childAspectRatio: 1.45,
                         ),
                         delegate: SliverChildBuilderDelegate(
                           (context, index) {

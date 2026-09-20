@@ -384,7 +384,7 @@ class _CosxplayBrowsePageState extends State<CosxplayBrowsePage> {
                     sliver: SliverGrid(
                       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 2,
-                        childAspectRatio: 0.82,
+                        childAspectRatio: 1.45,
                         crossAxisSpacing: 10,
                         mainAxisSpacing: 10,
                       ),

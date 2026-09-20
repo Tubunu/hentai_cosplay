@@ -31,9 +31,14 @@ class CosplayporntubeApiService {
   static const String kBaseUrl = 'https://cosplayporntube.com';
 
   static String? _configuredProxy;
+  static Dio _dio = _createDio();
 
   static void setProxy(String? proxy) {
     _configuredProxy = proxy?.trim();
+    try {
+      _dio.close(force: true);
+    } catch (_) {}
+    _dio = _createDio();
   }
 
   static Dio _createDio() {
@@ -84,7 +89,7 @@ class CosplayporntubeApiService {
     CosplayporntubeCategory category = CosplayporntubeCategory.trending,
     String? keyword,
   }) async {
-    final dio = _createDio();
+    final dio = _dio;
     final url = buildUrl(page: page, category: category, keyword: keyword);
     debugPrint('[CosplayporntubeApiService] Fetching list: $url');
 
@@ -192,7 +197,7 @@ class CosplayporntubeApiService {
 
   /// Resolve full video details including MP4 streaming URLs
   static Future<VideoItem> resolveVideoDetail(VideoItem item) async {
-    final dio = _createDio();
+    final dio = _dio;
     debugPrint('[CosplayporntubeApiService] Resolving detail: ${item.detailUrl}');
 
     final response = await dio.get<String>(

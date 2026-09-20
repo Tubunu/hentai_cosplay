@@ -2,19 +2,21 @@ import 'dart:io';
 import 'dart:math';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:photo_view/photo_view.dart';
-import 'package:photo_view/photo_view_gallery.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../widgets/unified_photo_viewer.dart';
 import '../../../models/album_item.dart';
 import '../../../providers/gallery_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../services/storage_service.dart';
 import '../../theme/ios_theme.dart';
 import '../../widgets/bouncing_button.dart';
+import '../../widgets/chrome_insets_coordinator.dart';
 import '../../widgets/frosted_glass.dart';
 import '../../widgets/liquid_glass.dart';
 import '../../widgets/scroll_to_top_button.dart';
+import 'package:hentai_cosplay_downloader/utils/app_share.dart';
+import 'package:hentai_cosplay_downloader/utils/format_utils.dart';
 
 class LocalGalleryPage extends StatefulWidget {
   const LocalGalleryPage({super.key});
@@ -26,6 +28,9 @@ class LocalGalleryPage extends StatefulWidget {
 class _LocalGalleryPageState extends State<LocalGalleryPage> {
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
+
+  bool _isSelectionMode = false;
+  final Set<String> _selectedFolderPaths = {};
 
   @override
   void initState() {
@@ -41,6 +46,80 @@ class _LocalGalleryPageState extends State<LocalGalleryPage> {
     _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _toggleSelection(String folderPath) {
+    setState(() {
+      if (_selectedFolderPaths.contains(folderPath)) {
+        _selectedFolderPaths.remove(folderPath);
+        if (_selectedFolderPaths.isEmpty) {
+          _isSelectionMode = false;
+        }
+      } else {
+        _selectedFolderPaths.add(folderPath);
+      }
+    });
+  }
+
+  void _selectAll(List<LocalAlbumFolder> albums) {
+    setState(() {
+      final allFilteredSelected = albums.isNotEmpty && albums.every((a) => _selectedFolderPaths.contains(a.folderPath));
+      if (allFilteredSelected) {
+        for (final a in albums) {
+          _selectedFolderPaths.remove(a.folderPath);
+        }
+      } else {
+        for (final a in albums) {
+          _selectedFolderPaths.add(a.folderPath);
+        }
+      }
+    });
+  }
+
+  void _batchDelete(GalleryProvider galleryProv, List<LocalAlbumFolder> albums) {
+    final toDelete = albums.where((a) => _selectedFolderPaths.contains(a.folderPath)).toList();
+    if (toDelete.isEmpty) return;
+
+    final totalBytes = toDelete.fold<int>(0, (sum, a) => sum + a.totalBytes);
+    final sizeStr = FormatUtils.formatBytes(totalBytes);
+
+    showCupertinoDialog(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('确认批量删除本地相册'),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 8.0),
+          child: Text('确定要永久删除选中的 ${toDelete.length} 套相册吗？\n将释放约 $sizeStr 存储空间。此操作不可恢复。'),
+        ),
+        actions: [
+          CupertinoDialogAction(
+            child: const Text('取消'),
+            onPressed: () => Navigator.pop(ctx),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            child: const Text('确认删除'),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final count = await galleryProv.deleteBatchLocalAlbums(toDelete);
+              if (mounted) {
+                setState(() {
+                  _selectedFolderPaths.clear();
+                  _isSelectionMode = false;
+                });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('已成功删除 $count 套相册，释放 $sizeStr 空间'),
+                    backgroundColor: IosTheme.primaryPink,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   void _showSortSheet(BuildContext context, GalleryProvider galleryProv) {
@@ -116,8 +195,18 @@ class _LocalGalleryPageState extends State<LocalGalleryPage> {
     final settingsProv = context.watch<SettingsProvider>();
     final albums = galleryProv.localAlbums;
 
-    return Scaffold(
-      body: SafeArea(
+    return PopScope(
+      canPop: !_isSelectionMode,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _isSelectionMode) {
+          setState(() {
+            _isSelectionMode = false;
+            _selectedFolderPaths.clear();
+          });
+        }
+      },
+      child: Scaffold(
+        body: SafeArea(
         bottom: false,
         child: Column(
           children: [
@@ -245,6 +334,57 @@ class _LocalGalleryPageState extends State<LocalGalleryPage> {
                                 ),
                         ),
                       ),
+                      // Batch Select Button
+                      if (albums.isNotEmpty || _isSelectionMode) ...[
+                        const SizedBox(width: 6),
+                        BouncingButton(
+                          onTap: () {
+                            setState(() {
+                              _isSelectionMode = !_isSelectionMode;
+                              if (!_isSelectionMode) {
+                                _selectedFolderPaths.clear();
+                              }
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+                            decoration: BoxDecoration(
+                              color: _isSelectionMode
+                                  ? IosTheme.primaryPink
+                                  : (isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA)),
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: _isSelectionMode
+                                  ? [
+                                      BoxShadow(
+                                        color: IosTheme.primaryPink.withValues(alpha: 0.35),
+                                        blurRadius: 6,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _isSelectionMode ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.checkmark_circle,
+                                  size: 14,
+                                  color: _isSelectionMode ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                                ),
+                                const SizedBox(width: 3),
+                                Text(
+                                  _isSelectionMode ? '完成' : '多选',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: _isSelectionMode ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 10),
@@ -285,10 +425,17 @@ class _LocalGalleryPageState extends State<LocalGalleryPage> {
                               ),
                               const SizedBox(height: 12),
                               Text(
-                                galleryProv.isScanning ? '正在扫描本地相册...' : '暂无本地下载的相册',
+                                galleryProv.isScanning 
+                                  ? '正在扫描本地相册...' 
+                                  : (galleryProv.errorMessage != null 
+                                      ? '扫描失败: ${galleryProv.errorMessage}' 
+                                      : '暂无本地下载的相册'),
+                                textAlign: TextAlign.center,
                                 style: TextStyle(
                                   fontSize: 14,
-                                  color: isDark ? Colors.white38 : Colors.black38,
+                                  color: galleryProv.errorMessage != null 
+                                      ? Colors.redAccent 
+                                      : (isDark ? Colors.white38 : Colors.black38),
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -315,22 +462,93 @@ class _LocalGalleryPageState extends State<LocalGalleryPage> {
                     scrollController: _scrollController,
                     color: IosTheme.primaryPink,
                   ),
+                  if (_isSelectionMode)
+                    Positioned(
+                      left: 16,
+                      right: 16,
+                      bottom: ChromeInsets.floatingBottom(context, extra: 16),
+                      child: FrostedGlass(
+                        blur: 20,
+                        borderRadius: 20,
+                        borderColor: IosTheme.primaryPink.withValues(alpha: 0.3),
+                        borderWidth: 1,
+                        backgroundColor: isDark ? const Color(0xE01C1C1E) : const Color(0xEBF8F8FA),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          child: Row(
+                            children: [
+                              BouncingButton(
+                                onTap: () => _selectAll(albums),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    _selectedFolderPaths.length == albums.length ? '取消全选' : '全选',
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                                  ),
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                '已选 ${_selectedFolderPaths.length} 套${_selectedFolderPaths.isNotEmpty ? " (${FormatUtils.formatBytes(albums.where((a) => _selectedFolderPaths.contains(a.folderPath)).fold<int>(0, (sum, a) => sum + a.totalBytes))})" : ""}',
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(width: 12),
+                              BouncingButton(
+                                onTap: _selectedFolderPaths.isEmpty
+                                    ? null
+                                    : () => _batchDelete(galleryProv, albums),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                                  decoration: BoxDecoration(
+                                    color: _selectedFolderPaths.isEmpty
+                                        ? CupertinoColors.systemGrey.withValues(alpha: 0.5)
+                                        : CupertinoColors.destructiveRed,
+                                    borderRadius: BorderRadius.circular(12),
+                                    boxShadow: _selectedFolderPaths.isNotEmpty
+                                        ? [
+                                            BoxShadow(
+                                              color: CupertinoColors.destructiveRed.withValues(alpha: 0.4),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ]
+                                        : null,
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(CupertinoIcons.trash, size: 14, color: Colors.white),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        '删除',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
           ],
         ),
       ),
-    );
-  }
-
-  static String formatBytes(int bytes) {
-    if (bytes <= 0) return '0 B';
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
-  }
+    ),
+  );
+}
 
   Widget _buildFilterSegment(
     GallerySourceFilter filter,
@@ -380,45 +598,48 @@ class _LocalGalleryPageState extends State<LocalGalleryPage> {
   }
 
   Widget _buildLocalAlbumCard(LocalAlbumFolder album, int index, bool isDark, GalleryProvider galleryProv) {
+    final isSelected = _selectedFolderPaths.contains(album.folderPath);
+
     return BouncingButton(
       onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => _LocalAlbumViewer(initialIndex: index),
-          ),
-        );
+        if (_isSelectionMode) {
+          _toggleSelection(album.folderPath);
+        } else {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => _LocalAlbumViewer(initialIndex: index),
+            ),
+          );
+        }
       },
       onLongPress: () {
-        showCupertinoModalPopup(
-          context: context,
-          builder: (ctx) => CupertinoActionSheet(
-            title: Text(album.title),
-            actions: [
-              CupertinoActionSheetAction(
-                isDestructiveAction: true,
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  galleryProv.deleteLocalAlbum(album);
-                },
-                child: const Text('删除本地图集'),
-              ),
-            ],
-            cancelButton: CupertinoActionSheetAction(
-              child: const Text('取消'),
-              onPressed: () => Navigator.pop(ctx),
-            ),
-          ),
-        );
+        if (!_isSelectionMode) {
+          setState(() {
+            _isSelectionMode = true;
+            _selectedFolderPaths.add(album.folderPath);
+          });
+        }
       },
       child: Container(
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isDark ? const Color(0x22FFFFFF) : const Color(0x18000000),
-            width: 0.6,
+            color: isSelected
+                ? IosTheme.primaryPink
+                : (isDark ? const Color(0x22FFFFFF) : const Color(0x18000000)),
+            width: isSelected ? 2.0 : 0.6,
           ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: IosTheme.primaryPink.withValues(alpha: 0.25),
+                    blurRadius: 8,
+                    spreadRadius: 1,
+                  ),
+                ]
+              : null,
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(
@@ -466,6 +687,28 @@ class _LocalGalleryPageState extends State<LocalGalleryPage> {
                     ),
                   ),
 
+                  // Selection checkbox badge at top right
+                  if (_isSelectionMode)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: isSelected ? IosTheme.primaryPink : Colors.black.withValues(alpha: 0.5),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: isSelected
+                            ? const Icon(CupertinoIcons.checkmark, size: 14, color: Colors.white)
+                            : null,
+                      ),
+                    ),
+
                   // Count & Size pill
                   Positioned(
                     right: 8,
@@ -478,7 +721,7 @@ class _LocalGalleryPageState extends State<LocalGalleryPage> {
                       ),
                       child: Text(
                         album.totalBytes > 0
-                            ? '${album.imageCount} 张 • ${formatBytes(album.totalBytes)}'
+                            ? '${album.imageCount} 张 • ${FormatUtils.formatBytes(album.totalBytes)}'
                             : '${album.imageCount} 张',
                         style: const TextStyle(
                           color: Colors.white,
@@ -620,7 +863,7 @@ class _LocalAlbumViewerState extends State<_LocalAlbumViewer> {
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
             Text(
-              '${album.author} • 第 ${safeIndex + 1}/${albums.length} 套 (${album.imageCount}张 • ${_LocalGalleryPageState.formatBytes(album.totalBytes)})',
+              '${album.author} • 第 ${safeIndex + 1}/${albums.length} 套 (${album.imageCount}张 • ${FormatUtils.formatBytes(album.totalBytes)})',
               style: TextStyle(
                 fontSize: 11.5,
                 fontWeight: FontWeight.w500,
@@ -636,7 +879,7 @@ class _LocalAlbumViewerState extends State<_LocalAlbumViewer> {
               onPressed: () {
                 if (album.imagePaths.isNotEmpty) {
                   final box = btnCtx.findRenderObject() as RenderBox?;
-                  Share.shareXFiles(
+                  AppShare.shareXFiles(context, 
                     album.imagePaths.map((p) => XFile(p)).toList(),
                     text: album.title,
                     sharePositionOrigin: box != null ? (box.localToGlobal(Offset.zero) & box.size) : null,
@@ -666,14 +909,13 @@ class _LocalAlbumViewerState extends State<_LocalAlbumViewer> {
 
               return BouncingButton(
                 onTap: () {
-                  Navigator.push(
+                  UnifiedPhotoViewer.open(
                     context,
-                    MaterialPageRoute(
-                      builder: (_) => _LocalPhotoGalleryViewer(
-                        album: album,
-                        initialIndex: index,
-                      ),
-                    ),
+                    imageUrls: album.imagePaths,
+                    initialIndex: index,
+                    title: album.title,
+                    author: album.author,
+                    isLocal: true,
                   );
                 },
                 child: ClipRRect(
@@ -818,123 +1060,3 @@ class _LocalAlbumViewerState extends State<_LocalAlbumViewer> {
   }
 }
 
-class _LocalPhotoGalleryViewer extends StatefulWidget {
-  final LocalAlbumFolder album;
-  final int initialIndex;
-
-  const _LocalPhotoGalleryViewer({
-    required this.album,
-    required this.initialIndex,
-  });
-
-  @override
-  State<_LocalPhotoGalleryViewer> createState() => _LocalPhotoGalleryViewerState();
-}
-
-class _LocalPhotoGalleryViewerState extends State<_LocalPhotoGalleryViewer> {
-  late int _currentIndex;
-  late PageController _pageController;
-
-  @override
-  void initState() {
-    super.initState();
-    _currentIndex = widget.initialIndex;
-    _pageController = PageController(initialPage: widget.initialIndex);
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final paths = widget.album.imagePaths;
-
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          PhotoViewGallery.builder(
-            itemCount: paths.length,
-            pageController: _pageController,
-            onPageChanged: (idx) => setState(() => _currentIndex = idx),
-            builder: (context, index) {
-              return PhotoViewGalleryPageOptions(
-                imageProvider: ResizeImage(
-                  FileImage(File(paths[index])),
-                  width: 1800,
-                ),
-                minScale: PhotoViewComputedScale.contained,
-                maxScale: PhotoViewComputedScale.covered * 3.0,
-              );
-            },
-          ),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    BouncingButton(
-                      onTap: () => Navigator.pop(context),
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.black54,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white24, width: 0.5),
-                        ),
-                        child: const Icon(CupertinoIcons.xmark, color: Colors.white, size: 18),
-                      ),
-                    ),
-                    FrostedGlass(
-                      borderRadius: 16,
-                      blur: 16,
-                      backgroundColor: Colors.black45,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                      child: Text(
-                        '${_currentIndex + 1} / ${paths.length}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                    Builder(
-                      builder: (btnCtx) => BouncingButton(
-                        onTap: () {
-                          final box = btnCtx.findRenderObject() as RenderBox?;
-                          Share.shareXFiles(
-                            [XFile(paths[_currentIndex])],
-                            sharePositionOrigin: box != null ? (box.localToGlobal(Offset.zero) & box.size) : null,
-                          );
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.black54,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white24, width: 0.5),
-                          ),
-                          child: const Icon(CupertinoIcons.share, color: Colors.white, size: 18),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

@@ -32,9 +32,14 @@ class XnxxApiService {
   static const String kBaseUrl = 'https://www.xnxx.com';
 
   static String? _configuredProxy;
+  static Dio _dio = _createDio();
 
   static void setProxy(String? proxy) {
     _configuredProxy = proxy?.trim();
+    try {
+      _dio.close(force: true);
+    } catch (_) {}
+    _dio = _createDio();
   }
 
   static Dio _createDio() {
@@ -111,7 +116,7 @@ class XnxxApiService {
     String? bestMonth,
     String? keyword,
   }) async {
-    final dio = _createDio();
+    final dio = _dio;
     final url = buildUrl(page: page, category: category, bestMonth: bestMonth, keyword: keyword);
     debugPrint('[XnxxApiService] Fetching list: $url');
 
@@ -252,7 +257,7 @@ class XnxxApiService {
 
   /// Resolve full video details including high/low MP4 or HLS streaming URLs
   static Future<VideoItem> resolveVideoDetail(VideoItem item) async {
-    final dio = _createDio();
+    final dio = _dio;
     debugPrint('[XnxxApiService] Resolving detail: ${item.detailUrl}');
 
     final response = await dio.get<String>(

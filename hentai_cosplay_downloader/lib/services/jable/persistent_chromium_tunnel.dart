@@ -35,10 +35,10 @@ class PersistentChromiumTunnel {
         javaScriptEnabled: true,
         domStorageEnabled: true,
         databaseEnabled: true,
-        allowUniversalAccessFromFileURLs: true,
-        allowFileAccessFromFileURLs: true,
-        allowContentAccess: true,
-        allowFileAccess: true,
+        allowUniversalAccessFromFileURLs: false,
+        allowFileAccessFromFileURLs: false,
+        allowContentAccess: false,
+        allowFileAccess: false,
       ),
       onWebViewCreated: (controller) {
         _controller = controller;

@@ -35,9 +35,14 @@ class NjavPageData {
 class NjavApiService {
   static const String kBaseUrl = 'https://www.njav.com';
   static String? _configuredProxy;
+  static Dio _dio = _createDio();
 
   static void setProxy(String? proxy) {
-    _configuredProxy = proxy;
+    _configuredProxy = proxy?.trim();
+    try {
+      _dio.close(force: true);
+    } catch (_) {}
+    _dio = _createDio();
   }
 
   static Dio _createDio() {
@@ -90,7 +95,7 @@ class NjavApiService {
     NjavCategory category = NjavCategory.recentUpdate,
     String? keyword,
   }) async {
-    final dio = _createDio();
+    final dio = _dio;
     final url = buildUrl(page: page, category: category, keyword: keyword);
     debugPrint('[NjavApiService] Fetching list: $url');
 
@@ -218,7 +223,7 @@ class NjavApiService {
 
   /// Resolves detailed video metadata
   static Future<VideoItem> resolveVideoDetail(VideoItem item) async {
-    final dio = _createDio();
+    final dio = _dio;
     debugPrint('[NjavApiService] Resolving detail: ${item.detailUrl}');
 
     final response = await dio.get<String>(

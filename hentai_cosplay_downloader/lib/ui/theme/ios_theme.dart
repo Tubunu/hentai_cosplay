@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 class IosTheme {
@@ -29,8 +30,57 @@ class IosTheme {
   // Backgrounds & Surface (Dark)
   static const Color darkBg = Color(0xFF000000);
   static const Color darkSurface = Color(0xFF1C1C1E);
+  static const Color darkSurface2 = Color(0xFF2C2C2E);
+  static const Color darkSurface3 = Color(0xFF3A3A3C);
   static const Color darkGlassSurface = Color(0xCC1C1C1E);
   static const Color darkBorder = Color(0x2EFFFFFF);
+
+  // Semantic Layers
+  static Color surfaceLayer0(bool isDark) => isDark ? darkBg : lightBg;
+  static Color surfaceLayer1(bool isDark) => isDark ? darkSurface : lightSurface;
+  static Color surfaceLayer2(bool isDark) => isDark ? darkSurface2 : const Color(0xFFE5E5EA);
+  static Color surfaceLayer3(bool isDark) => isDark ? darkSurface3 : const Color(0xFFD1D1D6);
+  static Color borderSubtle(bool isDark) => isDark ? darkBorder : lightBorder;
+
+  // Design Tokens
+  static const double minTouchTarget = 44.0;
+  static const double radiusCard = 16.0;
+  static const double radiusPill = 20.0;
+  static const double radiusCapsule = 26.0;
+  static const double radiusSheet = 24.0;
+
+  static List<BoxShadow> cardShadow(bool isDark, {Color? auraColor}) {
+    return [
+      if (auraColor != null)
+        BoxShadow(
+          color: auraColor.withValues(alpha: isDark ? 0.20 : 0.10),
+          blurRadius: 16,
+          offset: const Offset(0, 4),
+        ),
+      BoxShadow(
+        color: Colors.black.withValues(alpha: isDark ? 0.28 : 0.05),
+        blurRadius: 10,
+        offset: const Offset(0, 3),
+      ),
+    ];
+  }
+
+  static List<BoxShadow> floatingShadow(bool isDark, {Color? auraColor}) {
+    return [
+      if (auraColor != null)
+        BoxShadow(
+          color: auraColor.withValues(alpha: isDark ? 0.25 : 0.12),
+          blurRadius: 24,
+          spreadRadius: -2,
+          offset: const Offset(0, 8),
+        ),
+      BoxShadow(
+        color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
+        blurRadius: 18,
+        offset: const Offset(0, 6),
+      ),
+    ];
+  }
 
   static Color getAccentColor(String accent) {
     switch (accent) {
@@ -59,6 +109,12 @@ class IosTheme {
         brightness: Brightness.light,
         primary: primaryPink,
         surface: lightSurface,
+      ),
+      cupertinoOverrideTheme: const CupertinoThemeData(
+        primaryColor: primaryPink,
+        brightness: Brightness.light,
+        barBackgroundColor: lightGlassSurface,
+        scaffoldBackgroundColor: lightBg,
       ),
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.transparent,
@@ -95,6 +151,12 @@ class IosTheme {
         primary: primaryPink,
         surface: darkSurface,
       ),
+      cupertinoOverrideTheme: const CupertinoThemeData(
+        primaryColor: primaryPink,
+        brightness: Brightness.dark,
+        barBackgroundColor: darkGlassSurface,
+        scaffoldBackgroundColor: darkBg,
+      ),
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -117,5 +179,21 @@ class IosTheme {
         ),
       ),
     );
+  }
+
+  /// Unified card aspect ratio calculation with min/max clamping.
+  /// - isVideo = true: standard 16:9-friendly ratio (default 1.45, clamped between 1.30 and 1.85)
+  /// - isVideo = false: standard 3:4-friendly ratio (default 0.72, clamped between 0.60 and 0.85)
+  static double cardAspectRatio({
+    required bool isVideo,
+    double? customRatio,
+    double minRatio = 0.55,
+    double maxRatio = 1.95,
+  }) {
+    if (customRatio != null) {
+      return customRatio.clamp(minRatio, maxRatio);
+    }
+    final defaultRatio = isVideo ? 1.45 : 0.72;
+    return defaultRatio.clamp(minRatio, maxRatio);
   }
 }

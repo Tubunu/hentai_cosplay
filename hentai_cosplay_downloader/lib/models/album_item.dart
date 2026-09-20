@@ -56,6 +56,9 @@ class AlbumItem {
   /// Check if album has images
   bool get hasImages => imageUrls.isNotEmpty;
 
+  /// Check if item represents a video download task
+  bool get isVideo => rawData['isVideo'] == true;
+
   AlbumItem copyWith({
     String? title,
     String? slug,
@@ -404,11 +407,12 @@ class AlbumItem {
     return other is AlbumItem &&
         other.slug == slug &&
         other.detailUrl == detailUrl &&
+        other.sourceType == sourceType &&
         other.title == title;
   }
 
   @override
-  int get hashCode => Object.hash(slug, detailUrl, title);
+  int get hashCode => Object.hash(slug, detailUrl, sourceType, title);
 }
 
 /// Browse category ranking modes

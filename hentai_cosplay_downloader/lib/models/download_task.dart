@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../services/app_logger.dart';
 import 'album_item.dart';
 
 enum TaskStatus {
@@ -217,9 +218,23 @@ class AlbumDownloadTask {
   static List<AlbumDownloadTask> listFromJson(String jsonStr) {
     if (jsonStr.isEmpty) return [];
     try {
-      final list = jsonDecode(jsonStr) as List<dynamic>;
-      return list.map((e) => AlbumDownloadTask.fromJson(e as Map<String, dynamic>)).toList();
-    } catch (_) {
+      final decoded = jsonDecode(jsonStr);
+      if (decoded is! List) return [];
+      final result = <AlbumDownloadTask>[];
+      for (final item in decoded) {
+        try {
+          if (item is Map<String, dynamic>) {
+            result.add(AlbumDownloadTask.fromJson(item));
+          } else if (item is Map) {
+            result.add(AlbumDownloadTask.fromJson(Map<String, dynamic>.from(item)));
+          }
+        } catch (e, st) {
+          AppLogger.e('DownloadTask', '跳过损坏的下载任务条目: $e', e, st);
+        }
+      }
+      return result;
+    } catch (e, st) {
+      AppLogger.e('DownloadTask', '下载任务列表 JSON 反序列化失败: $e', e, st);
       return [];
     }
   }

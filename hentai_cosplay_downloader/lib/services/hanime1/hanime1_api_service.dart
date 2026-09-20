@@ -33,6 +33,9 @@ class Hanime1ApiService {
 
   static void setProxy(String? proxy) {
     _configuredProxy = proxy?.trim();
+    try {
+      _dio.close(force: true);
+    } catch (_) {}
     _dio = _createDio();
   }
 

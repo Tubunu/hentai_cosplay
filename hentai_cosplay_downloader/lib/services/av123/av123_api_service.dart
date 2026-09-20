@@ -53,9 +53,14 @@ class Av123DetailData {
 class Av123ApiService {
   static const String kBaseUrl = 'https://123av.com';
   static String? _configuredProxy;
+  static Dio _dio = _createDio();
 
   static void setProxy(String? proxy) {
-    _configuredProxy = proxy;
+    _configuredProxy = proxy?.trim();
+    try {
+      _dio.close(force: true);
+    } catch (_) {}
+    _dio = _createDio();
   }
 
   static Dio _createDio() {
@@ -108,7 +113,7 @@ class Av123ApiService {
     Av123Category category = Av123Category.newest,
     String? keyword,
   }) async {
-    final dio = _createDio();
+    final dio = _dio;
     final url = buildUrl(page: page, category: category, keyword: keyword);
     debugPrint('[Av123ApiService] Fetching URL: $url');
 
@@ -210,7 +215,7 @@ class Av123ApiService {
   }
 
   static Future<Av123DetailData> fetchDetail(VideoItem item) async {
-    final dio = _createDio();
+    final dio = _dio;
     final response = await dio.get<String>(
       item.detailUrl,
       options: Options(headers: {'Referer': 'https://123av.com/cn'}),
@@ -335,7 +340,7 @@ class Av123ApiService {
     final hashId = hashMatch.group(1)!;
 
     try {
-      final dio = _createDio();
+      final dio = _dio;
       final resp = await dio.get<Map<String, dynamic>>(
         'https://javplayer.cc/stream?id=$hashId',
         options: Options(headers: {

@@ -1,8 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:photo_view/photo_view.dart';
-import 'package:photo_view/photo_view_gallery.dart';
+import '../../widgets/unified_photo_viewer.dart';
 import 'package:provider/provider.dart';
 import '../../../models/album_item.dart';
 import '../../../models/download_task.dart';
@@ -76,14 +75,14 @@ class _NsfwpubDetailPageState extends State<NsfwpubDetailPage> {
   }
 
   void _openGallery(int initialIndex) {
-    Navigator.push(
+    if (_item.imageUrls.isEmpty) return;
+    UnifiedPhotoViewer.open(
       context,
-      MaterialPageRoute(
-        builder: (_) => _NsfwpubPhotoViewGallery(
-          item: _item,
-          initialIndex: initialIndex,
-        ),
-      ),
+      imageUrls: _item.imageUrls,
+      initialIndex: initialIndex,
+      title: _item.title,
+      author: _item.author,
+      sourceType: MediaSourceType.nsfwpub,
     );
   }
 
@@ -92,14 +91,12 @@ class _NsfwpubDetailPageState extends State<NsfwpubDetailPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     const themeColor = Color(0xFFD63384);
 
-    final existingTask = context.select<DownloadProvider, AlbumDownloadTask?>((p) {
-      for (final t in p.allTasks) {
-        if (t.albumItem.slug == _item.slug || t.albumItem.detailUrl == _item.detailUrl) {
-          return t;
-        }
-      }
-      return null;
-    });
+    final taskStatus = context.select<DownloadProvider, TaskStatus?>(
+      (p) => p.getTaskStatus(slug: _item.slug, detailUrl: _item.detailUrl),
+    );
+    final isDownloaded = taskStatus == TaskStatus.completed;
+    final isDownloading = taskStatus == TaskStatus.downloading ||
+        taskStatus == TaskStatus.queued;
 
     final photoCount = _item.imageUrls.isNotEmpty
         ? _item.imageUrls.length
@@ -275,17 +272,19 @@ class _NsfwpubDetailPageState extends State<NsfwpubDetailPage> {
                                     width: double.infinity,
                                     child: ElevatedButton.icon(
                                       icon: Icon(
-                                        existingTask != null
+                                        isDownloaded
                                             ? CupertinoIcons.check_mark_circled_solid
-                                            : CupertinoIcons.cloud_download,
+                                            : (isDownloading
+                                                ? CupertinoIcons.arrow_down_circle
+                                                : CupertinoIcons.cloud_download),
                                         size: 18,
                                       ),
                                       label: Text(
-                                        existingTask != null
-                                            ? (existingTask.status == TaskStatus.completed
-                                                ? '图集已下载完成'
-                                                : '图集正在下载中...')
-                                            : '下载整套图集 ($photoCount P)',
+                                        isDownloaded
+                                            ? '图集已下载完成'
+                                            : (isDownloading
+                                                ? '图集正在下载中...'
+                                                : '下载整套图集 ($photoCount P)'),
                                         style: const TextStyle(fontWeight: FontWeight.bold),
                                       ),
                                       style: ElevatedButton.styleFrom(
@@ -294,7 +293,7 @@ class _NsfwpubDetailPageState extends State<NsfwpubDetailPage> {
                                         padding: const EdgeInsets.symmetric(vertical: 12),
                                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                       ),
-                                      onPressed: existingTask != null || _item.imageUrls.isEmpty
+                                      onPressed: isDownloaded || isDownloading || _item.imageUrls.isEmpty
                                           ? null
                                           : () {
                                               final downloadProv = context.read<DownloadProvider>();
@@ -461,103 +460,4 @@ class _NsfwpubDetailPageState extends State<NsfwpubDetailPage> {
   }
 }
 
-class _NsfwpubPhotoViewGallery extends StatefulWidget {
-  final AlbumItem item;
-  final int initialIndex;
 
-  const _NsfwpubPhotoViewGallery({
-    required this.item,
-    required this.initialIndex,
-  });
-
-  @override
-  State<_NsfwpubPhotoViewGallery> createState() => _NsfwpubPhotoViewGalleryState();
-}
-
-class _NsfwpubPhotoViewGalleryState extends State<_NsfwpubPhotoViewGallery> {
-  late PageController _pageController;
-  late int _currentIndex;
-
-  @override
-  void initState() {
-    super.initState();
-    _currentIndex = widget.initialIndex;
-    _pageController = PageController(initialPage: widget.initialIndex);
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final images = widget.item.imageUrls;
-
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          PhotoViewGallery.builder(
-            itemCount: images.length,
-            pageController: _pageController,
-            onPageChanged: (index) {
-              setState(() => _currentIndex = index);
-            },
-            builder: (context, index) {
-              return PhotoViewGalleryPageOptions(
-                imageProvider: CachedNetworkImageProvider(
-                  images[index],
-                  headers: const {
-                    'Referer': 'https://nsfwpub.com/',
-                    'User-Agent':
-                        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-                  },
-                ),
-                minScale: PhotoViewComputedScale.contained,
-                maxScale: PhotoViewComputedScale.covered * 3.0,
-                heroAttributes: PhotoViewHeroAttributes(tag: images[index]),
-              );
-            },
-            loadingBuilder: (context, event) => const Center(
-              child: CupertinoActivityIndicator(color: Colors.white, radius: 14),
-            ),
-          ),
-
-          // Header Overlay
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(CupertinoIcons.back, color: Colors.white),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                    Expanded(
-                      child: Text(
-                        '${_currentIndex + 1} / ${images.length}',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 48),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

@@ -9,6 +9,7 @@ import '../../../providers/local_jable_provider.dart';
 import '../../theme/ios_theme.dart';
 import '../../widgets/bouncing_button.dart';
 import '../video/video_player_page.dart';
+import 'package:hentai_cosplay_downloader/utils/app_share.dart';
 
 class LocalJablePage extends StatefulWidget {
   const LocalJablePage({super.key});
@@ -139,7 +140,7 @@ class _LocalJablePageState extends State<LocalJablePage> with AutomaticKeepAlive
           CupertinoActionSheetAction(
             onPressed: () {
               Navigator.pop(context);
-              Share.shareXFiles([XFile(item.filePath)], text: item.title);
+              AppShare.shareXFiles(context, [XFile(item.filePath)], text: item.title);
             },
             child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,

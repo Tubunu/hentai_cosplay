@@ -76,10 +76,16 @@ class CoomerBrowseProvider extends ChangeNotifier {
     }
   }
 
+  void _resetSelection() {
+    _selectedSlugs.clear();
+    _isSelectionMode = false;
+  }
+
   void setViewMode(CoomerViewMode mode) {
     if (_viewMode == mode) return;
     _viewMode = mode;
     _searchQuery = '';
+    _resetSelection();
     loadData(reset: true);
   }
 
@@ -88,27 +94,32 @@ class CoomerBrowseProvider extends ChangeNotifier {
     _selectedService = service;
     _searchQuery = '';
     _selectedCreator = null;
+    _resetSelection();
     loadData(reset: true);
   }
 
   void setSearchQuery(String query) {
     _searchQuery = query.trim();
+    _resetSelection();
     loadData(reset: true);
   }
 
   void selectCreator(CoomerCreator? creator) {
     _selectedCreator = creator;
     _viewMode = CoomerViewMode.posts;
+    _resetSelection();
     loadData(reset: true);
   }
 
   void clearCreatorFilter() {
     _selectedCreator = null;
+    _resetSelection();
     loadData(reset: true);
   }
 
   void clearSearch() {
     _searchQuery = '';
+    _resetSelection();
     loadData(reset: true);
   }
 

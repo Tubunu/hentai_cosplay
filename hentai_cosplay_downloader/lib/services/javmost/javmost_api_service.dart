@@ -51,9 +51,14 @@ class JavmostDetailData {
 class JavmostApiService {
   static const String kBaseUrl = 'https://www.javmost.ws';
   static String? _configuredProxy;
+  static Dio _dio = _createDio();
 
   static void setProxy(String? proxy) {
-    _configuredProxy = proxy;
+    _configuredProxy = proxy?.trim();
+    try {
+      _dio.close(force: true);
+    } catch (_) {}
+    _dio = _createDio();
   }
 
   static Dio _createDio() {
@@ -105,7 +110,7 @@ class JavmostApiService {
     JavmostCategory category = JavmostCategory.all,
     String? keyword,
   }) async {
-    final dio = _createDio();
+    final dio = _dio;
     final url = buildUrl(page: page, category: category, keyword: keyword);
     debugPrint('[JavmostApiService] Fetching URL: $url');
 
@@ -219,7 +224,7 @@ class JavmostApiService {
   }
 
   static Future<JavmostDetailData> fetchDetail(VideoItem item) async {
-    final dio = _createDio();
+    final dio = _dio;
     final response = await dio.get<String>(
       item.detailUrl,
       options: Options(headers: {'Referer': 'https://www.javmost.ws/'}),
@@ -312,7 +317,7 @@ class JavmostApiService {
     }
 
     try {
-      final dio = _createDio();
+      final dio = _dio;
       final detailResp = await dio.get<String>(
         detailUrl,
         options: Options(headers: {'Referer': 'https://www.javmost.ws/'}),
@@ -363,24 +368,25 @@ class JavmostApiService {
       }
 
       if (embedUrl.contains('dooplayer.com')) {
-        final dooDio = NetworkClient.createDio(
-          headers: {
-            'User-Agent':
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            'Referer': 'https://www.javmost.ws/',
-            'Accept':
-                'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-            'sec-ch-ua':
-                '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
-            'sec-ch-ua-mobile': '?0',
-            'sec-ch-ua-platform': '"Windows"',
-            'sec-fetch-dest': 'iframe',
-            'sec-fetch-mode': 'navigate',
-            'sec-fetch-site': 'cross-site',
-          },
+        final dooResp = await _dio.get<String>(
+          embedUrl,
+          options: Options(
+            headers: {
+              'User-Agent':
+                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+              'Referer': 'https://www.javmost.ws/',
+              'Accept':
+                  'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+              'sec-ch-ua':
+                  '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+              'sec-ch-ua-mobile': '?0',
+              'sec-ch-ua-platform': '"Windows"',
+              'sec-fetch-dest': 'iframe',
+              'sec-fetch-mode': 'navigate',
+              'sec-fetch-site': 'cross-site',
+            },
+          ),
         );
-
-        final dooResp = await dooDio.get<String>(embedUrl);
         final dooHtml = dooResp.data ?? '';
 
         final token = RegExp(r'name=["\x27]?x-embed-token["\x27]?\s*content=["\x27]?([^"\x27>]+)').firstMatch(dooHtml)?.group(1) ??
@@ -394,7 +400,7 @@ class JavmostApiService {
 
         if (token != null && api != null) {
           final streamApiUrl = '${api.replaceAll(RegExp(r'/+$'), '')}/${Uri.encodeComponent(token)}';
-          final streamResp = await dooDio.post<Map<String, dynamic>>(
+          final streamResp = await _dio.post<Map<String, dynamic>>(
             streamApiUrl,
             data: jsonEncode({'ref': embedUrl}),
             options: Options(

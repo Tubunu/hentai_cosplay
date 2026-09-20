@@ -25,14 +25,9 @@ class NsfwpubAlbumCard extends StatelessWidget {
     final isSelectionMode = context.select<NsfwpubBrowseProvider, bool>((p) => p.isSelectionMode);
     const themeColor = Color(0xFFD63384);
 
-    final existingTask = context.select<DownloadProvider, AlbumDownloadTask?>((p) {
-      for (final t in p.allTasks) {
-        if (t.albumItem.slug == item.slug || t.albumItem.detailUrl == item.detailUrl) {
-          return t;
-        }
-      }
-      return null;
-    });
+    final taskStatus = context.select<DownloadProvider, TaskStatus?>(
+      (p) => p.getTaskStatus(slug: item.slug, detailUrl: item.detailUrl),
+    );
 
     final photoCount = item.rawData['photo_count'] as int? ?? 0;
     final model = item.rawData['model'] as String? ?? '';
@@ -152,20 +147,20 @@ class NsfwpubAlbumCard extends StatelessWidget {
                     ),
 
                   // Download Status Badge (Top Right)
-                  if (existingTask != null)
+                  if (taskStatus != null)
                     Positioned(
                       top: 6,
                       right: 6,
                       child: Container(
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
-                          color: existingTask.status == TaskStatus.completed
+                          color: taskStatus == TaskStatus.completed
                               ? Colors.green.withValues(alpha: 0.85)
                               : themeColor.withValues(alpha: 0.85),
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
-                          existingTask.status == TaskStatus.completed
+                          taskStatus == TaskStatus.completed
                               ? CupertinoIcons.check_mark
                               : CupertinoIcons.arrow_down,
                           size: 12,

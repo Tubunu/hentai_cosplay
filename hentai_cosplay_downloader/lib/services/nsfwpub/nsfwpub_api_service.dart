@@ -36,9 +36,14 @@ class NsfwpubPageData {
 class NsfwpubApiService {
   static const String kBaseUrl = 'https://nsfwpub.com';
   static String? _configuredProxy;
+  static Dio _dio = _createDio();
 
   static void setProxy(String? proxy) {
-    _configuredProxy = proxy;
+    _configuredProxy = proxy?.trim();
+    try {
+      _dio.close(force: true);
+    } catch (_) {}
+    _dio = _createDio();
   }
 
   static Dio _createDio() {
@@ -96,7 +101,7 @@ class NsfwpubApiService {
     NsfwpubCategory category = NsfwpubCategory.all,
     String? keyword,
   }) async {
-    final dio = _createDio();
+    final dio = _dio;
     final url = buildUrl(page: page, category: category, keyword: keyword);
     debugPrint('[NsfwpubApiService] Fetching list: $url');
 
@@ -223,7 +228,7 @@ class NsfwpubApiService {
 
   /// Fetch full album images from detail page (/pics/{id})
   static Future<AlbumItem> fetchAlbumDetail(AlbumItem item) async {
-    final dio = _createDio();
+    final dio = _dio;
     debugPrint('[NsfwpubApiService] Fetching detail: ${item.detailUrl}');
 
     final response = await dio.get<String>(

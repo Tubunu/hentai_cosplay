@@ -6,6 +6,7 @@ import '../services/storage_service.dart';
 
 class HistoryProvider extends ChangeNotifier {
   static const String _kHistoryKey = 'hentai_cosplay_history_records';
+  static const int _kMaxHistoryRecords = 2000;
   List<HistoryRecord> _records = [];
   bool _disposed = false;
 
@@ -110,6 +111,9 @@ class HistoryProvider extends ChangeNotifier {
           .whereType<HistoryRecord>()
           .toList();
       _records.sort((a, b) => b.completedAt.compareTo(a.completedAt));
+      if (_records.length > _kMaxHistoryRecords) {
+        _records = _records.sublist(0, _kMaxHistoryRecords);
+      }
       _rebuildCacheAndIndices();
       notifyListeners();
 
@@ -153,6 +157,12 @@ class HistoryProvider extends ChangeNotifier {
         (rec.detailUrl.isNotEmpty && r.detailUrl == rec.detailUrl) ||
         (rec.id.isEmpty && r.title == rec.title));
     _records.insert(0, rec);
+
+    // 超出上限时，裁剪最旧的记录
+    if (_records.length > _kMaxHistoryRecords) {
+      _records = _records.sublist(0, _kMaxHistoryRecords);
+    }
+
     _rebuildCacheAndIndices();
     notifyListeners();
     await _saveHistory();

@@ -542,7 +542,7 @@ class _VideoBrowsePageState extends State<VideoBrowsePage> {
                 ),
 
               // Video Content Grid or Loading / Error
-              if (browseProv.isLoading)
+              if (browseProv.isLoading && browseProv.items.isEmpty)
                 const SliverFillRemaining(
                   child: Center(
                     child: Column(
@@ -555,7 +555,7 @@ class _VideoBrowsePageState extends State<VideoBrowsePage> {
                     ),
                   ),
                 )
-              else if (browseProv.errorMessage != null)
+              else if (browseProv.errorMessage != null && browseProv.items.isEmpty)
                 SliverFillRemaining(
                   child: Center(
                     child: Padding(
@@ -592,9 +592,11 @@ class _VideoBrowsePageState extends State<VideoBrowsePage> {
                   ),
                 )
               else
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                  sliver: SliverGrid(
+                SliverOpacity(
+                  opacity: browseProv.isLoading ? 0.5 : 1.0,
+                  sliver: SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    sliver: SliverGrid(
                     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 2,
                       childAspectRatio: 0.95,
@@ -627,6 +629,7 @@ class _VideoBrowsePageState extends State<VideoBrowsePage> {
                     ),
                   ),
                 ),
+              ),
 
               // Prominent Pagination Bar (Bottom)
               if (!browseProv.isLoading && browseProv.items.isNotEmpty)

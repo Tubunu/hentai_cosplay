@@ -33,7 +33,7 @@ void main() {
     expect(resolved.videoUrl, isNotNull);
     final qualities = resolved.rawData['qualities'] as Map<String, dynamic>?;
     print('=> Iwara Detail: ${resolved.title} | Qualities: $qualities | VideoUrl: ${resolved.videoUrl}');
-  });
+  }, timeout: const Timeout(Duration(minutes: 2)));
 
   test('Test Rule34Video categories, search and video detail resolution', () async {
     for (final cat in Rule34VideoCategory.values) {
@@ -53,5 +53,5 @@ void main() {
     expect(resolved.videoUrl, isNotNull);
     final qualities = resolved.rawData['qualities'] as Map<String, dynamic>?;
     print('=> Rule34Video Detail: ${resolved.title} | Qualities: $qualities | VideoUrl: ${resolved.videoUrl}');
-  });
+  }, timeout: const Timeout(Duration(minutes: 2)));
 }

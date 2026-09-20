@@ -1,8 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:photo_view/photo_view.dart';
-import 'package:photo_view/photo_view_gallery.dart';
+import '../../widgets/unified_photo_viewer.dart';
 import 'package:provider/provider.dart';
 import '../../../models/album_item.dart';
 import '../../../models/download_task.dart';
@@ -85,30 +84,24 @@ class _NucosplayDetailPageState extends State<NucosplayDetailPage> {
 
   void _openGallery(int initialIndex) {
     if (_item.imageUrls.isEmpty) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => _NucosplayGalleryViewer(
-          imageUrls: _item.imageUrls,
-          initialIndex: initialIndex,
-          title: _item.title,
-        ),
-      ),
+    UnifiedPhotoViewer.open(
+      context,
+      imageUrls: _item.imageUrls,
+      initialIndex: initialIndex,
+      title: _item.title,
+      author: _item.author,
+      sourceType: MediaSourceType.nucosplay,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final existingTask = context.select<DownloadProvider, AlbumDownloadTask?>((p) {
-      for (final t in p.allTasks) {
-        if (t.albumItem.slug == _item.slug || t.albumItem.detailUrl == _item.detailUrl) {
-          return t;
-        }
-      }
-      return null;
-    });
+    final taskStatus = context.select<DownloadProvider, TaskStatus?>(
+      (p) => p.getTaskStatus(slug: _item.slug, detailUrl: _item.detailUrl),
+    );
 
-    final isDownloaded = existingTask?.status == TaskStatus.completed;
-    final isDownloading = existingTask?.status == TaskStatus.downloading;
+    final isDownloaded = taskStatus == TaskStatus.completed;
+    final isDownloading = taskStatus == TaskStatus.downloading;
 
     return Scaffold(
       appBar: AppBar(
@@ -306,60 +299,4 @@ class _NucosplayDetailPageState extends State<NucosplayDetailPage> {
   }
 }
 
-class _NucosplayGalleryViewer extends StatefulWidget {
-  final List<String> imageUrls;
-  final int initialIndex;
-  final String title;
 
-  const _NucosplayGalleryViewer({
-    required this.imageUrls,
-    required this.initialIndex,
-    required this.title,
-  });
-
-  @override
-  State<_NucosplayGalleryViewer> createState() => _NucosplayGalleryViewerState();
-}
-
-class _NucosplayGalleryViewerState extends State<_NucosplayGalleryViewer> {
-  late int _currentIndex;
-  late PageController _pageController;
-
-  @override
-  void initState() {
-    super.initState();
-    _currentIndex = widget.initialIndex;
-    _pageController = PageController(initialPage: widget.initialIndex);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black54,
-        title: Text('${_currentIndex + 1} / ${widget.imageUrls.length}'),
-      ),
-      body: PhotoViewGallery.builder(
-        scrollPhysics: const BouncingScrollPhysics(),
-        builder: (BuildContext context, int index) {
-          return PhotoViewGalleryPageOptions(
-            imageProvider: CachedNetworkImageProvider(widget.imageUrls[index]),
-            initialScale: PhotoViewComputedScale.contained,
-            heroAttributes: PhotoViewHeroAttributes(tag: widget.imageUrls[index]),
-          );
-        },
-        itemCount: widget.imageUrls.length,
-        loadingBuilder: (context, event) => const Center(
-          child: CupertinoActivityIndicator(color: Colors.white),
-        ),
-        pageController: _pageController,
-        onPageChanged: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-      ),
-    );
-  }
-}

@@ -133,14 +133,10 @@ class _PornhubDetailPageState extends State<PornhubDetailPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     const themeColor = Color(0xFFFF9900);
 
-    final existingTask = context.select<DownloadProvider, AlbumDownloadTask?>((p) {
-      for (final t in p.allTasks) {
-        if (t.albumItem.slug == _item.slug || t.albumItem.detailUrl == _item.detailUrl) {
-          return t;
-        }
-      }
-      return null;
-    });
+    final taskStatus = context.select<DownloadProvider, TaskStatus?>(
+      (p) => p.getTaskStatus(slug: _item.slug, detailUrl: _item.detailUrl),
+    );
+    final isDownloaded = taskStatus == TaskStatus.completed;
 
     return Scaffold(
       appBar: AppBar(
@@ -345,21 +341,21 @@ class _PornhubDetailPageState extends State<PornhubDetailPage> {
                                   width: double.infinity,
                                   child: ElevatedButton.icon(
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: existingTask?.status == TaskStatus.completed
+                                      backgroundColor: isDownloaded
                                           ? Colors.green
                                           : (isDark ? Colors.grey[850] : Colors.grey[200]),
-                                      foregroundColor: existingTask?.status == TaskStatus.completed ? Colors.white : (isDark ? Colors.white : Colors.black87),
+                                      foregroundColor: isDownloaded ? Colors.white : (isDark ? Colors.white : Colors.black87),
                                       padding: const EdgeInsets.symmetric(vertical: 12),
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                     ),
                                     icon: Icon(
-                                      existingTask?.status == TaskStatus.completed
+                                      isDownloaded
                                           ? CupertinoIcons.checkmark_alt
                                           : CupertinoIcons.arrow_down_to_line,
                                       size: 18,
                                     ),
                                     label: Text(
-                                      existingTask?.status == TaskStatus.completed
+                                      isDownloaded
                                           ? '视频已下载到本地'
                                           : '下载此视频到本地',
                                       style: const TextStyle(fontWeight: FontWeight.bold),

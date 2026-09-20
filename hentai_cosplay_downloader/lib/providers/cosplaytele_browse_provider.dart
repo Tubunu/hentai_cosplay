@@ -3,6 +3,21 @@ import '../models/album_item.dart';
 import '../services/cosplaytele/cosplaytele_api_service.dart';
 
 class CosplayteleBrowseProvider extends ChangeNotifier {
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) {
+      super.notifyListeners();
+    }
+  }
+
   List<AlbumItem> _items = [];
   bool _isLoading = false;
   String? _errorMessage;
@@ -90,23 +105,21 @@ class CosplayteleBrowseProvider extends ChangeNotifier {
         keyword: _searchKeyword,
       );
 
-      if (requestId != _currentRequestId) return;
+      if (_disposed || requestId != _currentRequestId) return;
 
       if (response != null) {
         _items = response.items;
         _currentPage = response.page;
         _totalPages = response.totalPages;
         _totalItems = response.total;
-        _selectedSlugs.clear();
-        _isSelectionMode = false;
       } else {
         _errorMessage = '获取 CosplayTele 列表失败，请检查网络或配置代理';
       }
     } catch (e) {
-      if (requestId != _currentRequestId) return;
+      if (_disposed || requestId != _currentRequestId) return;
       _errorMessage = '请求错误: $e';
     } finally {
-      if (requestId == _currentRequestId) {
+      if (!_disposed && requestId == _currentRequestId) {
         _isLoading = false;
         notifyListeners();
       }

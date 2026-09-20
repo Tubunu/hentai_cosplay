@@ -4,6 +4,7 @@ import '../../models/album_item.dart';
 import '../../services/hc_api_service.dart';
 import '../theme/ios_theme.dart';
 import 'bouncing_button.dart';
+import 'page_navigation_bar.dart';
 
 class RankingTagsSheet extends StatefulWidget {
   final bool isTag; // true for 热门标签, false for 热门搜索词
@@ -42,7 +43,6 @@ class _RankingTagsSheetState extends State<RankingTagsSheet> {
   bool _isLoading = true;
   String? _errorMessage;
   final TextEditingController _filterController = TextEditingController();
-  final TextEditingController _jumpController = TextEditingController();
 
   @override
   void initState() {
@@ -53,7 +53,6 @@ class _RankingTagsSheetState extends State<RankingTagsSheet> {
   @override
   void dispose() {
     _filterController.dispose();
-    _jumpController.dispose();
     super.dispose();
   }
 
@@ -93,61 +92,7 @@ class _RankingTagsSheetState extends State<RankingTagsSheet> {
     }
   }
 
-  void _showJumpDialog() {
-    _jumpController.text = _currentPage.toString();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          widget.isTag ? '跳转热门标签页码' : '跳转热门搜索词页码',
-          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('请输入 1 ~ $_totalPages 之间的页码：', style: const TextStyle(fontSize: 13)),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _jumpController,
-              keyboardType: TextInputType.number,
-              autofocus: true,
-              decoration: InputDecoration(
-                filled: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: IosTheme.primaryPink,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            onPressed: () {
-              final p = int.tryParse(_jumpController.text.trim());
-              if (p != null && p >= 1 && p <= _totalPages) {
-                Navigator.pop(ctx);
-                _loadTags(p);
-              }
-            },
-            child: const Text('跳转'),
-          ),
-        ],
-      ),
-    );
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -162,7 +107,7 @@ class _RankingTagsSheetState extends State<RankingTagsSheet> {
     return Container(
       height: MediaQuery.of(context).size.height * 0.85,
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+        color: IosTheme.surfaceLayer1(isDark),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
       ),
       child: Column(
@@ -225,7 +170,7 @@ class _RankingTagsSheetState extends State<RankingTagsSheet> {
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF2F2F7),
+                      color: IosTheme.surfaceLayer2(isDark),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(CupertinoIcons.refresh, size: 16),
@@ -239,7 +184,7 @@ class _RankingTagsSheetState extends State<RankingTagsSheet> {
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF2F2F7),
+                      color: IosTheme.surfaceLayer2(isDark),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(CupertinoIcons.xmark, size: 16),
@@ -304,9 +249,7 @@ class _RankingTagsSheetState extends State<RankingTagsSheet> {
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                                     decoration: BoxDecoration(
-                                      color: isDark
-                                          ? const Color(0xFF2C2C2E)
-                                          : const Color(0xFFF2F2F7),
+                                      color: IosTheme.surfaceLayer2(isDark),
                                       borderRadius: BorderRadius.circular(16),
                                       border: Border.all(
                                         color: isDark
@@ -355,119 +298,22 @@ class _RankingTagsSheetState extends State<RankingTagsSheet> {
 
           // Bottom Pagination Bar
           Container(
-            padding: EdgeInsets.fromLTRB(20, 10, 20, MediaQuery.of(context).padding.bottom + 10),
+            padding: EdgeInsets.fromLTRB(16, 4, 16, MediaQuery.of(context).padding.bottom + 6),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF242426) : const Color(0xFFF9F9FB),
+              color: IosTheme.surfaceLayer1(isDark),
               border: Border(
                 top: BorderSide(
-                  color: isDark ? Colors.white10 : Colors.black12,
+                  color: IosTheme.borderSubtle(isDark),
                   width: 0.5,
                 ),
               ),
             ),
-            child: Row(
-              children: [
-                // Prev Page Button
-                Expanded(
-                  child: BouncingButton(
-                    onTap: _currentPage > 1 && !_isLoading
-                        ? () => _loadTags(_currentPage - 1)
-                        : null,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      decoration: BoxDecoration(
-                        color: _currentPage > 1
-                            ? (isDark ? const Color(0xFF3A3A3C) : Colors.white)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: _currentPage > 1 ? IosTheme.primaryPink.withValues(alpha: 0.3) : Colors.transparent,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            CupertinoIcons.chevron_left,
-                            size: 14,
-                            color: _currentPage > 1 ? IosTheme.primaryPink : Colors.grey,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '上一页',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: _currentPage > 1 ? IosTheme.primaryPink : Colors.grey,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-
-                // Jump Page Button
-                BouncingButton(
-                  onTap: _totalPages > 1 && !_isLoading ? _showJumpDialog : null,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF3A3A3C) : Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '$_currentPage / $_totalPages',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-
-                // Next Page Button
-                Expanded(
-                  child: BouncingButton(
-                    onTap: _currentPage < _totalPages && !_isLoading
-                        ? () => _loadTags(_currentPage + 1)
-                        : null,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      decoration: BoxDecoration(
-                        color: _currentPage < _totalPages
-                            ? (isDark ? const Color(0xFF3A3A3C) : Colors.white)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: _currentPage < _totalPages ? IosTheme.primaryPink.withValues(alpha: 0.3) : Colors.transparent,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            '下一页',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: _currentPage < _totalPages ? IosTheme.primaryPink : Colors.grey,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(
-                            CupertinoIcons.chevron_right,
-                            size: 14,
-                            color: _currentPage < _totalPages ? IosTheme.primaryPink : Colors.grey,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+            child: PageNavigationBar(
+              currentPage: _currentPage,
+              totalPages: _totalPages,
+              isLoading: _isLoading,
+              onPageSelected: (page) => _loadTags(page),
+              brandColor: IosTheme.primaryPink,
             ),
           ),
         ],

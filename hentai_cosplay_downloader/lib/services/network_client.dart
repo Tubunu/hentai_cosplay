@@ -6,9 +6,16 @@ import 'package:dio/io.dart';
 /// proxies (HTTP & SOCKS5), and connection parameters across all API services.
 class NetworkClient {
   static String _currentProxy = '';
+  static bool _allowInsecureCertificates = false;
   static final List<void Function(String proxy)> _proxyListeners = [];
 
   static String get currentProxy => _currentProxy;
+  static bool get allowInsecureCertificates => _allowInsecureCertificates;
+
+  /// Global insecure certificates setter
+  static void setAllowInsecureCertificates(bool allow) {
+    _allowInsecureCertificates = allow;
+  }
 
   /// Global proxy setter, notifies all listeners of changes
   static void setProxy(String? proxy) {
@@ -37,7 +44,7 @@ class NetworkClient {
     Duration connectTimeout = const Duration(seconds: 15),
     Duration receiveTimeout = const Duration(seconds: 25),
     Duration sendTimeout = const Duration(seconds: 15),
-    bool allowBadCertificates = true,
+    bool? allowBadCertificates,
     String? specificProxy,
   }) {
     final dio = Dio(
@@ -53,11 +60,12 @@ class NetworkClient {
     final adapter = IOHttpClientAdapter();
     adapter.createHttpClient = () {
       final client = HttpClient();
-      if (allowBadCertificates) {
+      final effectiveProxy = specificProxy ?? _currentProxy;
+      final effectiveAllowBadCert = (allowBadCertificates ?? _allowInsecureCertificates) && effectiveProxy.isNotEmpty;
+      // 仅在明确开启且配置了代理时绕过 SSL 验证（如 Charles / Proxyman 抓包调试）
+      if (effectiveAllowBadCert) {
         client.badCertificateCallback = (cert, host, port) => true;
       }
-
-      final effectiveProxy = specificProxy ?? _currentProxy;
       if (effectiveProxy.isNotEmpty) {
         final clean = effectiveProxy.replaceAll(RegExp(r'https?://|socks5?://'), '');
         if (effectiveProxy.startsWith('socks')) {

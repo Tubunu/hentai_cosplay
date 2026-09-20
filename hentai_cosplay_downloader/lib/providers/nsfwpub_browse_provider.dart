@@ -3,6 +3,21 @@ import '../models/album_item.dart';
 import '../services/nsfwpub/nsfwpub_api_service.dart';
 
 class NsfwpubBrowseProvider extends ChangeNotifier {
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) {
+      super.notifyListeners();
+    }
+  }
+
   List<AlbumItem> _items = [];
   bool _isLoading = false;
   String? _errorMessage;
@@ -77,18 +92,16 @@ class NsfwpubBrowseProvider extends ChangeNotifier {
         keyword: _searchKeyword,
       );
 
-      if (requestId != _currentRequestId) return;
+      if (_disposed || requestId != _currentRequestId) return;
 
       _items = response.items;
       _currentPage = response.currentPage;
       _totalPages = response.totalPages;
-      _selectedSlugs.clear();
-      _isSelectionMode = false;
     } catch (e) {
-      if (requestId != _currentRequestId) return;
+      if (_disposed || requestId != _currentRequestId) return;
       _errorMessage = '获取 NSFWPub 图集失败: $e';
     } finally {
-      if (requestId == _currentRequestId) {
+      if (!_disposed && requestId == _currentRequestId) {
         _isLoading = false;
         notifyListeners();
       }

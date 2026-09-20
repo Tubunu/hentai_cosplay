@@ -72,6 +72,7 @@ class _VjavBrowsePageState extends State<VjavBrowsePage> {
               },
               child: CustomScrollView(
                 controller: _scrollController,
+                cacheExtent: 600.0,
                 physics: const AlwaysScrollableScrollPhysics(
                   parent: BouncingScrollPhysics(),
                 ),
@@ -339,7 +340,7 @@ class _VjavBrowsePageState extends State<VjavBrowsePage> {
                           crossAxisCount: 2,
                           crossAxisSpacing: 10,
                           mainAxisSpacing: 12,
-                          childAspectRatio: 0.82,
+                          childAspectRatio: 1.45,
                         ),
                         delegate: SliverChildBuilderDelegate(
                           (context, index) {

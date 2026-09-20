@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hentai_cosplay_downloader/models/album_item.dart';
 import 'package:hentai_cosplay_downloader/models/app_config.dart';
-import 'package:hentai_cosplay_downloader/models/resource_site_item.dart';
+import 'package:hentai_cosplay_downloader/ui/site_registry.dart';
 import 'package:hentai_cosplay_downloader/providers/gallery_provider.dart';
 import 'package:hentai_cosplay_downloader/services/cosvault/cosvault_api_service.dart';
 import 'package:hentai_cosplay_downloader/services/galleryepic/galleryepic_api_service.dart';

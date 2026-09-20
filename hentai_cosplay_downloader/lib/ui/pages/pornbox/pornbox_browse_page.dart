@@ -563,7 +563,7 @@ class _PornboxBrowsePageState extends State<PornboxBrowsePage> {
                       crossAxisCount: 2,
                       crossAxisSpacing: 10,
                       mainAxisSpacing: 10,
-                      childAspectRatio: 0.72,
+                      childAspectRatio: 1.45,
                     ),
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {

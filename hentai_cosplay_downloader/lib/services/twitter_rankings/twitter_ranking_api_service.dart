@@ -23,10 +23,15 @@ class TwitterPageData {
 }
 
 class TwitterRankingApiService {
-  static final HttpClient _client = HttpClient()
-    ..connectionTimeout = const Duration(seconds: 12)
-    ..idleTimeout = const Duration(seconds: 15)
-    ..badCertificateCallback = (cert, host, port) => true;
+  static final HttpClient _client = _createClient();
+
+  static HttpClient _createClient() {
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 12)
+      ..idleTimeout = const Duration(seconds: 15);
+    _applyProxy(client);
+    return client;
+  }
 
   static String? _configuredProxy;
 
@@ -36,12 +41,12 @@ class TwitterRankingApiService {
   }
 
   static void _applyProxy(HttpClient client) {
-    client.badCertificateCallback = (cert, host, port) => true;
     final proxy = (_configuredProxy != null && _configuredProxy!.isNotEmpty)
         ? _configuredProxy!
         : ConfigService.loadConfig().customProxy;
 
     if (proxy.isNotEmpty) {
+      client.badCertificateCallback = (cert, host, port) => true;
       final clean = proxy.replaceAll(RegExp(r'https?://|socks5?://'), '');
       if (proxy.startsWith('socks')) {
         client.findProxy = (uri) => 'SOCKS5 $clean; DIRECT';
@@ -49,6 +54,7 @@ class TwitterRankingApiService {
         client.findProxy = (uri) => 'PROXY $clean; DIRECT';
       }
     } else {
+      client.badCertificateCallback = null;
       client.findProxy = HttpClient.findProxyFromEnvironment;
     }
   }

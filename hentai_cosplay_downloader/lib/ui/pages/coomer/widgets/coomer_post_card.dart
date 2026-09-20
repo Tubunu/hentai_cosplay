@@ -32,14 +32,9 @@ class CoomerPostCard extends StatelessWidget {
     final fileCount = (raw['fileCount'] ?? item.imageUrls.length) as int;
     final hasVideo = item.tags.contains('Video');
 
-    final existingTask = context.select<DownloadProvider, AlbumDownloadTask?>((p) {
-      for (final t in p.allTasks) {
-        if (t.albumItem.slug == item.slug || t.albumItem.detailUrl == item.detailUrl) {
-          return t;
-        }
-      }
-      return null;
-    });
+    final taskStatus = context.select<DownloadProvider, TaskStatus?>(
+      (p) => p.getTaskStatus(slug: item.slug, detailUrl: item.detailUrl),
+    );
 
     final platformColor = _getServiceColor(service);
 
@@ -178,20 +173,20 @@ class CoomerPostCard extends StatelessWidget {
                   ),
 
                   // Task Status Badge
-                  if (existingTask != null)
+                  if (taskStatus != null)
                     Positioned(
                       top: 8,
                       right: 8,
                       child: Container(
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
-                          color: existingTask.status == TaskStatus.completed
+                          color: taskStatus == TaskStatus.completed
                               ? const Color(0xFF34C759)
                               : IosTheme.primaryPink,
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
-                          existingTask.status == TaskStatus.completed
+                          taskStatus == TaskStatus.completed
                               ? CupertinoIcons.checkmark
                               : CupertinoIcons.arrow_down,
                           size: 11,

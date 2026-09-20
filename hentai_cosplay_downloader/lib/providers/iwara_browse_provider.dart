@@ -4,6 +4,21 @@ import '../../models/video_item.dart';
 import '../../services/iwara/iwara_api_service.dart';
 
 class IwaraBrowseProvider extends ChangeNotifier {
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) {
+      super.notifyListeners();
+    }
+  }
+
   List<VideoItem> _items = [];
   bool _isLoading = false;
   bool _isLoadingMore = false;

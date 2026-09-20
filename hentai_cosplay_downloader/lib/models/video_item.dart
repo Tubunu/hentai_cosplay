@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:path/path.dart' as p;
+import '../utils/format_utils.dart';
 import 'album_item.dart';
 
 /// Represents a video category ranking mode from porn-video-xxx.com
@@ -236,19 +237,19 @@ class LocalVideoItem {
     this.tags = const [],
   });
 
-  String get formattedSize {
-    if (fileSizeBytes <= 0) return '0 B';
-    if (fileSizeBytes < 1024) return '$fileSizeBytes B';
-    if (fileSizeBytes < 1024 * 1024) {
-      return '${(fileSizeBytes / 1024).toStringAsFixed(1)} KB';
-    }
-    if (fileSizeBytes < 1024 * 1024 * 1024) {
-      return '${(fileSizeBytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-    }
-    return '${(fileSizeBytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
-  }
+  String get formattedSize => FormatUtils.formatBytes(fileSizeBytes);
 
   String get fileName => p.basename(filePath);
+
+  String get sourceBadge {
+    final lowerUrl = sourceUrl.toLowerCase();
+    final lowerPath = filePath.toLowerCase();
+    if (lowerUrl.contains('jable') || lowerPath.contains('jable')) return 'JABLE';
+    if (lowerUrl.contains('hanime') || lowerPath.contains('hanime')) return 'HANIME1';
+    if (lowerUrl.contains('missav') || lowerPath.contains('missav')) return 'MISSAV';
+    if (lowerUrl.contains('porn-video') || lowerPath.contains('porn-video')) return 'HC';
+    return 'VIDEO';
+  }
 
   factory LocalVideoItem.fromJson(Map<String, dynamic> json) {
     return LocalVideoItem(

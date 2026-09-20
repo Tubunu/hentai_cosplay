@@ -3,6 +3,21 @@ import '../models/album_item.dart';
 import '../services/galleryepic/galleryepic_api_service.dart';
 
 class GalleryepicBrowseProvider extends ChangeNotifier {
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) {
+      super.notifyListeners();
+    }
+  }
+
   List<AlbumItem> _items = [];
   bool _isLoading = false;
   String? _errorMessage;
@@ -145,23 +160,21 @@ class GalleryepicBrowseProvider extends ChangeNotifier {
         customPath: effectiveCustomPath,
       );
 
-      if (requestId != _currentRequestId) return;
+      if (_disposed || requestId != _currentRequestId) return;
 
       if (response != null) {
         _items = response.items;
         _currentPage = response.page;
         _totalPages = response.totalPages;
         _totalItems = response.total;
-        _selectedSlugs.clear();
-        _isSelectionMode = false;
       } else {
         _errorMessage = '获取 GalleryEpic 列表失败，请检查网络或配置代理';
       }
     } catch (e) {
-      if (requestId != _currentRequestId) return;
+      if (_disposed || requestId != _currentRequestId) return;
       _errorMessage = '请求错误: $e';
     } finally {
-      if (requestId == _currentRequestId) {
+      if (!_disposed && requestId == _currentRequestId) {
         _isLoading = false;
         notifyListeners();
       }
@@ -181,7 +194,7 @@ class GalleryepicBrowseProvider extends ChangeNotifier {
           ? await GalleryepicApiService.fetchCosers(page: page)
           : await GalleryepicApiService.fetchModels(page: page);
 
-      if (requestId != _currentRequestId) return;
+      if (_disposed || requestId != _currentRequestId) return;
 
       if (response != null) {
         _creators = response.items;
@@ -191,10 +204,10 @@ class GalleryepicBrowseProvider extends ChangeNotifier {
         _errorMessage = '获取列表失败，请重试';
       }
     } catch (e) {
-      if (requestId != _currentRequestId) return;
+      if (_disposed || requestId != _currentRequestId) return;
       _errorMessage = '请求错误: $e';
     } finally {
-      if (requestId == _currentRequestId) {
+      if (!_disposed && requestId == _currentRequestId) {
         _isLoading = false;
         notifyListeners();
       }
@@ -210,13 +223,13 @@ class GalleryepicBrowseProvider extends ChangeNotifier {
 
     try {
       final list = await GalleryepicApiService.fetchParodies();
-      if (requestId != _currentRequestId) return;
+      if (_disposed || requestId != _currentRequestId) return;
       _parodies = list;
     } catch (e) {
-      if (requestId != _currentRequestId) return;
+      if (_disposed || requestId != _currentRequestId) return;
       _errorMessage = '请求错误: $e';
     } finally {
-      if (requestId == _currentRequestId) {
+      if (!_disposed && requestId == _currentRequestId) {
         _isLoading = false;
         notifyListeners();
       }

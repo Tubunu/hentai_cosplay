@@ -4,6 +4,21 @@ import '../../models/video_item.dart';
 import '../../services/rule34video/rule34video_api_service.dart';
 
 class Rule34VideoBrowseProvider extends ChangeNotifier {
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) {
+      super.notifyListeners();
+    }
+  }
+
   List<VideoItem> _items = [];
   bool _isLoading = false;
   bool _isLoadingMore = false;
@@ -11,6 +26,8 @@ class Rule34VideoBrowseProvider extends ChangeNotifier {
 
   int _currentPage = 1;
   int _totalPages = 1;
+
+  int _currentRequestId = 0;
 
   Rule34VideoCategory _category = Rule34VideoCategory.latest;
   String _searchKeyword = '';
@@ -55,11 +72,17 @@ class Rule34VideoBrowseProvider extends ChangeNotifier {
     }
   }
 
+  void _resetSelection() {
+    _selectedSlugs.clear();
+    _isSelectionMode = false;
+  }
+
   void setCategory(Rule34VideoCategory newCat) {
     _category = newCat;
     _searchKeyword = '';
     _selectedTag = null;
     _selectedArtist = null;
+    _resetSelection();
     loadPage(1);
   }
 
@@ -67,6 +90,7 @@ class Rule34VideoBrowseProvider extends ChangeNotifier {
     _searchKeyword = keyword.trim();
     _selectedTag = null;
     _selectedArtist = null;
+    _resetSelection();
     loadPage(1);
   }
 
@@ -74,6 +98,7 @@ class Rule34VideoBrowseProvider extends ChangeNotifier {
     _selectedTag = tag.trim();
     _searchKeyword = '';
     _selectedArtist = null;
+    _resetSelection();
     loadPage(1);
   }
 
@@ -81,6 +106,7 @@ class Rule34VideoBrowseProvider extends ChangeNotifier {
     _selectedArtist = artist.trim();
     _searchKeyword = '';
     _selectedTag = null;
+    _resetSelection();
     loadPage(1);
   }
 
@@ -89,10 +115,12 @@ class Rule34VideoBrowseProvider extends ChangeNotifier {
     _searchKeyword = '';
     _selectedTag = null;
     _selectedArtist = null;
+    _resetSelection();
     loadPage(1);
   }
 
   Future<void> loadPage(int page) async {
+    final requestId = ++_currentRequestId;
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -106,12 +134,15 @@ class Rule34VideoBrowseProvider extends ChangeNotifier {
         selectedArtist: _selectedArtist,
       );
 
+      if (_disposed || requestId != _currentRequestId) return;
+
       _items = data.items;
       _currentPage = data.currentPage;
       _totalPages = data.totalPages;
       _isLoading = false;
       notifyListeners();
     } catch (e) {
+      if (_disposed || requestId != _currentRequestId) return;
       debugPrint('[Rule34VideoBrowseProvider] Error loading page $page: $e');
       _errorMessage = '加载失败，请检查网络或代理设置 ($e)';
       _isLoading = false;
@@ -122,6 +153,7 @@ class Rule34VideoBrowseProvider extends ChangeNotifier {
   Future<void> loadMore() async {
     if (_isLoading || _isLoadingMore || _currentPage >= _totalPages) return;
 
+    final requestId = ++_currentRequestId;
     _isLoadingMore = true;
     notifyListeners();
 
@@ -135,6 +167,8 @@ class Rule34VideoBrowseProvider extends ChangeNotifier {
         selectedArtist: _selectedArtist,
       );
 
+      if (_disposed || requestId != _currentRequestId) return;
+
       if (data.items.isNotEmpty) {
         final existingSlugs = _items.map((e) => e.slug).toSet();
         final newItems = data.items.where((e) => !existingSlugs.contains(e.slug)).toList();
@@ -145,6 +179,7 @@ class Rule34VideoBrowseProvider extends ChangeNotifier {
       _isLoadingMore = false;
       notifyListeners();
     } catch (e) {
+      if (_disposed || requestId != _currentRequestId) return;
       debugPrint('[Rule34VideoBrowseProvider] Error loading more: $e');
       _isLoadingMore = false;
       notifyListeners();

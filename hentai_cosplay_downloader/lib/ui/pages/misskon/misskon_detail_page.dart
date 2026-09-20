@@ -1,10 +1,8 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:photo_view/photo_view.dart';
-import 'package:photo_view/photo_view_gallery.dart';
+import '../../widgets/unified_photo_viewer.dart';
 import 'package:provider/provider.dart';
-import 'package:share_plus/share_plus.dart';
 import '../../../models/album_item.dart';
 import '../../../models/download_task.dart';
 import '../../../providers/browsing_history_provider.dart';
@@ -15,6 +13,7 @@ import '../../widgets/bouncing_button.dart';
 import '../../widgets/frosted_glass.dart';
 import '../../widgets/random_action_button.dart';
 import '../../widgets/scroll_to_top_button.dart';
+import 'package:hentai_cosplay_downloader/utils/app_share.dart';
 
 class MisskonDetailPage extends StatefulWidget {
   final AlbumItem item;
@@ -126,15 +125,13 @@ class _MisskonDetailPageState extends State<MisskonDetailPage> {
 
   void _openImageViewer(int initialIndex) {
     if (_item.imageUrls.isEmpty) return;
-
-    Navigator.push(
+    UnifiedPhotoViewer.open(
       context,
-      MaterialPageRoute(
-        builder: (_) => _MisskonGalleryViewer(
-          item: _item,
-          initialIndex: initialIndex,
-        ),
-      ),
+      imageUrls: _item.imageUrls,
+      initialIndex: initialIndex,
+      title: _item.title,
+      author: _item.author,
+      sourceType: MediaSourceType.misskon,
     );
   }
 
@@ -147,34 +144,48 @@ class _MisskonDetailPageState extends State<MisskonDetailPage> {
     final dimensions = _item.rawData['dimensions']?.toString() ?? '';
     final modelName = _item.rawData['modelName']?.toString() ?? _item.author;
 
-    // Check if task exists in download queue
-    final downloadTask = context.select<DownloadProvider, AlbumDownloadTask?>((p) {
-      for (final t in p.allTasks) {
-        if (t.albumItem.slug == _item.slug || t.albumItem.detailUrl == _item.detailUrl) {
-          return t;
-        }
-      }
-      return null;
-    });
+    final taskStatus = context.select<DownloadProvider, TaskStatus?>(
+      (p) => p.getTaskStatus(slug: _item.slug, detailUrl: _item.detailUrl),
+    );
+    final isDownloaded = taskStatus == TaskStatus.completed;
 
-    return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0C0C0E) : const Color(0xFFF2F2F7),
-      body: Stack(
-        children: [
-          CustomScrollView(
-            controller: _scrollController,
-            physics: const BouncingScrollPhysics(),
-            slivers: [
-          // Cupertino Large Header Navigation Bar
-          SliverAppBar(
-            pinned: true,
-            expandedHeight: 0,
-            backgroundColor: isDark ? const Color(0xCC1A1A1E) : const Color(0xCCFFFFFF),
-            elevation: 0,
-            leading: BouncingButton(
-              onTap: () => Navigator.pop(context),
-              child: const Icon(CupertinoIcons.back, size: 24),
-            ),
+    return PopScope(
+      canPop: !_isSelectionMode,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _isSelectionMode) {
+          setState(() {
+            _isSelectionMode = false;
+            _selectedIndices.clear();
+          });
+        }
+      },
+      child: Scaffold(
+        backgroundColor: isDark ? const Color(0xFF0C0C0E) : const Color(0xFFF2F2F7),
+        body: Stack(
+          children: [
+            CustomScrollView(
+              controller: _scrollController,
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+            // Cupertino Large Header Navigation Bar
+            SliverAppBar(
+              pinned: true,
+              expandedHeight: 0,
+              backgroundColor: isDark ? const Color(0xCC1A1A1E) : const Color(0xCCFFFFFF),
+              elevation: 0,
+              leading: BouncingButton(
+                onTap: () {
+                  if (_isSelectionMode) {
+                    setState(() {
+                      _isSelectionMode = false;
+                      _selectedIndices.clear();
+                    });
+                  } else {
+                    Navigator.pop(context);
+                  }
+                },
+                child: const Icon(CupertinoIcons.back, size: 24),
+              ),
             title: Text(
               _item.title,
               maxLines: 1,
@@ -206,7 +217,7 @@ class _MisskonDetailPageState extends State<MisskonDetailPage> {
                 tooltip: '分享',
                 onPressed: () {
                   if (_item.detailUrl.isNotEmpty) {
-                    Share.share('${_item.title}\n${_item.detailUrl}');
+                    AppShare.share(context, '${_item.title}\n${_item.detailUrl}');
                   }
                 },
               ),
@@ -374,7 +385,7 @@ class _MisskonDetailPageState extends State<MisskonDetailPage> {
                                   Icon(
                                     _isSelectionMode
                                         ? CupertinoIcons.arrow_down_to_line
-                                        : (downloadTask?.status == TaskStatus.completed
+                                        : (isDownloaded
                                             ? CupertinoIcons.checkmark_alt
                                             : CupertinoIcons.arrow_down_circle_fill),
                                     color: Colors.white,
@@ -384,7 +395,7 @@ class _MisskonDetailPageState extends State<MisskonDetailPage> {
                                   Text(
                                     _isSelectionMode
                                         ? '下载选中 (${_selectedIndices.length}张)'
-                                        : (downloadTask?.status == TaskStatus.completed
+                                        : (isDownloaded
                                             ? '已在本地 (重新下载)'
                                             : '下载全套相册 (${_item.imageUrls.length}张)'),
                                     style: const TextStyle(
@@ -563,106 +574,9 @@ class _MisskonDetailPageState extends State<MisskonDetailPage> {
         ),
       ],
     ),
+  ),
   );
   }
 }
 
-class _MisskonGalleryViewer extends StatefulWidget {
-  final AlbumItem item;
-  final int initialIndex;
 
-  const _MisskonGalleryViewer({
-    required this.item,
-    required this.initialIndex,
-  });
-
-  @override
-  State<_MisskonGalleryViewer> createState() => _MisskonGalleryViewerState();
-}
-
-class _MisskonGalleryViewerState extends State<_MisskonGalleryViewer> {
-  late int _currentIndex;
-  late PageController _pageController;
-
-  @override
-  void initState() {
-    super.initState();
-    _currentIndex = widget.initialIndex;
-    _pageController = PageController(initialPage: widget.initialIndex);
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          PhotoViewGallery.builder(
-            itemCount: widget.item.imageUrls.length,
-            pageController: _pageController,
-            onPageChanged: (idx) => setState(() => _currentIndex = idx),
-            scrollPhysics: const BouncingScrollPhysics(),
-            builder: (context, index) {
-              final url = widget.item.imageUrls[index];
-              return PhotoViewGalleryPageOptions(
-                imageProvider: CachedNetworkImageProvider(
-                  url,
-                  headers: const {'Referer': 'https://misskon.com/'},
-                ),
-                minScale: PhotoViewComputedScale.contained,
-                maxScale: PhotoViewComputedScale.covered * 3.5,
-              );
-            },
-            loadingBuilder: (context, event) => const Center(
-              child: CupertinoActivityIndicator(radius: 14, color: Colors.white),
-            ),
-          ),
-
-          // Top Header Bar
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 8,
-            left: 16,
-            right: 16,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                BouncingButton(
-                  onTap: () => Navigator.pop(context),
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: const BoxDecoration(
-                      color: Colors.black54,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(CupertinoIcons.clear, color: Colors.white, size: 20),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(
-                    '${_currentIndex + 1} / ${widget.item.imageUrls.length}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

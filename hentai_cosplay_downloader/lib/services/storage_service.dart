@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/painting.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -287,5 +288,36 @@ class StorageService {
       }
     } catch (_) {}
     return false;
+  }
+
+  /// Calculate temporary cache directory size
+  static Future<int> getCacheSize() async {
+    int totalBytes = 0;
+    try {
+      final tempDir = await getTemporaryDirectory();
+      if (await tempDir.exists()) {
+        totalBytes += await getFolderSize(tempDir.path);
+      }
+    } catch (_) {}
+    return totalBytes;
+  }
+
+  /// Clean temporary cache directory and in-memory decoded image cache
+  static Future<void> clearCache() async {
+    try {
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
+    } catch (_) {}
+
+    try {
+      final tempDir = await getTemporaryDirectory();
+      if (await tempDir.exists()) {
+        await for (final entity in tempDir.list(followLinks: false)) {
+          try {
+            await entity.delete(recursive: true);
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
   }
 }

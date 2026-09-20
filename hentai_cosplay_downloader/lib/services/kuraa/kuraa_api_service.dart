@@ -164,7 +164,9 @@ class KuraaApiService {
   }
 
   static void _applyProxy(HttpClient client) {
-    client.badCertificateCallback = (cert, host, port) => true;
+    if (_configuredProxy != null && _configuredProxy!.isNotEmpty) {
+      client.badCertificateCallback = (cert, host, port) => true;
+    }
     if (_configuredProxy != null && _configuredProxy!.isNotEmpty) {
       final clean = _configuredProxy!.replaceAll(RegExp(r'https?://|socks5?://'), '');
       if (_configuredProxy!.startsWith('socks')) {

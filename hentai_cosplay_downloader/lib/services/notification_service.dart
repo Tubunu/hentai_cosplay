@@ -14,17 +14,19 @@ class NotificationService {
   static const String _channelDesc = '实时展示图片图集的后台下载进度与速率通知';
 
   static bool _isInitialized = false;
+  static bool _hasRequestedPermission = false;
   static int _lastNotificationUpdateTime = 0;
 
   /// Initialize local notification settings for Android and iOS
   static Future<void> init() async {
     if (_isInitialized) return;
+    if (!Platform.isAndroid && !Platform.isIOS) return;
 
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
     const darwinSettings = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
+      requestAlertPermission: false,
+      requestBadgePermission: false,
+      requestSoundPermission: false,
     );
     const initSettings = InitializationSettings(
       android: androidSettings,
@@ -34,9 +36,6 @@ class NotificationService {
     try {
       await _notificationsPlugin.initialize(initSettings);
       _isInitialized = true;
-      if (Platform.isIOS || Platform.isAndroid) {
-        await requestNotificationPermission();
-      }
     } catch (e) {
       debugPrint('Notification init error: $e');
     }
@@ -77,6 +76,11 @@ class NotificationService {
   }) async {
     if (!Platform.isAndroid && !Platform.isIOS) return;
     if (!_isInitialized) await init();
+    
+    if (!_hasRequestedPermission) {
+      _hasRequestedPermission = true;
+      await requestNotificationPermission();
+    }
 
     final now = DateTime.now().millisecondsSinceEpoch;
     if (!isPaused && progress < 1.0 && (now - _lastNotificationUpdateTime < 500)) {
@@ -137,6 +141,11 @@ class NotificationService {
   }) async {
     if (!Platform.isAndroid && !Platform.isIOS) return;
     if (!_isInitialized) await init();
+    
+    if (!_hasRequestedPermission) {
+      _hasRequestedPermission = true;
+      await requestNotificationPermission();
+    }
 
     const androidDetails = AndroidNotificationDetails(
       _channelId,
@@ -181,6 +190,11 @@ class NotificationService {
   }) async {
     if (!Platform.isAndroid && !Platform.isIOS) return;
     if (!_isInitialized) await init();
+    
+    if (!_hasRequestedPermission) {
+      _hasRequestedPermission = true;
+      await requestNotificationPermission();
+    }
 
     // Cancel ongoing progress notification first
     await cancelNotification();

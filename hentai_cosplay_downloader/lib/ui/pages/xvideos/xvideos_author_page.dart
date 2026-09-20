@@ -456,7 +456,7 @@ class _XVideosAuthorPageViewState extends State<_XVideosAuthorPageView> {
                           crossAxisCount: 2,
                           crossAxisSpacing: 10,
                           mainAxisSpacing: 12,
-                          childAspectRatio: 0.76,
+                          childAspectRatio: 1.45,
                         ),
                         delegate: SliverChildBuilderDelegate(
                           (context, index) {

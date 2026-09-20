@@ -51,9 +51,14 @@ class JavguruDetailData {
 class JavguruApiService {
   static const String kBaseUrl = 'https://jav.guru';
   static String? _configuredProxy;
+  static Dio _dio = _createDio();
 
   static void setProxy(String? proxy) {
-    _configuredProxy = proxy;
+    _configuredProxy = proxy?.trim();
+    try {
+      _dio.close(force: true);
+    } catch (_) {}
+    _dio = _createDio();
   }
 
   static Dio _createDio() {
@@ -112,7 +117,7 @@ class JavguruApiService {
     JavguruCategory category = JavguruCategory.all,
     String? keyword,
   }) async {
-    final dio = _createDio();
+    final dio = _dio;
     final url = buildUrl(page: page, category: category, keyword: keyword);
     debugPrint('[JavguruApiService] Fetching URL: $url');
 
@@ -238,7 +243,7 @@ class JavguruApiService {
   }
 
   static Future<JavguruDetailData> fetchDetail(VideoItem item) async {
-    final dio = _createDio();
+    final dio = _dio;
     final response = await dio.get<String>(
       item.detailUrl,
       options: Options(headers: {'Referer': 'https://jav.guru/'}),
@@ -384,7 +389,7 @@ class JavguruApiService {
       final revToken = token.split('').reversed.join('');
       final realSrc = 'https://jav.guru/searcho/?${rtype}r=$revToken';
 
-      final dio = _createDio();
+      final dio = _dio;
       final resp = await dio.get<String>(
         realSrc,
         options: Options(headers: {'Referer': 'https://jav.guru/'}),

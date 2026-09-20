@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -5,7 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../models/browsing_history_record.dart';
-import '../../../models/resource_site_item.dart';
+import '../../site_registry.dart';
 import '../../../providers/browsing_history_provider.dart';
 import '../../../services/history_router.dart';
 import '../../theme/ios_theme.dart';
@@ -29,11 +30,13 @@ class BrowsingHistoryPage extends StatefulWidget {
 
 class _BrowsingHistoryPageState extends State<BrowsingHistoryPage> {
   final TextEditingController _searchController = TextEditingController();
+  Timer? _searchDebounce;
   String _searchQuery = '';
   String _selectedFilter = 'all'; // 'all', 'album', 'video', or specific siteKey
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -58,37 +61,65 @@ class _BrowsingHistoryPageState extends State<BrowsingHistoryPage> {
   }
 
   void _showClearConfirmDialog(BrowsingHistoryProvider historyProv) {
-    showCupertinoDialog(
+    showCupertinoModalPopup(
       context: context,
-      builder: (ctx) => CupertinoAlertDialog(
+      builder: (ctx) => CupertinoActionSheet(
         title: const Text('清空浏览历史'),
-        content: const Padding(
-          padding: EdgeInsets.only(top: 8.0),
-          child: Text('确定要清空全部在线资源浏览历史记录吗？此操作无法撤销。'),
-        ),
+        message: const Text('请选择要清空的时间范围，此操作无法撤销。'),
         actions: [
-          CupertinoDialogAction(
-            child: const Text('取消'),
-            onPressed: () => Navigator.pop(ctx),
+          CupertinoActionSheetAction(
+            isDestructiveAction: true,
+            onPressed: () {
+              Navigator.pop(ctx);
+              historyProv.clearByTimeRange(const Duration(hours: 1));
+              _showClearedToast('已清空过去一小时的浏览历史');
+            },
+            child: const Text('过去一小时'),
           ),
-          CupertinoDialogAction(
+          CupertinoActionSheetAction(
+            isDestructiveAction: true,
+            onPressed: () {
+              Navigator.pop(ctx);
+              historyProv.clearByTimeRange(const Duration(days: 1));
+              _showClearedToast('已清空今天的浏览历史');
+            },
+            child: const Text('今天'),
+          ),
+          CupertinoActionSheetAction(
+            isDestructiveAction: true,
+            onPressed: () {
+              Navigator.pop(ctx);
+              historyProv.clearByTimeRange(const Duration(days: 7));
+              _showClearedToast('已清空过去 7 天的浏览历史');
+            },
+            child: const Text('过去 7 天'),
+          ),
+          CupertinoActionSheetAction(
             isDestructiveAction: true,
             onPressed: () {
               Navigator.pop(ctx);
               historyProv.clearAll();
-              HapticFeedback.mediumImpact();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('已清空全部浏览历史'),
-                  backgroundColor: IosTheme.primaryPink,
-                  behavior: SnackBarBehavior.floating,
-                  duration: Duration(milliseconds: 1500),
-                ),
-              );
+              _showClearedToast('已清空全部浏览历史');
             },
-            child: const Text('清空'),
+            child: const Text('全部时间'),
           ),
         ],
+        cancelButton: CupertinoActionSheetAction(
+          child: const Text('取消'),
+          onPressed: () => Navigator.pop(ctx),
+        ),
+      ),
+    );
+  }
+
+  void _showClearedToast(String message) {
+    HapticFeedback.mediumImpact();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: IosTheme.primaryPink,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(milliseconds: 1500),
       ),
     );
   }
@@ -174,8 +205,13 @@ class _BrowsingHistoryPageState extends State<BrowsingHistoryPage> {
               placeholder: '搜索看过的标题、作者或站点...',
               style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 13.5),
               onChanged: (val) {
-                setState(() {
-                  _searchQuery = val.trim();
+                if (_searchDebounce?.isActive ?? false) _searchDebounce!.cancel();
+                _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+                  if (mounted) {
+                    setState(() {
+                      _searchQuery = val.trim();
+                    });
+                  }
                 });
               },
             ),

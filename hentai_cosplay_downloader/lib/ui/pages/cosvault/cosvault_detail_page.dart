@@ -1,17 +1,13 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:photo_view/photo_view.dart';
-import 'package:photo_view/photo_view_gallery.dart';
+import '../../widgets/unified_photo_viewer.dart';
 import 'package:provider/provider.dart';
 import '../../../models/album_item.dart';
 import '../../../models/download_task.dart';
 import '../../../providers/browsing_history_provider.dart';
 import '../../../providers/download_provider.dart';
 import '../../../services/cosvault/cosvault_api_service.dart';
-import '../../widgets/bouncing_button.dart';
-import '../../widgets/frosted_glass.dart';
 import '../../widgets/random_action_button.dart';
 import '../../widgets/scroll_to_top_button.dart';
 
@@ -88,30 +84,24 @@ class _CosvaultDetailPageState extends State<CosvaultDetailPage> {
 
   void _openGallery(int initialIndex) {
     if (_item.imageUrls.isEmpty) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => _CosvaultGalleryViewer(
-          imageUrls: _item.imageUrls,
-          initialIndex: initialIndex,
-          title: _item.title,
-        ),
-      ),
+    UnifiedPhotoViewer.open(
+      context,
+      imageUrls: _item.imageUrls,
+      initialIndex: initialIndex,
+      title: _item.title,
+      author: _item.author,
+      sourceType: MediaSourceType.cosvault,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final existingTask = context.select<DownloadProvider, AlbumDownloadTask?>((p) {
-      for (final t in p.allTasks) {
-        if (t.albumItem.slug == _item.slug || t.albumItem.detailUrl == _item.detailUrl) {
-          return t;
-        }
-      }
-      return null;
-    });
+    final taskStatus = context.select<DownloadProvider, TaskStatus?>(
+      (p) => p.getTaskStatus(slug: _item.slug, detailUrl: _item.detailUrl),
+    );
 
-    final isDownloaded = existingTask?.status == TaskStatus.completed;
-    final isDownloading = existingTask?.status == TaskStatus.downloading;
+    final isDownloaded = taskStatus == TaskStatus.completed;
+    final isDownloading = taskStatus == TaskStatus.downloading;
 
     return Scaffold(
       appBar: AppBar(
@@ -318,145 +308,4 @@ class _CosvaultDetailPageState extends State<CosvaultDetailPage> {
   }
 }
 
-class _CosvaultGalleryViewer extends StatefulWidget {
-  final List<String> imageUrls;
-  final int initialIndex;
-  final String title;
 
-  const _CosvaultGalleryViewer({
-    required this.imageUrls,
-    required this.initialIndex,
-    required this.title,
-  });
-
-  @override
-  State<_CosvaultGalleryViewer> createState() => _CosvaultGalleryViewerState();
-}
-
-class _CosvaultGalleryViewerState extends State<_CosvaultGalleryViewer> {
-  late int _currentIndex;
-  late PageController _pageController;
-
-  @override
-  void initState() {
-    super.initState();
-    _currentIndex = widget.initialIndex;
-    _pageController = PageController(initialPage: widget.initialIndex);
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Fullscreen Photo View Gallery
-          PhotoViewGallery.builder(
-            scrollPhysics: const BouncingScrollPhysics(),
-            builder: (BuildContext context, int index) {
-              return PhotoViewGalleryPageOptions(
-                imageProvider: CachedNetworkImageProvider(
-                  widget.imageUrls[index],
-                  headers: const {
-                    'Referer': 'https://cosvault.top/',
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-                  },
-                ),
-                initialScale: PhotoViewComputedScale.contained,
-                minScale: PhotoViewComputedScale.contained * 0.8,
-                maxScale: PhotoViewComputedScale.covered * 3,
-              );
-            },
-            itemCount: widget.imageUrls.length,
-            loadingBuilder: (context, event) => const Center(
-              child: CupertinoActivityIndicator(color: Colors.white, radius: 14),
-            ),
-            pageController: _pageController,
-            onPageChanged: (index) {
-              setState(() {
-                _currentIndex = index;
-              });
-            },
-          ),
-
-          // Top Floating Overlay Controls with Prominent Counter
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Back / Close Button
-                    BouncingButton(
-                      onTap: () => Navigator.pop(context),
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.black54,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white24, width: 0.5),
-                        ),
-                        child: const Icon(CupertinoIcons.xmark, color: Colors.white, size: 18),
-                      ),
-                    ),
-
-                    // Prominent Floating Counter Capsule
-                    FrostedGlass(
-                      borderRadius: 16,
-                      blur: 16,
-                      backgroundColor: Colors.black54,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                      child: Text(
-                        '${_currentIndex + 1} / ${widget.imageUrls.length}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ),
-
-                    // Copy Image URL Button
-                    BouncingButton(
-                      onTap: () {
-                        Clipboard.setData(ClipboardData(text: widget.imageUrls[_currentIndex]));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('已复制高清原图链接'),
-                            duration: Duration(seconds: 1),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.black54,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white24, width: 0.5),
-                        ),
-                        child: const Icon(CupertinoIcons.link, color: Colors.white, size: 18),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

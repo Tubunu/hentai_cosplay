@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'package:path/path.dart' as p;
+import '../utils/format_utils.dart';
+import 'video_item.dart';
 
 /// Represents a video card from JableTV, MissAV, or SupJav
 class VideoCardModel {
@@ -43,6 +45,20 @@ class VideoCardModel {
 
   String toJson() => jsonEncode(toMap());
   factory VideoCardModel.fromJson(String source) => VideoCardModel.fromMap(jsonDecode(source));
+
+  VideoItem toVideoItem() {
+    return VideoItem(
+      title: title,
+      slug: url,
+      detailUrl: url,
+      coverUrl: thumbnail,
+      duration: duration,
+      date: date,
+      author: siteName,
+      videoUrl: '',
+      rawData: toMap(),
+    );
+  }
 
   @override
   bool operator ==(Object other) =>
@@ -116,17 +132,7 @@ class JableLocalVideoItem {
     this.tags = const [],
   });
 
-  String get formattedSize {
-    if (fileSizeBytes <= 0) return '0 B';
-    if (fileSizeBytes < 1024) return '$fileSizeBytes B';
-    if (fileSizeBytes < 1024 * 1024) {
-      return '${(fileSizeBytes / 1024).toStringAsFixed(1)} KB';
-    }
-    if (fileSizeBytes < 1024 * 1024 * 1024) {
-      return '${(fileSizeBytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-    }
-    return '${(fileSizeBytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
-  }
+  String get formattedSize => FormatUtils.formatBytes(fileSizeBytes);
 
   String get fileName => p.basename(filePath);
 

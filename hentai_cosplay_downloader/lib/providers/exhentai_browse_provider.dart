@@ -3,6 +3,21 @@ import '../models/album_item.dart';
 import '../services/exhentai/exhentai_api_service.dart';
 
 class ExHentaiBrowseProvider extends ChangeNotifier {
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) {
+      super.notifyListeners();
+    }
+  }
+
   ExCategory _currentCategory = ExCategory.all;
   bool _isPopular = false;
   String _searchKeyword = '';
@@ -115,7 +130,7 @@ class ExHentaiBrowseProvider extends ChangeNotifier {
         cursor: cursor,
       );
 
-      if (requestId != _currentRequestId) return;
+      if (_disposed || requestId != _currentRequestId) return;
 
       if (res != null) {
         _items = res.items;
@@ -135,10 +150,10 @@ class ExHentaiBrowseProvider extends ChangeNotifier {
         _hasMore = false;
       }
     } catch (e) {
-      if (requestId != _currentRequestId) return;
+      if (_disposed || requestId != _currentRequestId) return;
       _errorMessage = '加载 ExHentai 列表失败: $e';
     } finally {
-      if (requestId == _currentRequestId) {
+      if (!_disposed && requestId == _currentRequestId) {
         _isLoading = false;
         notifyListeners();
       }

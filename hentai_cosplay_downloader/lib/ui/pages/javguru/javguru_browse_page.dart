@@ -264,7 +264,7 @@ class _JavguruBrowsePageState extends State<JavguruBrowsePage> {
                       crossAxisCount: 2,
                       crossAxisSpacing: 12,
                       mainAxisSpacing: 12,
-                      childAspectRatio: 0.82,
+                      childAspectRatio: 1.45,
                     ),
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {

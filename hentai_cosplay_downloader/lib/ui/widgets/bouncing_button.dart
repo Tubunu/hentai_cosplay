@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 
 class BouncingButton extends StatefulWidget {
@@ -23,6 +24,7 @@ class BouncingButton extends StatefulWidget {
 class _BouncingButtonState extends State<BouncingButton> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
+  Timer? _tapDownTimer;
 
   @override
   void initState() {
@@ -40,40 +42,57 @@ class _BouncingButtonState extends State<BouncingButton> with SingleTickerProvid
 
   @override
   void dispose() {
+    _tapDownTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
 
   void _onTapDown(TapDownDetails details) {
     if (widget.onTap != null || widget.onLongPress != null) {
-      _controller.forward();
+      _tapDownTimer?.cancel();
+      // Delay animation start by 50ms so fast scrolling / dragging doesn't trigger scale animation
+      _tapDownTimer = Timer(const Duration(milliseconds: 50), () {
+        if (mounted) {
+          _controller.forward();
+        }
+      });
     }
   }
 
   void _onTapUp(TapUpDetails details) {
+    _tapDownTimer?.cancel();
     if (widget.onTap != null || widget.onLongPress != null) {
-      _controller.reverse();
+      if (_controller.value > 0) {
+        _controller.reverse();
+      }
     }
   }
 
   void _onTapCancel() {
-    if (widget.onTap != null || widget.onLongPress != null) {
+    _tapDownTimer?.cancel();
+    if (_controller.value > 0) {
       _controller.reverse();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: _onTapDown,
-      onTapUp: _onTapUp,
-      onTapCancel: _onTapCancel,
-      onTap: widget.onTap,
-      onLongPress: widget.onLongPress,
-      child: ScaleTransition(
-        scale: _scaleAnimation,
-        child: widget.child,
+    if (widget.onTap == null && widget.onLongPress == null) {
+      return widget.child;
+    }
+
+    return RepaintBoundary(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: _onTapDown,
+        onTapUp: _onTapUp,
+        onTapCancel: _onTapCancel,
+        onTap: widget.onTap,
+        onLongPress: widget.onLongPress,
+        child: ScaleTransition(
+          scale: _scaleAnimation,
+          child: widget.child,
+        ),
       ),
     );
   }

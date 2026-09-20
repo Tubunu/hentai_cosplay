@@ -533,7 +533,10 @@ class CfCookieHarvester {
 
     // 2. If genuine challenge exists, check if interactive UI context is available
     final ctx = navigatorKey.currentContext;
-    if (ctx == null || !ctx.mounted) {
+    if (ctx == null || !ctx.mounted || InAppWebViewPlatform.instance == null) {
+      if (InAppWebViewPlatform.instance == null) {
+        return headlessResult;
+      }
       return headlessResult.isNotEmpty ? headlessResult : await _harvestHeadless(finalSiteName, url);
     }
 

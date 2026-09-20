@@ -83,6 +83,7 @@ class _Hanime1BrowsePageState extends State<Hanime1BrowsePage> {
               },
               child: CustomScrollView(
                 controller: _scrollController,
+                cacheExtent: 600.0,
                 physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
                 slivers: [
                   // 1. Top Safe Spacing for Floating Segmented Capsule Bar (54px)
@@ -344,7 +345,7 @@ class _Hanime1BrowsePageState extends State<Hanime1BrowsePage> {
                       sliver: SliverGrid(
                         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 2,
-                          childAspectRatio: 0.72,
+                          childAspectRatio: 1.45,
                           crossAxisSpacing: 12,
                           mainAxisSpacing: 12,
                         ),

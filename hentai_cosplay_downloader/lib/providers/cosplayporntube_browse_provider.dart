@@ -3,6 +3,21 @@ import '../models/video_item.dart';
 import '../services/cosplayporntube/cosplayporntube_api_service.dart';
 
 class CosplayporntubeBrowseProvider extends ChangeNotifier {
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) {
+      super.notifyListeners();
+    }
+  }
+
   List<VideoItem> _items = [];
   int _currentPage = 1;
   int _totalPages = 1;
@@ -108,8 +123,6 @@ class CosplayporntubeBrowseProvider extends ChangeNotifier {
       _items = pageData.items;
       _currentPage = pageData.currentPage;
       _totalPages = pageData.totalPages;
-      _selectedSlugs.clear();
-      _isSelectionMode = false;
     } catch (e) {
       _errorMessage = '获取视频列表失败: $e';
     } finally {

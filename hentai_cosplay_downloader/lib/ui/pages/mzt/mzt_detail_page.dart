@@ -2,20 +2,18 @@ import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:photo_view/photo_view.dart';
-import 'package:photo_view/photo_view_gallery.dart';
 import 'package:provider/provider.dart';
-import 'package:share_plus/share_plus.dart';
 import '../../../models/album_item.dart';
+import '../../../models/download_task.dart';
 import '../../../providers/browsing_history_provider.dart';
 import '../../../providers/download_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../theme/ios_theme.dart';
 import '../../widgets/bouncing_button.dart';
-import '../../widgets/frosted_glass.dart';
 import '../../widgets/random_action_button.dart';
 import '../../widgets/scroll_to_top_button.dart';
+import '../../widgets/unified_photo_viewer.dart';
+import 'package:hentai_cosplay_downloader/utils/app_share.dart';
 
 class MztDetailPage extends StatefulWidget {
   final AlbumItem item;
@@ -98,42 +96,72 @@ class _MztDetailPageState extends State<MztDetailPage> {
   }
 
   void _openGalleryViewer(BuildContext context, List<String> previewUrls, int initialIndex) {
-    Navigator.push(
+    UnifiedPhotoViewer.open(
       context,
-      MaterialPageRoute(
-        builder: (_) => _MztPhotoViewer(
-          title: widget.item.title,
-          imageUrls: previewUrls,
-          initialIndex: initialIndex,
-        ),
-      ),
+      imageUrls: previewUrls,
+      initialIndex: initialIndex,
+      title: widget.item.title,
+      author: widget.item.author,
+      httpHeaders: const {'Referer': 'https://mzt.111404.xyz/'},
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final settingsProv = context.watch<SettingsProvider>();
-    final previewUrls = _resolvePreviewUrls(settingsProv.config.mztProxyDomains);
+    final proxyDomains = context.select<SettingsProvider, List<String>>(
+      (p) => p.config.mztProxyDomains,
+    );
+    final previewUrls = _resolvePreviewUrls(proxyDomains);
     final coverUrl = previewUrls.isNotEmpty ? previewUrls.first : widget.item.coverUrl;
 
-    return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0C0C0E) : const Color(0xFFF7F7FA),
-      body: Stack(
-        children: [
-          CustomScrollView(
-            controller: _scrollController,
-            physics: const BouncingScrollPhysics(),
-            slivers: [
-          // Album Header with Parallax & Ambient Blur
-          SliverAppBar(
-            expandedHeight: 340,
-            pinned: true,
-            stretch: true,
-            backgroundColor: isDark ? const Color(0xE61A1A1E) : const Color(0xF0FFFFFF),
-            leading: BouncingButton(
-              onTap: () => Navigator.pop(context),
-              child: Container(
+    final taskStatus = context.select<DownloadProvider, TaskStatus?>(
+      (p) => p.getTaskStatus(
+        slug: widget.item.slug,
+        detailUrl: widget.item.detailUrl,
+        title: widget.item.title,
+      ),
+    );
+    final isDownloaded = taskStatus == TaskStatus.completed;
+    final isDownloading = taskStatus == TaskStatus.downloading ||
+        taskStatus == TaskStatus.queued;
+
+    return PopScope(
+      canPop: !_isSelectionMode,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _isSelectionMode) {
+          setState(() {
+            _isSelectionMode = false;
+            _selectedIndices.clear();
+          });
+        }
+      },
+      child: Scaffold(
+        backgroundColor: isDark ? const Color(0xFF0C0C0E) : const Color(0xFFF7F7FA),
+        body: Stack(
+          children: [
+            CustomScrollView(
+              controller: _scrollController,
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+            // Album Header with Parallax & Ambient Blur
+            SliverAppBar(
+              expandedHeight: 340,
+              pinned: true,
+              stretch: true,
+              backgroundColor: isDark ? const Color(0xE61A1A1E) : const Color(0xF0FFFFFF),
+              leading: BouncingButton(
+                onTap: () {
+                  if (_isSelectionMode) {
+                    setState(() {
+                      _isSelectionMode = false;
+                      _selectedIndices.clear();
+                    });
+                  } else {
+                    Navigator.pop(context);
+                  }
+                },
+                child: Container(
                 margin: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: Colors.black45,
@@ -153,7 +181,7 @@ class _MztDetailPageState extends State<MztDetailPage> {
                 builder: (btnCtx) => BouncingButton(
                   onTap: () {
                     final box = btnCtx.findRenderObject() as RenderBox?;
-                    Share.share(
+                    AppShare.share(context, 
                       '【妹子图包】${widget.item.title}\n共 ${widget.item.imageUrls.length} 张图片',
                       subject: widget.item.title,
                       sharePositionOrigin: box != null ? (box.localToGlobal(Offset.zero) & box.size) : null,
@@ -291,28 +319,45 @@ class _MztDetailPageState extends State<MztDetailPage> {
                   Expanded(
                     flex: 3,
                     child: BouncingButton(
-                      onTap: () => _downloadAll(context),
+                      onTap: isDownloaded || isDownloading ? null : () => _downloadAll(context),
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         decoration: BoxDecoration(
-                          gradient: IosTheme.musicGradient,
+                          gradient: isDownloaded
+                              ? const LinearGradient(colors: [Color(0xFF4CAF50), Color(0xFF388E3C)])
+                              : (isDownloading
+                                  ? LinearGradient(colors: [IosTheme.primaryPink.withValues(alpha: 0.6), IosTheme.primaryPink.withValues(alpha: 0.8)])
+                                  : IosTheme.musicGradient),
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
-                              color: IosTheme.primaryPink.withValues(alpha: 0.35),
+                              color: (isDownloaded ? const Color(0xFF388E3C) : IosTheme.primaryPink)
+                                  .withValues(alpha: 0.35),
                               blurRadius: 14,
                               offset: const Offset(0, 4),
                             ),
                           ],
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(CupertinoIcons.arrow_down_circle_fill, color: Colors.white, size: 18),
-                            SizedBox(width: 8),
+                            Icon(
+                              isDownloaded
+                                  ? CupertinoIcons.checkmark_alt
+                                  : (isDownloading
+                                      ? CupertinoIcons.arrow_down_circle
+                                      : CupertinoIcons.arrow_down_circle_fill),
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
                             Text(
-                              '一键下载整包',
-                              style: TextStyle(
+                              isDownloaded
+                                  ? '图集已下载完成'
+                                  : (isDownloading
+                                      ? '正在下载中...'
+                                      : '一键下载整包'),
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w800,
                                 fontSize: 14,
@@ -483,136 +528,6 @@ class _MztDetailPageState extends State<MztDetailPage> {
       ),
     ],
   ),
-);
-  }
-}
-
-class _MztPhotoViewer extends StatefulWidget {
-  final String title;
-  final List<String> imageUrls;
-  final int initialIndex;
-
-  const _MztPhotoViewer({
-    required this.title,
-    required this.imageUrls,
-    required this.initialIndex,
-  });
-
-  @override
-  State<_MztPhotoViewer> createState() => _MztPhotoViewerState();
-}
-
-class _MztPhotoViewerState extends State<_MztPhotoViewer> {
-  late int _currentIndex;
-  late PageController _pageController;
-
-  @override
-  void initState() {
-    super.initState();
-    _currentIndex = widget.initialIndex;
-    _pageController = PageController(initialPage: widget.initialIndex);
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          PhotoViewGallery.builder(
-            itemCount: widget.imageUrls.length,
-            pageController: _pageController,
-            onPageChanged: (idx) {
-              setState(() => _currentIndex = idx);
-            },
-            builder: (context, index) {
-              final url = widget.imageUrls[index];
-              return PhotoViewGalleryPageOptions(
-                imageProvider: CachedNetworkImageProvider(
-                  url,
-                  headers: const {'Referer': 'https://mzt.111404.xyz/'},
-                ),
-                minScale: PhotoViewComputedScale.contained,
-                maxScale: PhotoViewComputedScale.covered * 3.0,
-              );
-            },
-            loadingBuilder: (context, event) => const Center(
-              child: CupertinoActivityIndicator(color: Colors.white, radius: 14),
-            ),
-          ),
-
-          // Top Controls
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    BouncingButton(
-                      onTap: () => Navigator.pop(context),
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.black54,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white24, width: 0.5),
-                        ),
-                        child: const Icon(CupertinoIcons.xmark, color: Colors.white, size: 18),
-                      ),
-                    ),
-                    FrostedGlass(
-                      borderRadius: 16,
-                      blur: 16,
-                      backgroundColor: Colors.black45,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                      child: Text(
-                        '${_currentIndex + 1} / ${widget.imageUrls.length}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                    BouncingButton(
-                      onTap: () {
-                        Clipboard.setData(ClipboardData(text: widget.imageUrls[_currentIndex]));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('已复制高清原图链接'),
-                            duration: Duration(seconds: 1),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.black54,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white24, width: 0.5),
-                        ),
-                        child: const Icon(CupertinoIcons.link, color: Colors.white, size: 18),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+));
   }
 }

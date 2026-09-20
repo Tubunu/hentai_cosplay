@@ -25,9 +25,14 @@ class Rule34VideoApiService {
   static const String kBaseUrl = 'https://rule34video.com';
 
   static String? _configuredProxy;
+  static Dio _dio = _createDio();
 
   static void setProxy(String? proxy) {
     _configuredProxy = proxy?.trim();
+    try {
+      _dio.close(force: true);
+    } catch (_) {}
+    _dio = _createDio();
   }
 
   static Dio _createDio() {
@@ -86,7 +91,7 @@ class Rule34VideoApiService {
 
     // Mobile / Standard tier: Dio
     try {
-      final dio = _createDio();
+      final dio = _dio;
       final res = await dio.get(url);
       return res.data.toString();
     } catch (e) {

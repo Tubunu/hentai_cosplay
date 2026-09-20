@@ -9,6 +9,7 @@ class PageNavigationBar extends StatelessWidget {
   final int totalPages;
   final bool isLoading;
   final ValueChanged<int> onPageSelected;
+  final Color? brandColor;
 
   const PageNavigationBar({
     super.key,
@@ -16,6 +17,7 @@ class PageNavigationBar extends StatelessWidget {
     required this.totalPages,
     required this.isLoading,
     required this.onPageSelected,
+    this.brandColor,
   });
 
   void _showJumpDialog(BuildContext context) {

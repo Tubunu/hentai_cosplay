@@ -18,6 +18,21 @@ class _KuraaLocationState {
 }
 
 class KuraaBrowseProvider extends ChangeNotifier {
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) {
+      super.notifyListeners();
+    }
+  }
+
   List<KuraaStorageLocation> _locations = [];
   String _activeLocationId = '2'; // Default: 公开浏览
   final Map<String, String> _tokens = {};
@@ -243,6 +258,8 @@ class KuraaBrowseProvider extends ChangeNotifier {
         );
       }
 
+      if (_disposed) return;
+
       _items = res.items;
       _totalItems = res.total;
       _hasMore = res.hasMore;
@@ -256,6 +273,7 @@ class KuraaBrowseProvider extends ChangeNotifier {
       // Asynchronously prefetch covers for all folders in the current view
       _prefetchFolderCovers(_items);
     } catch (e) {
+      if (_disposed) return;
       _isLoading = false;
       _errorMessage = '加载失败: $e';
       notifyListeners();
@@ -266,6 +284,7 @@ class KuraaBrowseProvider extends ChangeNotifier {
     for (final item in fileItems) {
       if (item.isFolder && !_folderCoverCache.containsKey(item.id)) {
         KuraaApiService.fetchFolderCover(item, token: activeToken).then((cover) {
+          if (_disposed) return;
           if (cover != null && cover.isNotEmpty) {
             _folderCoverCache[item.id] = cover;
             notifyListeners();

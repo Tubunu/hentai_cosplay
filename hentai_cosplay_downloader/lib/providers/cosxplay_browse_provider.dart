@@ -3,6 +3,21 @@ import '../models/video_item.dart';
 import '../services/cosxplay/cosxplay_api_service.dart';
 
 class CosxplayBrowseProvider extends ChangeNotifier {
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) {
+      super.notifyListeners();
+    }
+  }
+
   List<VideoItem> _items = [];
   int _currentPage = 1;
   int _totalPages = 1;
@@ -73,8 +88,14 @@ class CosxplayBrowseProvider extends ChangeNotifier {
 
   bool isSelected(VideoItem item) => _selectedSlugs.contains(item.slug);
 
+  void _resetSelection() {
+    _selectedSlugs.clear();
+    _isSelectionMode = false;
+  }
+
   void clearSearch() {
     _searchKeyword = null;
+    _resetSelection();
     loadPage(1);
   }
 
@@ -82,6 +103,7 @@ class CosxplayBrowseProvider extends ChangeNotifier {
     _searchKeyword = null;
     _tagSlug = null;
     _actorSlug = null;
+    _resetSelection();
     loadPage(1);
   }
 
@@ -94,6 +116,7 @@ class CosxplayBrowseProvider extends ChangeNotifier {
     _searchKeyword = clean;
     _tagSlug = null;
     _actorSlug = null;
+    _resetSelection();
     loadPage(1);
   }
 
@@ -101,6 +124,7 @@ class CosxplayBrowseProvider extends ChangeNotifier {
     _tagSlug = tagSlug;
     _searchKeyword = null;
     _actorSlug = null;
+    _resetSelection();
     loadPage(1);
   }
 
@@ -108,6 +132,7 @@ class CosxplayBrowseProvider extends ChangeNotifier {
     _actorSlug = actorSlug;
     _searchKeyword = null;
     _tagSlug = null;
+    _resetSelection();
     loadPage(1);
   }
 
@@ -128,8 +153,6 @@ class CosxplayBrowseProvider extends ChangeNotifier {
       _items = pageData.items;
       _currentPage = pageData.currentPage;
       _totalPages = pageData.totalPages;
-      _selectedSlugs.clear();
-      _isSelectionMode = false;
     } catch (e) {
       _errorMessage = '获取视频列表失败: $e';
     } finally {

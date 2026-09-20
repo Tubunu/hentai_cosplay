@@ -9,7 +9,7 @@ class TaskPersistenceService {
   static const String _kTasksKey = 'hc_saved_download_tasks';
   static const String _kTasksFileName = 'hc_download_tasks.json';
   Timer? _debounceTimer;
-  List<AlbumDownloadTask>? _pendingTasksToSave;
+  String? _pendingJsonToSave;
 
   Future<File> _getStorageFile() async {
     try {
@@ -59,7 +59,8 @@ class TaskPersistenceService {
 
   /// Persist tasks with optional debounce (default: debounced by 1.5s, immediate on important state transitions)
   void persistTasks(List<AlbumDownloadTask> tasks, {bool immediate = false}) {
-    _pendingTasksToSave = List.from(tasks);
+    // 立即同步序列化生成快照，避免异步写入前任务对象发生并发修改
+    _pendingJsonToSave = AlbumDownloadTask.listToJson(tasks);
 
     if (immediate) {
       _debounceTimer?.cancel();
@@ -77,13 +78,13 @@ class TaskPersistenceService {
   }
 
   Future<void> _writeToDisk() async {
-    final tasks = _pendingTasksToSave;
-    if (tasks == null) return;
+    final jsonStr = _pendingJsonToSave;
+    if (jsonStr == null) return;
     File? tempFile;
     try {
       final file = await _getStorageFile();
       tempFile = File('${file.path}.tmp_${DateTime.now().microsecondsSinceEpoch}');
-      await tempFile.writeAsString(AlbumDownloadTask.listToJson(tasks));
+      await tempFile.writeAsString(jsonStr);
 
       if (await file.exists()) {
         await file.delete();

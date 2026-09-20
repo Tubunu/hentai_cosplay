@@ -152,9 +152,13 @@ class GalleryProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  String? _errorMessage;
+  String? get errorMessage => _errorMessage;
+
   Future<void> scanLocalDirectory(String savePath) async {
     if (_isScanning) return;
     _isScanning = true;
+    _errorMessage = null;
     notifyListeners();
 
     try {
@@ -166,7 +170,9 @@ class GalleryProvider extends ChangeNotifier {
       }
       _localAlbums = await StorageService.scanLocalAlbums(targetPath);
       _cachedSortedAlbums = null;
-    } catch (_) {}
+    } catch (e) {
+      _errorMessage = e.toString();
+    }
 
     _isScanning = false;
     notifyListeners();
@@ -180,5 +186,26 @@ class GalleryProvider extends ChangeNotifier {
       notifyListeners();
     }
     return success;
+  }
+
+  Future<int> deleteBatchLocalAlbums(List<LocalAlbumFolder> albums) async {
+    if (albums.isEmpty) return 0;
+    int successCount = 0;
+    final toRemovePaths = <String>{};
+
+    for (final alb in albums) {
+      final ok = await StorageService.deleteAlbumFolder(alb.folderPath);
+      if (ok) {
+        successCount++;
+        toRemovePaths.add(alb.folderPath);
+      }
+    }
+
+    if (toRemovePaths.isNotEmpty) {
+      _localAlbums.removeWhere((a) => toRemovePaths.contains(a.folderPath));
+      _cachedSortedAlbums = null;
+      notifyListeners();
+    }
+    return successCount;
   }
 }

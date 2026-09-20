@@ -9,19 +9,10 @@ on:
         default: 'false'
         type: boolean
       release_tag:
-        description: 'Release 标签名 (如 v1.0.9)'
+        description: 'Release 标签名 (如 v1.0.10)'
         required: false
-        default: 'v1.0.9'
+        default: 'v1.0.10'
         type: string
-  push:
-    branches:
-      - master
-      - main
-    paths:
-      - 'hentai_cosplay_downloader/**'
-      - '.github/workflows/build_ipa.yml'
-    tags:
-      - 'v*'
 
 permissions:
   contents: write

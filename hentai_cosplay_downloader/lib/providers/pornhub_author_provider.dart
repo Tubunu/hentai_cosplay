@@ -3,6 +3,21 @@ import '../models/video_item.dart';
 import '../services/pornhub/pornhub_api_service.dart';
 
 class PornhubAuthorProvider extends ChangeNotifier {
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) {
+      super.notifyListeners();
+    }
+  }
+
   final String authorName;
   final String? authorUrl;
 

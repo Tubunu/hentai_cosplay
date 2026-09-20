@@ -121,14 +121,10 @@ class _NjavDetailPageState extends State<NjavDetailPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final downloadTask = context.select<DownloadProvider, AlbumDownloadTask?>((p) {
-      for (final t in p.allTasks) {
-        if (t.albumItem.slug == _item.slug || t.albumItem.detailUrl == _item.detailUrl) {
-          return t;
-        }
-      }
-      return null;
-    });
+    final taskStatus = context.select<DownloadProvider, TaskStatus?>(
+      (p) => p.getTaskStatus(slug: _item.slug, detailUrl: _item.detailUrl),
+    );
+    final isDownloaded = taskStatus == TaskStatus.completed;
 
     final duration = _item.duration.isNotEmpty ? _item.duration : (_item.rawData['duration'] as String? ?? '');
     final previewVideo = _item.rawData['preview_video']?.toString() ?? '';
@@ -445,14 +441,14 @@ class _NjavDetailPageState extends State<NjavDetailPage> {
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                             color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
                             borderRadius: BorderRadius.circular(12),
-                            onPressed: downloadTask?.status == TaskStatus.completed
+                            onPressed: isDownloaded
                                 ? null
                                 : _startDownload,
                             child: Icon(
-                              downloadTask?.status == TaskStatus.completed
+                              isDownloaded
                                   ? CupertinoIcons.checkmark_alt
                                   : CupertinoIcons.arrow_down,
-                              color: downloadTask?.status == TaskStatus.completed
+                              color: isDownloaded
                                   ? const Color(0xFF34C759)
                                   : (isDark ? Colors.white : Colors.black87),
                               size: 20,

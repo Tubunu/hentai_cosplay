@@ -3,6 +3,21 @@ import '../models/video_item.dart';
 import '../services/njav/njav_api_service.dart';
 
 class NjavBrowseProvider extends ChangeNotifier {
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) {
+      super.notifyListeners();
+    }
+  }
+
   List<VideoItem> _items = [];
   bool _isLoading = false;
   String? _errorMessage;
@@ -126,7 +141,7 @@ class NjavBrowseProvider extends ChangeNotifier {
         keyword: _searchKeyword,
       );
 
-      if (requestId != _currentRequestId) return;
+      if (_disposed || requestId != _currentRequestId) return;
 
       _items = pageData.items;
       _currentPage = pageData.currentPage;
@@ -134,7 +149,7 @@ class NjavBrowseProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     } catch (e) {
-      if (requestId != _currentRequestId) return;
+      if (_disposed || requestId != _currentRequestId) return;
       _isLoading = false;
       _errorMessage = e.toString();
       notifyListeners();

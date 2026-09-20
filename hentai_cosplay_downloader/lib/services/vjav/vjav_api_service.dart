@@ -38,8 +38,14 @@ class VjavApiService {
   static const String _cipherAlphabet =
       '\u0410\u0412\u0421D\u0415FGHIJKL\u041cNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,~';
 
+  static Dio _dio = _createDio();
+
   static void setProxy(String? proxy) {
-    _configuredProxy = proxy;
+    _configuredProxy = proxy?.trim();
+    try {
+      _dio.close(force: true);
+    } catch (_) {}
+    _dio = _createDio();
   }
 
   static Dio _createDio() {
@@ -83,7 +89,7 @@ class VjavApiService {
     VjavCategory category = VjavCategory.latest,
     String? keyword,
   }) async {
-    final dio = _createDio();
+    final dio = _dio;
     final url = buildUrl(page: page, category: category, keyword: keyword);
     debugPrint('[VjavApiService] Fetching API: $url');
 
@@ -227,7 +233,7 @@ class VjavApiService {
 
   /// Resolves direct high-speed video MP4 stream
   static Future<VideoItem> resolveVideoDetail(VideoItem item) async {
-    final dio = _createDio();
+    final dio = _dio;
     final videoId = item.rawData['video_id']?.toString() ?? item.slug;
     final vfUrl = '$kBaseUrl/api/videofile.php?video_id=$videoId&lifetime=864000';
     debugPrint('[VjavApiService] Resolving videofile: $vfUrl');

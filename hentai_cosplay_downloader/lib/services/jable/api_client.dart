@@ -68,7 +68,10 @@ class ApiClient {
             return "PROXY $cleaned; DIRECT";
           }
         };
-        client.badCertificateCallback = (cert, host, port) => true;
+        // 仅在使用代理时绕过 SSL 验证（代理服务器可能使用自签证书）
+        if (_proxyUrl.isNotEmpty) {
+          client.badCertificateCallback = (cert, host, port) => true;
+        }
         return client;
       },
     );

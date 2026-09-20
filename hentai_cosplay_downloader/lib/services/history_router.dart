@@ -1,4 +1,4 @@
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import '../models/album_item.dart';
 import '../models/browsing_history_record.dart';
 import '../models/video_item.dart';
@@ -31,9 +31,71 @@ import '../ui/pages/cosxplay/cosxplay_detail_page.dart';
 import '../ui/pages/cosplayporntube/cosplayporntube_detail_page.dart';
 import '../ui/pages/xhamster/xhamster_detail_page.dart';
 import '../ui/pages/xnxx/xnxx_detail_page.dart';
+import '../ui/pages/nsfwpub/nsfwpub_detail_page.dart';
+import '../ui/pages/thothub/thothub_detail_page.dart';
+import '../ui/pages/njav/njav_detail_page.dart';
+import '../ui/pages/vjav/vjav_detail_page.dart';
+import '../ui/pages/javguru/javguru_detail_page.dart';
+import '../ui/pages/av123/av123_detail_page.dart';
+import '../ui/pages/javmost/javmost_detail_page.dart';
+import '../ui/pages/memojav/memojav_detail_page.dart';
+import '../ui/pages/hohoj/hohoj_detail_page.dart';
 
 class HistoryRouter {
+  static final Map<String, Widget Function(AlbumItem)> _albumRoutes = {
+    'hc': (item) => AlbumDetailPage(initialItem: item),
+    'hc_gallery': (item) => AlbumDetailPage(initialItem: item),
+    'mzt': (item) => MztDetailPage(item: item),
+    'misskon': (item) => MisskonDetailPage(item: item),
+    'coomer': (item) => CoomerDetailPage(item: item),
+    'exhentai': (item) => ExDetailPage(item: item),
+    'pixibb': (item) => PixibbDetailPage(item: item),
+    'cosplaytele': (item) => CosplayteleDetailPage(item: item),
+    'nucosplay': (item) => NucosplayDetailPage(item: item),
+    'cosvault': (item) => CosvaultDetailPage(item: item),
+    'galleryepic': (item) => GalleryepicDetailPage(item: item),
+    'nsfwpub': (item) => NsfwpubDetailPage(item: item),
+  };
+
+  static final Map<String, Widget Function(VideoItem)> _videoRoutes = {
+    'video': (item) => VideoDetailPage(initialItem: item),
+    'hc_video': (item) => VideoDetailPage(initialItem: item),
+    'pinse': (item) => PinseDetailPage(item: item),
+    'pornbox': (item) => PornboxDetailPage(item: item),
+    'hanime1': (item) => Hanime1DetailPage(item: item),
+    'iwara': (item) => IwaraDetailPage(item: item),
+    'rule34video': (item) => Rule34VideoDetailPage(item: item),
+    'eporner': (item) => EpornerDetailPage(item: item),
+    'hqporner': (item) => HqpornerDetailPage(item: item),
+    'spankbang': (item) => SpankbangDetailPage(item: item),
+    'pornhub': (item) => PornhubDetailPage(item: item),
+    'xvideos': (item) => XVideosDetailPage(item: item),
+    'cosxplay': (item) => CosxplayDetailPage(item: item),
+    'cosplayporntube': (item) => CosplayporntubeDetailPage(item: item),
+    'xhamster': (item) => XhamsterDetailPage(item: item),
+    'xnxx': (item) => XnxxDetailPage(item: item),
+    'thothub': (item) => ThothubDetailPage(item: item),
+    'njav': (item) => NjavDetailPage(item: item),
+    'vjav': (item) => VjavDetailPage(item: item),
+    'javguru': (item) => JavguruDetailPage(item: item),
+    'av123': (item) => Av123DetailPage(item: item),
+    'javmost': (item) => JavmostDetailPage(item: item),
+    'memojav': (item) => MemojavDetailPage(item: item),
+    'hohoj': (item) => HohojDetailPage(item: item),
+  };
+
   static void openRecord(BuildContext context, BrowsingHistoryRecord record) {
+    MediaSourceType parsedSource = MediaSourceType.hc;
+    if (record.extra != null && record.extra!['sourceType'] != null) {
+      try {
+        parsedSource = MediaSourceType.values.byName(record.extra!['sourceType'].toString());
+      } catch (_) {}
+    } else {
+      try {
+        parsedSource = MediaSourceType.values.byName(record.siteKey);
+      } catch (_) {}
+    }
+
     final albumItem = AlbumItem(
       title: record.title,
       slug: record.id,
@@ -41,6 +103,8 @@ class HistoryRouter {
       coverUrl: record.coverUrl,
       date: '',
       author: record.author,
+      sourceType: parsedSource,
+      rawData: record.extra ?? {},
     );
 
     final videoItem = VideoItem(
@@ -52,128 +116,81 @@ class HistoryRouter {
       date: '',
       author: record.author,
       videoUrl: record.videoUrl,
+      rawData: record.extra ?? {},
     );
 
-    final Widget targetPage;
-
-    switch (record.siteKey) {
-      case 'hc_gallery':
-        targetPage = AlbumDetailPage(initialItem: albumItem);
-        break;
-      case 'hc_video':
-        targetPage = VideoDetailPage(initialItem: videoItem);
-        break;
-      case 'mzt':
-        targetPage = MztDetailPage(item: albumItem);
-        break;
-      case 'misskon':
-        targetPage = MisskonDetailPage(item: albumItem);
-        break;
-      case 'coomer':
-        targetPage = CoomerDetailPage(item: albumItem);
-        break;
-      case 'pinse':
-        targetPage = PinseDetailPage(item: videoItem);
-        break;
-      case 'pornbox':
-        targetPage = PornboxDetailPage(item: videoItem);
-        break;
-      case 'kuraa':
-        final pseudoFolder = KuraaFileItem(
-          id: record.extra?['folderId'] ?? '',
-          storageLocationId: '',
-          name: record.title,
-          type: 'folder',
-          size: 0,
-          createdAt: '',
-          updatedAt: '',
-          hasThumbnail: false,
-          tags: const [],
-        );
-        targetPage = KuraaDetailPage(folderItem: pseudoFolder, initialAlbum: albumItem);
-        break;
-      case 'twitter':
-        if (record.videoUrl != null && record.videoUrl!.isNotEmpty) {
-          VideoPlayerPage.openRemote(
-            context,
-            url: record.videoUrl!,
-            title: record.title,
-            author: record.author,
-            webPlayerUrl: record.detailUrl,
-          );
-          return;
-        } else {
-          targetPage = VideoDetailPage(initialItem: videoItem);
-        }
-        break;
-      case 'exhentai':
-        targetPage = ExDetailPage(item: albumItem);
-        break;
-      case 'pixibb':
-        targetPage = PixibbDetailPage(item: albumItem);
-        break;
-      case 'cosplaytele':
-        targetPage = CosplayteleDetailPage(item: albumItem);
-        break;
-      case 'nucosplay':
-        targetPage = NucosplayDetailPage(item: albumItem);
-        break;
-      case 'cosvault':
-        targetPage = CosvaultDetailPage(item: albumItem);
-        break;
-      case 'galleryepic':
-        targetPage = GalleryepicDetailPage(item: albumItem);
-        break;
-      case 'hanime1':
-        targetPage = Hanime1DetailPage(item: videoItem);
-        break;
-      case 'iwara':
-        targetPage = IwaraDetailPage(item: videoItem);
-        break;
-      case 'rule34video':
-        targetPage = Rule34VideoDetailPage(item: videoItem);
-        break;
-      case 'eporner':
-        targetPage = EpornerDetailPage(item: videoItem);
-        break;
-      case 'hqporner':
-        targetPage = HqpornerDetailPage(item: videoItem);
-        break;
-      case 'spankbang':
-        targetPage = SpankbangDetailPage(item: videoItem);
-        break;
-      case 'pornhub':
-        targetPage = PornhubDetailPage(item: videoItem);
-        break;
-      case 'xvideos':
-        targetPage = XVideosDetailPage(item: videoItem);
-        break;
-      case 'cosxplay':
-        targetPage = CosxplayDetailPage(item: videoItem);
-        break;
-      case 'cosplayporntube':
-        targetPage = CosplayporntubeDetailPage(item: videoItem);
-        break;
-      case 'xhamster':
-        targetPage = XhamsterDetailPage(item: videoItem);
-        break;
-      case 'xnxx':
-        targetPage = XnxxDetailPage(item: videoItem);
-        break;
-      case 'jable':
-        WebVideoPlayerPage.open(context, url: record.detailUrl, title: record.title);
-        return;
-      default:
-        if (record.isVideo) {
-          targetPage = VideoDetailPage(initialItem: videoItem);
-        } else {
-          targetPage = AlbumDetailPage(initialItem: albumItem);
-        }
+    // 1. Web video players
+    if (const {'jable', 'missav', 'supjav'}.contains(record.siteKey)) {
+      WebVideoPlayerPage.open(context, url: record.detailUrl, title: record.title);
+      return;
     }
+
+    // 2. Twitter specific playback
+    if (record.siteKey == 'twitter') {
+      if (record.videoUrl != null && record.videoUrl!.isNotEmpty) {
+        VideoPlayerPage.openRemote(
+          context,
+          url: record.videoUrl!,
+          title: record.title,
+          author: record.author,
+          webPlayerUrl: record.detailUrl,
+        );
+        return;
+      }
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => VideoDetailPage(initialItem: videoItem)),
+      );
+      return;
+    }
+
+    // 3. Kuraa folder structure
+    if (record.siteKey == 'kuraa') {
+      final pseudoFolder = KuraaFileItem(
+        id: record.extra?['folderId'] ?? '',
+        storageLocationId: '',
+        name: record.title,
+        type: 'folder',
+        size: 0,
+        createdAt: '',
+        updatedAt: '',
+        hasThumbnail: false,
+        tags: const [],
+      );
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => KuraaDetailPage(folderItem: pseudoFolder, initialAlbum: albumItem)),
+      );
+      return;
+    }
+
+    // 4. Mapped routes
+    final albumBuilder = _albumRoutes[record.siteKey];
+    if (albumBuilder != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => albumBuilder(albumItem)),
+      );
+      return;
+    }
+
+    final videoBuilder = _videoRoutes[record.siteKey];
+    if (videoBuilder != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => videoBuilder(videoItem)),
+      );
+      return;
+    }
+
+    // 5. Default fallback
+    final targetPage = record.isVideo
+        ? VideoDetailPage(initialItem: videoItem)
+        : AlbumDetailPage(initialItem: albumItem);
 
     Navigator.push(
       context,
-      CupertinoPageRoute(builder: (_) => targetPage),
+      MaterialPageRoute(builder: (_) => targetPage),
     );
   }
 }

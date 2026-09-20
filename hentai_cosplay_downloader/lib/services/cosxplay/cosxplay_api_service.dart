@@ -33,9 +33,14 @@ class CosxplayApiService {
   static const String kBaseUrl = 'https://cosxplay.com';
 
   static String? _configuredProxy;
+  static Dio _dio = _createDio();
 
   static void setProxy(String? proxy) {
     _configuredProxy = proxy?.trim();
+    try {
+      _dio.close(force: true);
+    } catch (_) {}
+    _dio = _createDio();
   }
 
   static Dio _createDio() {
@@ -104,7 +109,7 @@ class CosxplayApiService {
     String? tagSlug,
     String? actorSlug,
   }) async {
-    final dio = _createDio();
+    final dio = _dio;
     final url = buildUrl(page: page, keyword: keyword, tagSlug: tagSlug, actorSlug: actorSlug);
     debugPrint('[CosxplayApiService] Fetching list: $url');
 
@@ -223,7 +228,7 @@ class CosxplayApiService {
 
   /// Resolve full video details including MP4 streaming URLs
   static Future<VideoItem> resolveVideoDetail(VideoItem item) async {
-    final dio = _createDio();
+    final dio = _dio;
     debugPrint('[CosxplayApiService] Resolving detail: ${item.detailUrl}');
 
     final response = await dio.get<String>(

@@ -2,7 +2,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:share_plus/share_plus.dart';
 import '../../../models/download_task.dart';
 import '../../../models/video_item.dart';
 import '../../../providers/browsing_history_provider.dart';
@@ -14,6 +13,7 @@ import '../../widgets/random_action_button.dart';
 import '../../widgets/scroll_to_top_button.dart';
 import '../video/video_player_page.dart';
 import '../video/web_video_player_page.dart';
+import 'package:hentai_cosplay_downloader/utils/app_share.dart';
 
 class PinseDetailPage extends StatefulWidget {
   final VideoItem item;
@@ -151,14 +151,12 @@ class _PinseDetailPageState extends State<PinseDetailPage> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final existingTask = context.select<DownloadProvider, AlbumDownloadTask?>((p) {
-      for (final t in p.allTasks) {
-        if (t.albumItem.slug == _item.slug || t.albumItem.detailUrl == _item.detailUrl) {
-          return t;
-        }
-      }
-      return null;
-    });
+    final taskStatus = context.select<DownloadProvider, TaskStatus?>(
+      (p) => p.getTaskStatus(slug: _item.slug, detailUrl: _item.detailUrl),
+    );
+    final isDownloaded = taskStatus == TaskStatus.completed;
+    final isDownloading = taskStatus == TaskStatus.downloading ||
+        taskStatus == TaskStatus.queued;
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0C0C0E) : const Color(0xFFF2F2F7),
@@ -192,7 +190,7 @@ class _PinseDetailPageState extends State<PinseDetailPage> {
               IconButton(
                 icon: const Icon(CupertinoIcons.share),
                 onPressed: () {
-                  Share.share('${_item.title}\n${_item.detailUrl}');
+                  AppShare.share(context, '${_item.title}\n${_item.detailUrl}');
                 },
               ),
               IconButton(
@@ -461,17 +459,21 @@ class _PinseDetailPageState extends State<PinseDetailPage> {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Icon(
-                                    existingTask?.status == TaskStatus.completed
+                                    isDownloaded
                                         ? CupertinoIcons.checkmark_alt
-                                        : CupertinoIcons.arrow_down_circle_fill,
+                                        : (isDownloading
+                                            ? CupertinoIcons.arrow_down_circle
+                                            : CupertinoIcons.arrow_down_circle_fill),
                                     color: const Color(0xFF2196F3),
                                     size: 18,
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
-                                    existingTask?.status == TaskStatus.completed
+                                    isDownloaded
                                         ? '已下载至本地 (重新下载)'
-                                        : '下载此视频到本地',
+                                        : (isDownloading
+                                            ? '正在下载中...'
+                                            : '下载此视频到本地'),
                                     style: const TextStyle(
                                       color: Color(0xFF2196F3),
                                       fontSize: 14,

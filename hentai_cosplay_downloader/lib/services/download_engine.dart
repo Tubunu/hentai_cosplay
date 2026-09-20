@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:pool/pool.dart';
 import '../models/album_item.dart';
 import '../models/app_config.dart';
@@ -15,6 +16,7 @@ import 'coomer/coomer_api_service.dart';
 import 'exhentai/exhentai_api_service.dart';
 import 'hc_api_service.dart';
 import 'jable/decryptor.dart';
+import 'jable/merger.dart';
 import 'misskon/misskon_api_service.dart';
 import 'pinse/pinse_api_service.dart';
 import 'pornbox/pornbox_api_service.dart';
@@ -73,7 +75,10 @@ class DownloadEngine {
     final adapter = IOHttpClientAdapter();
     adapter.createHttpClient = () {
       final client = HttpClient();
-      client.badCertificateCallback = (cert, host, port) => true;
+      // 仅在用户明确开启不安全证书且配置了代理时绕过 SSL 验证
+      if (config.allowInsecureCertificates && config.customProxy.trim().isNotEmpty) {
+        client.badCertificateCallback = (cert, host, port) => true;
+      }
 
       if (config.customProxy.trim().isNotEmpty) {
         final clean = config.customProxy.trim().replaceAll(RegExp(r'https?://|socks5?://'), '');
@@ -95,14 +100,26 @@ class DownloadEngine {
     _cancelToken?.cancel('用户已暂停下载');
   }
 
+  void dispose() {
+    _isCancelled = true;
+    _cancelToken?.cancel('下载引擎已释放');
+    try {
+      _dio.close(force: true);
+    } catch (_) {}
+  }
+
   /// Validate if file has valid image header magic bytes (JPEG, PNG, GIF, WEBP, BMP)
   static Future<bool> _isValidImageFile(File file) async {
     try {
       final len = await file.length();
       if (len < 12) return false;
       final raf = await file.open(mode: FileMode.read);
-      final header = await raf.read(12);
-      await raf.close();
+      Uint8List header;
+      try {
+        header = await raf.read(12);
+      } finally {
+        await raf.close();
+      }
       if (header.length < 12) return false;
 
       // JPEG: FF D8 FF
@@ -157,8 +174,7 @@ class DownloadEngine {
     final dir = Directory(folderPath);
     if (!await dir.exists()) return false;
     try {
-      final list = await dir.list().toList();
-      for (final e in list) {
+      await for (final e in dir.list()) {
         if (e is File) {
           final ext = p.extension(e.path).replaceAll('.', '').toLowerCase();
           const validExts = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'};
@@ -177,8 +193,7 @@ class DownloadEngine {
     final archiveDir = Directory(p.join(baseDir, 'archive'));
     if (await archiveDir.exists()) {
       try {
-        final authorEntities = await archiveDir.list().toList();
-        for (final authorEntity in authorEntities) {
+        await for (final authorEntity in archiveDir.list()) {
           if (authorEntity is Directory) {
             final archivedPackPath = p.join(authorEntity.path, folderName);
             candidates.add(archivedPackPath);
@@ -244,12 +259,36 @@ class DownloadEngine {
         'sourceType': item.sourceType.name,
         'item': item.rawData,
       };
-      final file = File(p.join(folderPath, kAlbumMetadataFilename));
-      await file.writeAsString(const JsonEncoder.withIndent('  ').convert(payload));
+      final jsonStr = const JsonEncoder.withIndent('  ').convert(payload);
 
-      if (item.sourceType == MediaSourceType.mzt) {
-        final mztFile = File(p.join(folderPath, kMztMetadataFilename));
-        await mztFile.writeAsString(const JsonEncoder.withIndent('  ').convert(payload));
+      // 原子写入：先写临时文件，再 rename 到目标文件
+      File? tmpFile;
+      File? mztTmpFile;
+      try {
+        final file = File(p.join(folderPath, kAlbumMetadataFilename));
+        tmpFile = File('${file.path}.tmp');
+        await tmpFile.writeAsString(jsonStr, flush: true);
+        await tmpFile.rename(file.path);
+        tmpFile = null;
+
+        if (item.sourceType == MediaSourceType.mzt) {
+          final mztFile = File(p.join(folderPath, kMztMetadataFilename));
+          mztTmpFile = File('${mztFile.path}.tmp');
+          await mztTmpFile.writeAsString(jsonStr, flush: true);
+          await mztTmpFile.rename(mztFile.path);
+          mztTmpFile = null;
+        }
+      } finally {
+        if (tmpFile != null && await tmpFile.exists()) {
+          try {
+            await tmpFile.delete();
+          } catch (_) {}
+        }
+        if (mztTmpFile != null && await mztTmpFile.exists()) {
+          try {
+            await mztTmpFile.delete();
+          } catch (_) {}
+        }
       }
     } catch (_) {}
   }
@@ -348,6 +387,16 @@ class DownloadEngine {
                   'Referer': 'https://galleryepic.xyz/'
                 else if (targetUrl.contains('cosvault.top'))
                   'Referer': 'https://cosvault.top/'
+                else if (targetUrl.contains('kuraa.cc') || targetUrl.contains('kuraa.'))
+                  'Referer': 'https://kuraa.cc/'
+                else if (targetUrl.contains('pixibb.com'))
+                  'Referer': 'https://pixibb.com/'
+                else if (targetUrl.contains('cosplaytele.com'))
+                  'Referer': 'https://cosplaytele.com/'
+                else if (targetUrl.contains('nucosplay.com'))
+                  'Referer': 'https://nucosplay.com/'
+                else if (targetUrl.contains('nsfwpub.com'))
+                  'Referer': 'https://nsfwpub.com/'
                 else
                   'Referer': '${HCApiService.kBaseUrl}/',
               },
@@ -659,10 +708,10 @@ class DownloadEngine {
 
     final videoHeaders = _buildVideoHeaders(directUrl, detailUrl: item.detailUrl);
 
-    // 4. Determine file extension: .ts for HLS stream, .mp4 for progressive stream
+    // 4. Output standard MP4 format for high compatibility
     final isM3u8 = directUrl.contains('.m3u8');
-    final videoExt = isM3u8 ? 'ts' : 'mp4';
-    final videoFilePath = p.join(targetFolder, '$cleanTitle.$videoExt');
+    const videoExt = 'mp4';
+    var videoFilePath = p.join(targetFolder, '$cleanTitle.$videoExt');
     final metaFilePath = p.join(targetFolder, '$cleanTitle.json');
     final coverFilePath = p.join(targetFolder, '$cleanTitle.jpg');
 
@@ -680,12 +729,16 @@ class DownloadEngine {
 
     try {
       if (isM3u8) {
-        downloadSuccess = await _downloadM3u8Video(
+        final finalPath = await _downloadM3u8Video(
           m3u8Url: directUrl,
           targetVideoPath: videoFilePath,
           task: task,
           onBytesReceived: onBytesReceived,
         );
+        if (finalPath != null) {
+          videoFilePath = finalPath;
+          downloadSuccess = true;
+        }
       } else {
         // Direct MP4 file download
         int lastBytes = 0;
@@ -818,14 +871,12 @@ class DownloadEngine {
   }
 
   /// Download M3U8 HLS stream by fetching playlist and concatenating TS video segments
-  Future<bool> _downloadM3u8Video({
+  Future<String?> _downloadM3u8Video({
     required String m3u8Url,
     required String targetVideoPath,
     required AlbumDownloadTask task,
     required void Function(int bytes) onBytesReceived,
   }) async {
-    File? tempFile;
-    IOSink? sink;
     try {
       final videoHeaders = _buildVideoHeaders(m3u8Url, detailUrl: task.albumItem.detailUrl);
 
@@ -840,7 +891,7 @@ class DownloadEngine {
       );
 
       if (resp.statusCode != 200 || resp.data == null) {
-        return false;
+        return null;
       }
 
       var m3u8Text = resp.data.toString();
@@ -962,114 +1013,128 @@ class DownloadEngine {
         }
       }
 
-      if (segmentUrls.isEmpty) return false;
+      if (segmentUrls.isEmpty) return null;
 
-      tempFile = File('$targetVideoPath.tmp');
-      if (await tempFile.exists()) await tempFile.delete();
-      sink = tempFile.openWrite(mode: FileMode.writeOnlyAppend);
+      final tempDir = await getTemporaryDirectory();
+      final taskTempDir = Directory(p.join(tempDir.path, 'dl_m3u8_${task.id}'));
+      if (!await taskTempDir.exists()) {
+        await taskTempDir.create(recursive: true);
+      }
+
+      final List<String> segmentPaths = List.generate(
+        segmentUrls.length,
+        (i) => p.join(taskTempDir.path, '${i.toString().padLeft(6, '0')}.ts'),
+      );
 
       int totalDownloadedBytes = 0;
       int completedSegments = 0;
       int lastProgressNotifyTime = 0;
+      int nextSegmentIndex = 0;
+      final int workerCount = (config.jableWorkers > 0 ? config.jableWorkers : 4).clamp(3, 8);
 
-      for (int i = 0; i < segmentUrls.length; i++) {
-        if (_isCancelled) {
-          return false;
-        }
+      Future<void> worker() async {
+        while (!_isCancelled) {
+          final int i = nextSegmentIndex++;
+          if (i >= segmentUrls.length) break;
 
-        final segUrl = segmentUrls[i];
-        List<int>? segBytes;
+          final segUrl = segmentUrls[i];
+          final segPath = segmentPaths[i];
+          final segFile = File(segPath);
+          if (await segFile.exists() && await segFile.length() > 0) {
+            final len = await segFile.length();
+            completedSegments++;
+            totalDownloadedBytes += len;
+            continue;
+          }
 
-        for (int retry = 0; retry < config.retryCount; retry++) {
-          if (_isCancelled) break;
-          try {
-            final segResp = await _dio.get<List<int>>(
-              segUrl,
-              cancelToken: _cancelToken,
-              options: Options(
-                responseType: ResponseType.bytes,
-                headers: videoHeaders,
-              ),
-            );
-
-            if (segResp.statusCode == 200 && segResp.data != null) {
-              segBytes = segResp.data!;
-              break;
-            }
-          } catch (_) {
+          List<int>? segBytes;
+          for (int retry = 0; retry < config.retryCount; retry++) {
             if (_isCancelled) break;
-            if (retry < config.retryCount - 1) {
-              await Future.delayed(const Duration(milliseconds: 500));
+            try {
+              final segResp = await _dio.get<List<int>>(
+                segUrl,
+                cancelToken: _cancelToken,
+                options: Options(
+                  responseType: ResponseType.bytes,
+                  headers: videoHeaders,
+                ),
+              );
+
+              if (segResp.statusCode == 200 && segResp.data != null) {
+                segBytes = segResp.data!;
+                break;
+              }
+            } catch (_) {
+              if (_isCancelled) break;
+              if (retry < config.retryCount - 1) {
+                await Future.delayed(const Duration(milliseconds: 500));
+              }
             }
           }
-        }
 
-        if (segBytes == null || _isCancelled) {
-          return false;
-        }
-
-        // Decrypt if AES-128 key is configured
-        Uint8List writeBytes = Uint8List.fromList(segBytes);
-        if (aesKeyBytes != null) {
-          Uint8List segIv = aesIvBytes ?? Uint8List(16);
-          if (aesIvBytes == null) {
-            final ivData = ByteData(16);
-            ivData.setUint64(8, i + 1, Endian.big);
-            segIv = ivData.buffer.asUint8List();
+          if (segBytes == null || _isCancelled) {
+            return;
           }
-          try {
-            writeBytes = await Decryptor.decryptSegmentAsync(writeBytes, aesKeyBytes, segIv);
-          } catch (decErr) {
-            onLog('解密分片 #$i 失败: $decErr', 'warning');
+
+          // Decrypt if AES-128 key is configured
+          Uint8List writeBytes = Uint8List.fromList(segBytes);
+          if (aesKeyBytes != null) {
+            Uint8List segIv = aesIvBytes ?? Uint8List(16);
+            if (aesIvBytes == null) {
+              final ivData = ByteData(16);
+              ivData.setUint64(8, i + 1, Endian.big);
+              segIv = ivData.buffer.asUint8List();
+            }
+            try {
+              writeBytes = await Decryptor.decryptSegmentAsync(writeBytes, aesKeyBytes, segIv);
+            } catch (decErr) {
+              onLog('解密分片 #$i 失败: $decErr', 'warning');
+            }
           }
-        }
 
-        sink.add(writeBytes);
-        totalDownloadedBytes += writeBytes.length;
-        onBytesReceived(writeBytes.length);
-        completedSegments++;
+          await segFile.writeAsBytes(writeBytes, flush: false);
+          totalDownloadedBytes += writeBytes.length;
+          onBytesReceived(writeBytes.length);
+          completedSegments++;
 
-        if (completedSegments % 10 == 0) {
-          await sink.flush();
-        }
+          task.downloadedBytes = totalDownloadedBytes;
+          final avgSeg = totalDownloadedBytes / (completedSegments > 0 ? completedSegments : 1);
+          task.totalBytes = (avgSeg * segmentUrls.length).toInt();
 
-        task.downloadedBytes = totalDownloadedBytes;
-        final avgSeg = totalDownloadedBytes / completedSegments;
-        task.totalBytes = (avgSeg * segmentUrls.length).toInt();
-
-        final now = DateTime.now().millisecondsSinceEpoch;
-        if (now - lastProgressNotifyTime > 300 || completedSegments == segmentUrls.length) {
-          lastProgressNotifyTime = now;
-          onTaskProgress?.call(task);
+          final now = DateTime.now().millisecondsSinceEpoch;
+          if (now - lastProgressNotifyTime > 300 || completedSegments == segmentUrls.length) {
+            lastProgressNotifyTime = now;
+            onTaskProgress?.call(task);
+          }
         }
       }
 
-      await sink.flush();
-      await sink.close();
-      sink = null;
+      final workers = List.generate(workerCount, (_) => worker());
+      await Future.wait(workers);
 
-      if (await tempFile.exists() && await tempFile.length() > 1024) {
-        final finalFile = File(targetVideoPath);
-        if (await finalFile.exists()) await finalFile.delete();
-        await tempFile.rename(finalFile.path);
-        return true;
+      if (_isCancelled || completedSegments < segmentUrls.length) {
+        // Keep taskTempDir intact so subsequent resume/retry can reuse downloaded segments
+        return null;
       }
+
+      onLog('分片下载完成，正在封装为 MP4 格式...', 'info');
+      final mergeResult = await Merger.mergeAndRemux(
+        tempSegmentPaths: segmentPaths,
+        outputMp4Path: targetVideoPath,
+        onProgress: (status) => onLog(status, 'info'),
+      );
+
+      if (mergeResult.success) {
+        try {
+          if (await taskTempDir.exists()) await taskTempDir.delete(recursive: true);
+        } catch (_) {}
+        return mergeResult.finalPath ?? targetVideoPath;
+      }
+
+      return null;
     } catch (e) {
-      return false;
-    } finally {
-      if (sink != null) {
-        try {
-          await sink.flush();
-          await sink.close();
-        } catch (_) {}
-      }
-      if (tempFile != null && await tempFile.exists()) {
-        try {
-          await tempFile.delete();
-        } catch (_) {}
-      }
+      return null;
     }
-    return false;
   }
 
   /// Process an entire album task with image concurrency and smart skip detection

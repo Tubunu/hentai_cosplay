@@ -72,24 +72,31 @@ class _JableVideoDetailSheetState extends State<JableVideoDetailSheet> {
         _isResolvingStream = false;
       });
 
+      final navigator = Navigator.of(context);
       Navigator.pop(context); // Close sheet
 
       if (detail.m3u8Url.contains('.m3u8') ||
           detail.m3u8Url.contains('.mp4') ||
           detail.m3u8Url.contains('get_video') ||
           detail.m3u8Url.contains('hls')) {
-        VideoPlayerPage.openRemote(
-          context,
-          url: detail.m3u8Url,
-          title: detail.title.isNotEmpty ? detail.title : widget.video.title,
-          headers: detail.headers,
-          webPlayerUrl: detail.webPlayerUrl ?? widget.video.url,
+        navigator.push(
+          CupertinoPageRoute(
+            builder: (_) => VideoPlayerPage(
+              remoteVideoUrl: detail.m3u8Url,
+              title: detail.title.isNotEmpty ? detail.title : widget.video.title,
+              httpHeaders: detail.headers,
+              webPlayerUrl: detail.webPlayerUrl ?? widget.video.url,
+            ),
+          ),
         );
       } else {
-        WebVideoPlayerPage.open(
-          context,
-          url: detail.webPlayerUrl ?? detail.m3u8Url,
-          title: detail.title.isNotEmpty ? detail.title : widget.video.title,
+        navigator.push(
+          CupertinoPageRoute(
+            builder: (_) => WebVideoPlayerPage(
+              url: detail.webPlayerUrl ?? detail.m3u8Url,
+              title: detail.title.isNotEmpty ? detail.title : widget.video.title,
+            ),
+          ),
         );
       }
     } catch (e) {
@@ -102,16 +109,21 @@ class _JableVideoDetailSheetState extends State<JableVideoDetailSheet> {
   }
 
   void _watchViaWeb() {
+    final navigator = Navigator.of(context);
     Navigator.pop(context);
-    WebVideoPlayerPage.open(
-      context,
-      url: widget.video.url,
-      title: widget.video.title,
+    navigator.push(
+      CupertinoPageRoute(
+        builder: (_) => WebVideoPlayerPage(
+          url: widget.video.url,
+          title: widget.video.title,
+        ),
+      ),
     );
   }
 
   void _addToDownloadQueue() async {
     final downloadProvider = context.read<JableDownloadProvider>();
+    final messenger = ScaffoldMessenger.of(context);
     final success = await downloadProvider.enqueue(
       widget.video.url,
       initialTitle: widget.video.title,
@@ -123,7 +135,7 @@ class _JableVideoDetailSheetState extends State<JableVideoDetailSheet> {
     if (!mounted) return;
     Navigator.pop(context);
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    messenger.showSnackBar(
       SnackBar(
         content: Text(success ? '已添加至 Jable 下载队列' : '该视频已在下载列表或历史记录中'),
         backgroundColor: success ? Colors.green[700] : Colors.orange[800],

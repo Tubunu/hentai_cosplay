@@ -35,6 +35,9 @@ class VideoApiService {
   static late Dio _dio;
 
   static void _recreateDio() {
+    try {
+      _dio.close(force: true);
+    } catch (_) {}
     final dio = Dio(
       BaseOptions(
         connectTimeout: const Duration(seconds: 12),
@@ -54,7 +57,10 @@ class VideoApiService {
     final adapter = IOHttpClientAdapter();
     adapter.createHttpClient = () {
       final client = HttpClient();
-      client.badCertificateCallback = (cert, host, port) => true;
+      // 仅在配置了代理时绕过 SSL 验证
+      if (_configuredProxy != null && _configuredProxy!.isNotEmpty) {
+        client.badCertificateCallback = (cert, host, port) => true;
+      }
 
       if (_configuredProxy != null && _configuredProxy!.isNotEmpty) {
         final clean = _configuredProxy!.replaceAll(RegExp(r'https?://|socks5?://'), '');

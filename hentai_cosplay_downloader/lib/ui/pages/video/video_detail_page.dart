@@ -2,10 +2,11 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:share_plus/share_plus.dart';
 import '../../../models/video_item.dart';
+import '../../../models/download_task.dart';
 import '../../../providers/browsing_history_provider.dart';
 import '../../../providers/download_provider.dart';
+import '../../../providers/favorite_provider.dart';
 import '../../../providers/video_browse_provider.dart';
 import '../../../services/video_api_service.dart';
 import '../../theme/ios_theme.dart';
@@ -15,6 +16,7 @@ import '../../widgets/liquid_glass.dart';
 import '../../widgets/random_action_button.dart';
 import '../../widgets/scroll_to_top_button.dart';
 import 'video_player_page.dart';
+import 'package:hentai_cosplay_downloader/utils/app_share.dart';
 
 class VideoDetailPage extends StatefulWidget {
   final VideoItem initialItem;
@@ -138,7 +140,22 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final downloadProv = context.read<DownloadProvider>();
+    final isFav = context.select<FavoriteProvider, bool>(
+      (p) => p.isFavoriteItem(
+        id: 'hc_video_${_item.slug.isNotEmpty ? _item.slug : _item.detailUrl.hashCode}',
+        detailUrl: _item.detailUrl,
+      ),
+    );
+    final taskStatus = context.select<DownloadProvider, TaskStatus?>(
+      (p) => p.getTaskStatus(
+        slug: _item.slug,
+        detailUrl: _item.detailUrl,
+        videoUrl: _item.videoUrl,
+      ),
+    );
+    final isDownloaded = taskStatus == TaskStatus.completed;
+    final isDownloading = taskStatus == TaskStatus.downloading ||
+        taskStatus == TaskStatus.queued;
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0C0C0E) : const Color(0xFFF2F2F7),
@@ -168,6 +185,31 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
               ),
             ),
             actions: [
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: FrostedGlass(
+                  borderRadius: 20,
+                  blur: 15,
+                  backgroundColor: isDark ? Colors.black45 : Colors.white60,
+                  child: IconButton(
+                    icon: Icon(
+                      isFav ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
+                      color: isFav ? const Color(0xFFFF2D55) : IosTheme.primaryPink,
+                      size: 19,
+                    ),
+                    onPressed: () {
+                      context.read<FavoriteProvider>().toggleVideo(_item, siteKey: 'hc_video', siteName: 'HC 视频');
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(isFav ? '已从我的收藏中移除' : '已收藏视频: ${_item.title}'),
+                          behavior: SnackBarBehavior.floating,
+                          duration: const Duration(seconds: 1),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
               const RandomActionButton.video(
                 videoSite: VideoSiteType.hcVideo,
                 replace: true,
@@ -184,7 +226,7 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
                       icon: const Icon(CupertinoIcons.share, color: IosTheme.primaryPink, size: 19),
                       onPressed: () {
                         final box = btnContext.findRenderObject() as RenderBox?;
-                        Share.share(
+                        AppShare.share(context, 
                           '${_item.title}\n${_item.detailUrl}',
                           sharePositionOrigin: box != null ? (box.localToGlobal(Offset.zero) & box.size) : null,
                         );
@@ -386,24 +428,30 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
                   Expanded(
                     flex: 5,
                     child: BouncingButton(
-                      onTap: () {
-                        downloadProv.addVideoTask(_item);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('已加入视频下载队列: ${_item.title}'),
-                            backgroundColor: IosTheme.primaryPink,
-                            behavior: SnackBarBehavior.floating,
-                            duration: const Duration(seconds: 1),
-                          ),
-                        );
-                      },
+                      onTap: isDownloaded || isDownloading
+                          ? null
+                          : () {
+                              context.read<DownloadProvider>().addVideoTask(_item);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('已加入视频下载队列: ${_item.title}'),
+                                  backgroundColor: IosTheme.primaryPink,
+                                  behavior: SnackBarBehavior.floating,
+                                  duration: const Duration(seconds: 1),
+                                ),
+                              );
+                            },
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF24242A) : const Color(0xFFE8E8EE),
+                          color: isDownloaded
+                              ? const Color(0xFF34C759).withValues(alpha: 0.18)
+                              : (isDark ? const Color(0xFF24242A) : const Color(0xFFE8E8EE)),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: isDark ? Colors.white12 : Colors.black12,
+                            color: isDownloaded
+                                ? const Color(0xFF34C759).withValues(alpha: 0.4)
+                                : (isDark ? Colors.white12 : Colors.black12),
                             width: 0.8,
                           ),
                         ),
@@ -411,15 +459,27 @@ class _VideoDetailPageState extends State<VideoDetailPage> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
-                              CupertinoIcons.arrow_down_circle_fill,
-                              color: isDark ? Colors.white70 : Colors.black87,
+                              isDownloaded
+                                  ? CupertinoIcons.checkmark_alt
+                                  : (isDownloading
+                                      ? CupertinoIcons.arrow_down_circle
+                                      : CupertinoIcons.arrow_down_circle_fill),
+                              color: isDownloaded
+                                  ? const Color(0xFF34C759)
+                                  : (isDark ? Colors.white70 : Colors.black87),
                               size: 19,
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              '下载视频',
+                              isDownloaded
+                                  ? '已下载'
+                                  : (isDownloading
+                                      ? '正在下载中...'
+                                      : '下载视频'),
                               style: TextStyle(
-                                color: isDark ? Colors.white : Colors.black87,
+                                color: isDownloaded
+                                    ? const Color(0xFF34C759)
+                                    : (isDark ? Colors.white : Colors.black87),
                                 fontSize: 14,
                                 fontWeight: FontWeight.w800,
                               ),

@@ -405,6 +405,7 @@ class _XVideosBrowsePageState extends State<XVideosBrowsePage> {
               onRefresh: provider.refresh,
               child: CustomScrollView(
                 controller: _scrollController,
+                cacheExtent: 600.0,
                 physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
                 slivers: [
                   // 1. Top Safe Spacing for Floating Segmented Capsule Bar (54px)
@@ -793,7 +794,7 @@ class _XVideosBrowsePageState extends State<XVideosBrowsePage> {
                           crossAxisCount: 2,
                           crossAxisSpacing: 10,
                           mainAxisSpacing: 12,
-                          childAspectRatio: 0.76,
+                          childAspectRatio: 1.45,
                         ),
                         delegate: SliverChildBuilderDelegate(
                           (context, index) {

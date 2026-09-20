@@ -169,14 +169,12 @@ class _Rule34VideoDetailPageState extends State<Rule34VideoDetailPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     const themeColor = Color(0xFFFF6B35);
 
-    final existingTask = context.select<DownloadProvider, AlbumDownloadTask?>((p) {
-      for (final t in p.allTasks) {
-        if (t.albumItem.slug == _item.slug || t.albumItem.detailUrl == _item.detailUrl) {
-          return t;
-        }
-      }
-      return null;
-    });
+    final taskStatus = context.select<DownloadProvider, TaskStatus?>(
+      (p) => p.getTaskStatus(slug: _item.slug, detailUrl: _item.detailUrl),
+    );
+    final isDownloaded = taskStatus == TaskStatus.completed;
+    final isDownloading = taskStatus == TaskStatus.downloading ||
+        taskStatus == TaskStatus.queued;
 
     final duration = _item.rawData['duration'] as String? ?? '';
     final rating = _item.rawData['rating'] as String? ?? '';
@@ -349,16 +347,16 @@ class _Rule34VideoDetailPageState extends State<Rule34VideoDetailPage> {
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                           ),
                           icon: Icon(
-                            existingTask != null && existingTask.status == TaskStatus.completed
+                            isDownloaded
                                 ? CupertinoIcons.check_mark_circled_solid
-                                : CupertinoIcons.arrow_down_circle_fill,
+                                : (isDownloading ? CupertinoIcons.arrow_down_circle_fill : CupertinoIcons.arrow_down_to_line),
                             size: 18,
                             color: themeColor,
                           ),
                           label: Text(
-                            existingTask != null
-                                ? (existingTask.status == TaskStatus.completed ? '已下载' : '${(existingTask.progress * 100).toInt()}%')
-                                : '下载视频',
+                            isDownloaded
+                                ? '已下载'
+                                : (isDownloading ? '下载中' : '下载视频'),
                             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: themeColor),
                           ),
                           onPressed: () => _downloadCurrentVideo(context),

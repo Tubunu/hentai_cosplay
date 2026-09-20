@@ -9,6 +9,7 @@ import '../../theme/ios_theme.dart';
 import '../../widgets/album_card.dart';
 import '../../widgets/batch_download_dialog.dart';
 import '../../widgets/bouncing_button.dart';
+import '../../widgets/chrome_insets_coordinator.dart';
 import '../../widgets/frosted_glass.dart';
 import '../../widgets/random_action_button.dart';
 import '../../widgets/ranking_tags_sheet.dart';
@@ -145,16 +146,18 @@ class _BrowsePageState extends State<BrowsePage> {
         bottom: false,
         child: Stack(
           children: [
-            RefreshIndicator(
-              color: IosTheme.primaryPink,
-              edgeOffset: 58.0,
-              displacement: 40.0,
-              onRefresh: () async {
-                await browseProv.loadPage(browseProv.currentPage);
-                HapticFeedback.lightImpact();
-              },
-              child: CustomScrollView(
+            ChromeScrollWrapper(
+              child: RefreshIndicator(
+                color: IosTheme.primaryPink,
+                edgeOffset: 58.0,
+                displacement: 40.0,
+                onRefresh: () async {
+                  await browseProv.loadPage(browseProv.currentPage);
+                  HapticFeedback.lightImpact();
+                },
+                child: CustomScrollView(
             controller: _scrollController,
+            cacheExtent: 600.0,
             physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
             slivers: [
               // Hero Large Title & Action Header
@@ -573,7 +576,7 @@ class _BrowsePageState extends State<BrowsePage> {
                 ),
 
               // Content Grid or Loading / Error
-              if (browseProv.isLoading)
+              if (browseProv.isLoading && browseProv.items.isEmpty)
                 const SliverFillRemaining(
                   child: Center(
                     child: Column(
@@ -586,7 +589,7 @@ class _BrowsePageState extends State<BrowsePage> {
                     ),
                   ),
                 )
-              else if (browseProv.errorMessage != null)
+              else if (browseProv.errorMessage != null && browseProv.items.isEmpty)
                 SliverFillRemaining(
                   child: Center(
                     child: Padding(
@@ -623,9 +626,11 @@ class _BrowsePageState extends State<BrowsePage> {
                   ),
                 )
               else
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                  sliver: SliverGrid(
+                SliverOpacity(
+                  opacity: browseProv.isLoading ? 0.5 : 1.0,
+                  sliver: SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    sliver: SliverGrid(
                     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 2,
                       childAspectRatio: 0.72,
@@ -642,12 +647,15 @@ class _BrowsePageState extends State<BrowsePage> {
                             if (browseProv.isSelectionMode) {
                               browseProv.toggleAlbumSelection(item);
                             } else {
-                              Navigator.push(
-                                context,
-                                CupertinoPageRoute(
-                                  builder: (_) => AlbumDetailPage(initialItem: item),
-                                ),
-                              );
+                              try {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => AlbumDetailPage(initialItem: item),
+                                  ),
+                                );
+                              } catch (e) {
+                                debugPrint('[BrowsePage] Navigation error: $e');
+                              }
                             }
                           },
                         );
@@ -658,6 +666,7 @@ class _BrowsePageState extends State<BrowsePage> {
                     ),
                   ),
                 ),
+              ),
 
               // Prominent Pagination Bar (Bottom)
               if (!browseProv.isLoading && browseProv.items.isNotEmpty)
@@ -750,14 +759,11 @@ class _BrowsePageState extends State<BrowsePage> {
                 ),
 
               // Dynamic bottom spacer to prevent obstruction by bottom navigation & mini download bar
-              SliverToBoxAdapter(
-                child: SizedBox(
-                  height: context.select<DownloadProvider, bool>((p) => p.isDownloading) ? 210 : 130,
-                ),
-              ),
+              const ChromeSliverBottomSpacing(),
             ],
           ),
         ),
+      ),
         ScrollToTopButton(
           scrollController: _scrollController,
           color: IosTheme.primaryPink,

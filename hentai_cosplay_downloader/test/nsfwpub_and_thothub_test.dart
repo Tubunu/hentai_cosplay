@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hentai_cosplay_downloader/models/album_item.dart';
-import 'package:hentai_cosplay_downloader/models/resource_site_item.dart';
+import 'package:hentai_cosplay_downloader/ui/site_registry.dart';
 import 'package:hentai_cosplay_downloader/services/random_discovery_service.dart';
 import 'package:hentai_cosplay_downloader/services/nsfwpub/nsfwpub_api_service.dart';
 import 'package:hentai_cosplay_downloader/services/thothub/thothub_api_service.dart';

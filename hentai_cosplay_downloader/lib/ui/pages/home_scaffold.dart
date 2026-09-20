@@ -13,6 +13,7 @@ import '../../services/config_service.dart';
 import '../../services/history_router.dart';
 import '../theme/ios_theme.dart';
 import '../widgets/bouncing_button.dart';
+import '../widgets/chrome_insets_coordinator.dart';
 import '../widgets/liquid_glass.dart';
 import '../widgets/mini_download_bar.dart';
 import 'resources/local_resources_page.dart';
@@ -29,6 +30,7 @@ class HomeScaffold extends StatefulWidget {
 
 class _HomeScaffoldState extends State<HomeScaffold> {
   int _currentIndex = 0;
+  final ChromeInsetsController _chromeController = ChromeInsetsController();
   DownloadProvider? _downloadProv;
   JableDownloadProvider? _jableDownloadProv;
   void Function(HistoryRecord)? _albumCompletedHandler;
@@ -103,11 +105,13 @@ class _HomeScaffoldState extends State<HomeScaffold> {
     }
     _downloadProv = null;
     _jableDownloadProv = null;
+    _chromeController.dispose();
     super.dispose();
   }
 
   void _switchIndex(int index) {
     if (_currentIndex == index) return;
+    _chromeController.setNavHidden(false);
     setState(() => _currentIndex = index);
     context.read<SettingsProvider>().setLastActiveTabIndex(index);
   }
@@ -126,76 +130,113 @@ class _HomeScaffoldState extends State<HomeScaffold> {
       (p) => p.config.navBarOpacity,
     );
 
-    return Scaffold(
-      extendBody: true,
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _pages,
-      ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: RepaintBoundary(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 1. Floating Mini Download Player Bar
-              MiniDownloadBar(
-                onTap: () => _switchIndex(2), // Switch to Download Tasks
+    return ChromeInsetsScope(
+      controller: _chromeController,
+      child: Scaffold(
+        extendBody: true,
+        body: NotificationListener<UserScrollNotification>(
+          onNotification: (notification) {
+            if (notification.metrics.axis == Axis.vertical) {
+              final autoHide = context.read<SettingsProvider>().config.autoHideNavigationOnScroll;
+              if (autoHide) {
+                _chromeController.onScrollDirection(
+                  notification.direction,
+                  offset: notification.metrics.pixels,
+                );
+              }
+            }
+            return false;
+          },
+          child: IndexedStack(
+            index: _currentIndex,
+            children: _pages,
+          ),
+        ),
+        bottomNavigationBar: AnimatedBuilder(
+          animation: _chromeController,
+          builder: (context, child) {
+            final autoHide = context.select<SettingsProvider, bool>(
+              (p) => p.config.autoHideNavigationOnScroll,
+            );
+            final isHidden = autoHide && _chromeController.isNavHidden;
+            return AnimatedSlide(
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeInOutCubic,
+              offset: isHidden ? const Offset(0, 1.4) : Offset.zero,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 220),
+                opacity: isHidden ? 0.0 : 1.0,
+                child: child,
               ),
+            );
+          },
+          child: SafeArea(
+            top: false,
+            child: RepaintBoundary(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 1. Floating Mini Download Player Bar (hidden when already on Downloads page)
+                  if (_currentIndex != 2)
+                    MiniDownloadBar(
+                      onTap: () => _switchIndex(2), // Switch to Download Tasks
+                    ),
 
-              // 2. Next-Gen Liquid Glass Bottom Navigation Bar Capsule (5 Items)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: LiquidGlass(
-                  borderRadius: 28,
-                  blur: 20,
-                  opacity: navBarOpacity,
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-                  fluidAuraColor: IosTheme.primaryPink,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _buildNavItem(
-                        index: 0,
-                        icon: CupertinoIcons.photo_on_rectangle,
-                        activeIcon: CupertinoIcons.photo_fill_on_rectangle_fill,
-                        label: '在线图片',
-                        isDark: isDark,
+                  // 2. Next-Gen Liquid Glass Bottom Navigation Bar Capsule (5 Items)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: LiquidGlass(
+                      borderRadius: 28,
+                      blur: 20,
+                      opacity: navBarOpacity,
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+                      fluidAuraColor: IosTheme.primaryPink,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          _buildNavItem(
+                            index: 0,
+                            icon: CupertinoIcons.photo_on_rectangle,
+                            activeIcon: CupertinoIcons.photo_fill_on_rectangle_fill,
+                            label: '在线图片',
+                            isDark: isDark,
+                          ),
+                          _buildNavItem(
+                            index: 1,
+                            icon: CupertinoIcons.play_rectangle,
+                            activeIcon: CupertinoIcons.play_rectangle_fill,
+                            label: '在线视频',
+                            isDark: isDark,
+                          ),
+                          _buildNavItem(
+                            index: 2,
+                            icon: CupertinoIcons.arrow_down_circle,
+                            activeIcon: CupertinoIcons.arrow_down_circle_fill,
+                            label: '下载任务',
+                            badgeCount: totalBadgeCount,
+                            isDark: isDark,
+                          ),
+                          _buildNavItem(
+                            index: 3,
+                            icon: CupertinoIcons.folder,
+                            activeIcon: CupertinoIcons.folder_fill,
+                            label: '本地资源',
+                            isDark: isDark,
+                          ),
+                          _buildNavItem(
+                            index: 4,
+                            icon: CupertinoIcons.gear_alt,
+                            activeIcon: CupertinoIcons.gear_alt_fill,
+                            label: '系统设置',
+                            isDark: isDark,
+                          ),
+                        ],
                       ),
-                      _buildNavItem(
-                        index: 1,
-                        icon: CupertinoIcons.play_rectangle,
-                        activeIcon: CupertinoIcons.play_rectangle_fill,
-                        label: '在线视频',
-                        isDark: isDark,
-                      ),
-                      _buildNavItem(
-                        index: 2,
-                        icon: CupertinoIcons.arrow_down_circle,
-                        activeIcon: CupertinoIcons.arrow_down_circle_fill,
-                        label: '下载任务',
-                        badgeCount: totalBadgeCount,
-                        isDark: isDark,
-                      ),
-                      _buildNavItem(
-                        index: 3,
-                        icon: CupertinoIcons.folder,
-                        activeIcon: CupertinoIcons.folder_fill,
-                        label: '本地资源',
-                        isDark: isDark,
-                      ),
-                      _buildNavItem(
-                        index: 4,
-                        icon: CupertinoIcons.gear_alt,
-                        activeIcon: CupertinoIcons.gear_alt_fill,
-                        label: '系统设置',
-                        isDark: isDark,
-                      ),
-                    ],
+                    ),
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -237,10 +278,12 @@ class _HomeScaffoldState extends State<HomeScaffold> {
                     top: -4,
                     right: -8,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: IosTheme.primaryPink,
-                        shape: BoxShape.circle,
+                        borderRadius: BorderRadius.circular(8),
                         boxShadow: [
                           BoxShadow(
                             color: IosTheme.primaryPink.withAlpha(150),
@@ -249,11 +292,13 @@ class _HomeScaffoldState extends State<HomeScaffold> {
                         ],
                       ),
                       child: Text(
-                        '$badgeCount',
+                        badgeCount > 99 ? '99+' : '$badgeCount',
+                        textAlign: TextAlign.center,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 8.5,
+                          fontSize: 10,
                           fontWeight: FontWeight.w900,
+                          height: 1.0,
                         ),
                       ),
                     ),

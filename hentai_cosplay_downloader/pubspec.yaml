@@ -2,7 +2,7 @@ name: hentai_cosplay_downloader
 description: "A modern iOS Apple Music style image browser and multi-threaded downloader for Hentai Cosplay."
 publish_to: 'none'
 
-version: 1.0.9+12
+version: 1.0.10+13
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -33,6 +33,7 @@ dependencies:
   flutter_inappwebview: ^6.0.0
   ffmpeg_kit_flutter_new: ^4.6.1
   wakelock_plus: ^1.2.8
+  local_auth: ^3.0.2
 
 dev_dependencies:
   flutter_test:

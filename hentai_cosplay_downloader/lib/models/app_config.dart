@@ -45,6 +45,10 @@ class AppConfig {
   String disguiseUnlockCode;
   bool disguiseQuickUnlock;
   bool disguiseRelockOnBackground;
+  bool disguiseBiometricUnlock;
+  bool autoHideNavigationOnScroll;
+  int photoPreloadCount;
+  bool allowInsecureCertificates;
 
   AppConfig({
     this.savePath = '',
@@ -72,6 +76,10 @@ class AppConfig {
     this.disguiseUnlockCode = 'open',
     this.disguiseQuickUnlock = true,
     this.disguiseRelockOnBackground = false,
+    this.disguiseBiometricUnlock = false,
+    this.autoHideNavigationOnScroll = true,
+    this.photoPreloadCount = 8,
+    this.allowInsecureCertificates = false,
   })  : mztProxyDomains = mztProxyDomains ?? List.from(kDefaultMztProxyDomains),
         onlineResourceSortOrder = onlineResourceSortOrder ?? [],
         hiddenResourceSites = hiddenResourceSites ?? [],
@@ -103,6 +111,10 @@ class AppConfig {
     String? disguiseUnlockCode,
     bool? disguiseQuickUnlock,
     bool? disguiseRelockOnBackground,
+    bool? disguiseBiometricUnlock,
+    bool? autoHideNavigationOnScroll,
+    int? photoPreloadCount,
+    bool? allowInsecureCertificates,
   }) {
     return AppConfig(
       savePath: savePath ?? this.savePath,
@@ -130,6 +142,10 @@ class AppConfig {
       disguiseUnlockCode: disguiseUnlockCode ?? this.disguiseUnlockCode,
       disguiseQuickUnlock: disguiseQuickUnlock ?? this.disguiseQuickUnlock,
       disguiseRelockOnBackground: disguiseRelockOnBackground ?? this.disguiseRelockOnBackground,
+      disguiseBiometricUnlock: disguiseBiometricUnlock ?? this.disguiseBiometricUnlock,
+      autoHideNavigationOnScroll: autoHideNavigationOnScroll ?? this.autoHideNavigationOnScroll,
+      photoPreloadCount: photoPreloadCount ?? this.photoPreloadCount,
+      allowInsecureCertificates: allowInsecureCertificates ?? this.allowInsecureCertificates,
     );
   }
 
@@ -170,6 +186,10 @@ class AppConfig {
       disguiseUnlockCode: json['disguiseUnlockCode'] as String? ?? 'open',
       disguiseQuickUnlock: json['disguiseQuickUnlock'] as bool? ?? true,
       disguiseRelockOnBackground: json['disguiseRelockOnBackground'] as bool? ?? false,
+      disguiseBiometricUnlock: json['disguiseBiometricUnlock'] as bool? ?? false,
+      autoHideNavigationOnScroll: json['autoHideNavigationOnScroll'] as bool? ?? true,
+      photoPreloadCount: (json['photoPreloadCount'] as num?)?.toInt().clamp(3, 10) ?? 8,
+      allowInsecureCertificates: json['allowInsecureCertificates'] as bool? ?? false,
     );
   }
 
@@ -199,6 +219,10 @@ class AppConfig {
     'disguiseUnlockCode': disguiseUnlockCode,
     'disguiseQuickUnlock': disguiseQuickUnlock,
     'disguiseRelockOnBackground': disguiseRelockOnBackground,
+    'disguiseBiometricUnlock': disguiseBiometricUnlock,
+    'autoHideNavigationOnScroll': autoHideNavigationOnScroll,
+    'photoPreloadCount': photoPreloadCount,
+    'allowInsecureCertificates': allowInsecureCertificates,
   };
 
   String toRawJson() => jsonEncode(toJson());
@@ -232,7 +256,11 @@ class AppConfig {
         other.disguiseMode == disguiseMode &&
         other.disguiseUnlockCode == disguiseUnlockCode &&
         other.disguiseQuickUnlock == disguiseQuickUnlock &&
-        other.disguiseRelockOnBackground == disguiseRelockOnBackground;
+        other.disguiseRelockOnBackground == disguiseRelockOnBackground &&
+        other.disguiseBiometricUnlock == disguiseBiometricUnlock &&
+        other.autoHideNavigationOnScroll == autoHideNavigationOnScroll &&
+        other.photoPreloadCount == photoPreloadCount &&
+        other.allowInsecureCertificates == allowInsecureCertificates;
   }
 
   @override
@@ -262,5 +290,9 @@ class AppConfig {
         disguiseUnlockCode,
         disguiseQuickUnlock,
         disguiseRelockOnBackground,
+        disguiseBiometricUnlock,
+        autoHideNavigationOnScroll,
+        photoPreloadCount,
+        allowInsecureCertificates,
       ]);
 }

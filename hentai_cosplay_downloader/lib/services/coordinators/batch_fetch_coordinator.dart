@@ -14,16 +14,29 @@ import '../twitter_rankings/twitter_site_config.dart';
 import '../video_api_service.dart';
 
 class BatchFetchCoordinator {
+  /// 批量获取最大并发数，避免串行卡顿或高并发限流
+  static const int _kBatchConcurrency = 3;
+
   Future<List<AlbumItem>> fetchHcPageRange(int startPage, int endPage, {String? keyword}) async {
     final List<AlbumItem> allItems = [];
-    for (int p = startPage; p <= endPage; p++) {
-      try {
-        final pageData = await HCApiService.fetchPageData(page: p, keyword: keyword);
+    final pages = List.generate(endPage - startPage + 1, (i) => startPage + i);
+
+    for (int i = 0; i < pages.length; i += _kBatchConcurrency) {
+      final batch = pages.skip(i).take(_kBatchConcurrency);
+      final results = await Future.wait(
+        batch.map((p) async {
+          try {
+            return await HCApiService.fetchPageData(page: p, keyword: keyword);
+          } catch (e) {
+            debugPrint('Error fetching page $p during batch range download: $e');
+            return null;
+          }
+        }),
+      );
+      for (final pageData in results) {
         if (pageData != null && pageData.items.isNotEmpty) {
           allItems.addAll(pageData.items);
         }
-      } catch (e) {
-        debugPrint('Error fetching page $p during batch range download: $e');
       }
     }
     return allItems;
@@ -31,14 +44,24 @@ class BatchFetchCoordinator {
 
   Future<List<AlbumItem>> fetchMztPageRange(int startPage, int endPage) async {
     final List<AlbumItem> allItems = [];
-    for (int p = startPage; p <= endPage; p++) {
-      try {
-        final pageData = await MztApiService.fetchPageData(page: p, pageSize: 12);
+    final pages = List.generate(endPage - startPage + 1, (i) => startPage + i);
+
+    for (int i = 0; i < pages.length; i += _kBatchConcurrency) {
+      final batch = pages.skip(i).take(_kBatchConcurrency);
+      final results = await Future.wait(
+        batch.map((p) async {
+          try {
+            return await MztApiService.fetchPageData(page: p, pageSize: 12);
+          } catch (e) {
+            debugPrint('Error fetching MZT page $p during batch range download: $e');
+            return null;
+          }
+        }),
+      );
+      for (final pageData in results) {
         if (pageData != null && pageData.items.isNotEmpty) {
           allItems.addAll(pageData.items);
         }
-      } catch (e) {
-        debugPrint('Error fetching MZT page $p during batch range download: $e');
       }
     }
     return allItems;
@@ -52,19 +75,29 @@ class BatchFetchCoordinator {
     String? keyword,
   }) async {
     final List<AlbumItem> allItems = [];
-    for (int p = startPage; p <= endPage; p++) {
-      try {
-        final pageData = await MisskonApiService.fetchPageData(
-          page: p,
-          category: category,
-          tag: tag,
-          keyword: keyword,
-        );
+    final pages = List.generate(endPage - startPage + 1, (i) => startPage + i);
+
+    for (int i = 0; i < pages.length; i += _kBatchConcurrency) {
+      final batch = pages.skip(i).take(_kBatchConcurrency);
+      final results = await Future.wait(
+        batch.map((p) async {
+          try {
+            return await MisskonApiService.fetchPageData(
+              page: p,
+              category: category,
+              tag: tag,
+              keyword: keyword,
+            );
+          } catch (e) {
+            debugPrint('Error fetching MissKon page $p during batch range download: $e');
+            return null;
+          }
+        }),
+      );
+      for (final pageData in results) {
         if (pageData != null && pageData.items.isNotEmpty) {
           allItems.addAll(pageData.items);
         }
-      } catch (e) {
-        debugPrint('Error fetching MissKon page $p during batch range download: $e');
       }
     }
     return allItems;
@@ -78,31 +111,39 @@ class BatchFetchCoordinator {
     CoomerCreator? creator,
   }) async {
     final List<AlbumItem> allItems = [];
-    for (int p = startPage; p <= endPage; p++) {
-      try {
-        final offset = (p - 1) * 40;
-        CoomerApiResponse? pageData;
-        if (creator != null) {
-          pageData = await CoomerApiService.fetchCreatorPosts(
-            service: creator.service,
-            creatorId: creator.id,
-            offset: offset,
-            limit: 40,
-          );
-        } else {
-          pageData = await CoomerApiService.fetchRecentPosts(
-            offset: offset,
-            limit: 40,
-            service: service == 'all' ? null : service,
-            query: query,
-          );
-        }
+    final pages = List.generate(endPage - startPage + 1, (i) => startPage + i);
 
+    for (int i = 0; i < pages.length; i += _kBatchConcurrency) {
+      final batch = pages.skip(i).take(_kBatchConcurrency);
+      final results = await Future.wait(
+        batch.map((p) async {
+          try {
+            final offset = (p - 1) * 40;
+            if (creator != null) {
+              return await CoomerApiService.fetchCreatorPosts(
+                service: creator.service,
+                creatorId: creator.id,
+                offset: offset,
+                limit: 40,
+              );
+            } else {
+              return await CoomerApiService.fetchRecentPosts(
+                offset: offset,
+                limit: 40,
+                service: service == 'all' ? null : service,
+                query: query,
+              );
+            }
+          } catch (e) {
+            debugPrint('Error fetching Coomer page $p during batch range download: $e');
+            return null;
+          }
+        }),
+      );
+      for (final pageData in results) {
         if (pageData != null && pageData.items.isNotEmpty) {
           allItems.addAll(pageData.items);
         }
-      } catch (e) {
-        debugPrint('Error fetching Coomer page $p during batch range download: $e');
       }
     }
     return allItems;
@@ -116,19 +157,29 @@ class BatchFetchCoordinator {
     String? author,
   }) async {
     final List<VideoItem> allVideos = [];
-    for (int p = startPage; p <= endPage; p++) {
-      try {
-        final pageData = await PinseApiService.fetchPageData(
-          page: p,
-          category: category,
-          keyword: keyword,
-          author: author,
-        );
+    final pages = List.generate(endPage - startPage + 1, (i) => startPage + i);
+
+    for (int i = 0; i < pages.length; i += _kBatchConcurrency) {
+      final batch = pages.skip(i).take(_kBatchConcurrency);
+      final results = await Future.wait(
+        batch.map((p) async {
+          try {
+            return await PinseApiService.fetchPageData(
+              page: p,
+              category: category,
+              keyword: keyword,
+              author: author,
+            );
+          } catch (e) {
+            debugPrint('Error fetching 91品色 page $p during batch range download: $e');
+            return null;
+          }
+        }),
+      );
+      for (final pageData in results) {
         if (pageData != null && pageData.items.isNotEmpty) {
           allVideos.addAll(pageData.items);
         }
-      } catch (e) {
-        debugPrint('Error fetching 91品色 page $p during batch range download: $e');
       }
     }
     return allVideos;
@@ -142,19 +193,29 @@ class BatchFetchCoordinator {
     String? studio,
   }) async {
     final List<VideoItem> allVideos = [];
-    for (int p = startPage; p <= endPage; p++) {
-      try {
-        final pageData = await PornboxApiService.fetchPageData(
-          page: p,
-          category: category,
-          keyword: keyword,
-          studio: studio,
-        );
+    final pages = List.generate(endPage - startPage + 1, (i) => startPage + i);
+
+    for (int i = 0; i < pages.length; i += _kBatchConcurrency) {
+      final batch = pages.skip(i).take(_kBatchConcurrency);
+      final results = await Future.wait(
+        batch.map((p) async {
+          try {
+            return await PornboxApiService.fetchPageData(
+              page: p,
+              category: category,
+              keyword: keyword,
+              studio: studio,
+            );
+          } catch (e) {
+            debugPrint('Error fetching PornBox page $p during batch range download: $e');
+            return null;
+          }
+        }),
+      );
+      for (final pageData in results) {
         if (pageData != null && pageData.items.isNotEmpty) {
           allVideos.addAll(pageData.items);
         }
-      } catch (e) {
-        debugPrint('Error fetching PornBox page $p during batch range download: $e');
       }
     }
     return allVideos;
@@ -181,20 +242,32 @@ class BatchFetchCoordinator {
   }) async {
     final List<AlbumItem> albums = [];
     const pageSize = 50;
+    final pages = List.generate(endPage - startPage + 1, (i) => startPage + i);
 
-    for (int p = startPage; p <= endPage; p++) {
-      try {
-        final offset = (p - 1) * pageSize;
-        final res = await KuraaApiService.fetchFiles(
-          storageLocationId: storageLocationId,
-          parentId: parentId,
-          offset: offset,
-          limit: pageSize,
-          sortBy: 'updatedAt',
-          sortOrder: 'desc',
-          token: token,
-        );
+    for (int i = 0; i < pages.length; i += _kBatchConcurrency) {
+      final batch = pages.skip(i).take(_kBatchConcurrency);
+      final results = await Future.wait(
+        batch.map((p) async {
+          try {
+            final offset = (p - 1) * pageSize;
+            return await KuraaApiService.fetchFiles(
+              storageLocationId: storageLocationId,
+              parentId: parentId,
+              offset: offset,
+              limit: pageSize,
+              sortBy: 'updatedAt',
+              sortOrder: 'desc',
+              token: token,
+            );
+          } catch (e) {
+            debugPrint('Error fetching Kuraa page $p during batch range download: $e');
+            return null;
+          }
+        }),
+      );
 
+      for (final res in results) {
+        if (res == null) continue;
         for (final item in res.items) {
           if (item.isFolder) {
             final alb = await fetchKuraaAlbum(item, token: token);
@@ -203,8 +276,6 @@ class BatchFetchCoordinator {
             }
           }
         }
-      } catch (e) {
-        debugPrint('Error fetching Kuraa page $p during batch range download: $e');
       }
     }
     return albums;
@@ -218,14 +289,27 @@ class BatchFetchCoordinator {
     String? sort,
   }) async {
     final List<VideoItem> allVideos = [];
-    for (int p = startPage; p <= endPage; p++) {
-      try {
-        final pageData = await TwitterRankingApiService.fetchPageData(
-          site: site,
-          range: range,
-          sort: sort,
-          page: p,
-        );
+    final pages = List.generate(endPage - startPage + 1, (i) => startPage + i);
+
+    for (int i = 0; i < pages.length; i += _kBatchConcurrency) {
+      final batch = pages.skip(i).take(_kBatchConcurrency);
+      final results = await Future.wait(
+        batch.map((p) async {
+          try {
+            return await TwitterRankingApiService.fetchPageData(
+              site: site,
+              range: range,
+              sort: sort,
+              page: p,
+            );
+          } catch (e) {
+            debugPrint('Error fetching Twitter page $p during batch range download: $e');
+            return null;
+          }
+        }),
+      );
+
+      for (final pageData in results) {
         if (pageData != null && pageData.items.isNotEmpty) {
           for (var v in pageData.items) {
             if (v.videoUrl == null || v.videoUrl!.isEmpty) {
@@ -234,8 +318,6 @@ class BatchFetchCoordinator {
             allVideos.add(v);
           }
         }
-      } catch (e) {
-        debugPrint('Error fetching Twitter page $p during batch range download: $e');
       }
     }
     return allVideos;
@@ -249,19 +331,29 @@ class BatchFetchCoordinator {
     bool isPopular = false,
   }) async {
     final List<AlbumItem> allAlbums = [];
-    for (int p = startPage; p <= endPage; p++) {
-      try {
-        final res = await ExHentaiApiService.fetchPageData(
-          page: p,
-          category: category,
-          keyword: keyword,
-          isPopular: isPopular,
-        );
+    final pages = List.generate(endPage - startPage + 1, (i) => startPage + i);
+
+    for (int i = 0; i < pages.length; i += _kBatchConcurrency) {
+      final batch = pages.skip(i).take(_kBatchConcurrency);
+      final results = await Future.wait(
+        batch.map((p) async {
+          try {
+            return await ExHentaiApiService.fetchPageData(
+              page: p,
+              category: category,
+              keyword: keyword,
+              isPopular: isPopular,
+            );
+          } catch (e) {
+            debugPrint('Error fetching ExHentai page $p during batch range download: $e');
+            return null;
+          }
+        }),
+      );
+      for (final res in results) {
         if (res != null && res.items.isNotEmpty) {
           allAlbums.addAll(res.items);
         }
-      } catch (e) {
-        debugPrint('Error fetching ExHentai page $p during batch range download: $e');
       }
     }
     return allAlbums;
@@ -275,19 +367,29 @@ class BatchFetchCoordinator {
     String? tag,
   }) async {
     final List<VideoItem> allVideos = [];
-    for (int p = startPage; p <= endPage; p++) {
-      try {
-        final pageData = await VideoApiService.fetchVideoPageData(
-          category: category,
-          keyword: keyword,
-          tag: tag,
-          page: p,
-        );
+    final pages = List.generate(endPage - startPage + 1, (i) => startPage + i);
+
+    for (int i = 0; i < pages.length; i += _kBatchConcurrency) {
+      final batch = pages.skip(i).take(_kBatchConcurrency);
+      final results = await Future.wait(
+        batch.map((p) async {
+          try {
+            return await VideoApiService.fetchVideoPageData(
+              category: category,
+              keyword: keyword,
+              tag: tag,
+              page: p,
+            );
+          } catch (e) {
+            debugPrint('Error fetching video page $p during batch range download: $e');
+            return null;
+          }
+        }),
+      );
+      for (final pageData in results) {
         if (pageData != null && pageData.items.isNotEmpty) {
           allVideos.addAll(pageData.items);
         }
-      } catch (e) {
-        debugPrint('Error fetching video page $p during batch range download: $e');
       }
     }
     return allVideos;

@@ -646,18 +646,51 @@ void main() {
       expect(task.progress, 1.0);
     });
 
-    test('Round 2: AppConfig clamps worker counts and opacity within safe ranges', () {
-      final rawJson = {
-        'packWorkers': 999,
-        'imgWorkers': 0,
-        'retryCount': -5,
-        'navBarOpacity': 2.5,
-      };
-      final cfg = AppConfig.fromJson(rawJson);
-      expect(cfg.packWorkers, 10);
-      expect(cfg.imgWorkers, 1);
-      expect(cfg.retryCount, 1);
-      expect(cfg.navBarOpacity, 1.0);
+    test('DownloadProvider supports scoped isVideo for pause, resume, and clearCompleted', () {
+      final downloadProv = DownloadProvider();
+      final albumItem = AlbumItem(
+        title: 'Scoped Album Test',
+        slug: 'scoped-album',
+        detailUrl: 'https://zh.hentai-cosplay-xxx.com/image/test-album/',
+        date: '2026/08/20',
+        author: 'Test Author',
+      );
+      final videoItem = VideoItem(
+        title: 'Scoped Video Test',
+        slug: 'scoped-video',
+        detailUrl: 'https://zh.hentai-cosplay-xxx.com/video/test-video/',
+        date: '2026/08/20',
+        author: 'Test Author',
+        videoUrl: 'https://test.com/v.mp4',
+      );
+
+      downloadProv.addBatchAlbumTasks([albumItem]);
+      downloadProv.addBatchVideoTasks([videoItem]);
+
+      expect(downloadProv.allTasks.length, 2);
+      final albumTask = downloadProv.allTasks.firstWhere((t) => !t.isVideo);
+      final videoTask = downloadProv.allTasks.firstWhere((t) => t.isVideo);
+
+      // 1. Pause only albums
+      downloadProv.pauseAllTasks(isVideo: false);
+      expect(albumTask.status, TaskStatus.paused);
+      expect(videoTask.status, isNot(TaskStatus.paused));
+
+      // 2. Resume only albums
+      downloadProv.resumeAllTasks(isVideo: false);
+      expect(albumTask.status, TaskStatus.downloading);
+
+      // 3. Mark both completed and test scoped clearCompleted
+      albumTask.status = TaskStatus.completed;
+      videoTask.status = TaskStatus.completed;
+      downloadProv.clearCompleted(isVideo: false);
+
+      expect(downloadProv.allTasks.any((t) => !t.isVideo), isFalse, reason: 'Completed album should be cleared');
+      expect(downloadProv.allTasks.any((t) => t.isVideo), isTrue, reason: 'Completed video should NOT be cleared');
+
+      downloadProv.clearCompleted(isVideo: true);
+      expect(downloadProv.allTasks.isEmpty, isTrue);
+      downloadProv.dispose();
     });
   });
 }

@@ -68,6 +68,9 @@ class ExHentaiApiService {
   static void setSource(ExSourceServer source, {String? customUrl}) {
     _currentSource = source;
     _customMirrorUrl = customUrl?.trim() ?? '';
+    try {
+      _dio.close(force: true);
+    } catch (_) {}
     _dio = _createDio();
   }
 
@@ -76,6 +79,9 @@ class ExHentaiApiService {
 
   static void setProxy(String? proxy) {
     _configuredProxy = proxy?.trim();
+    try {
+      _dio.close(force: true);
+    } catch (_) {}
     _dio = _createDio();
   }
 
@@ -101,7 +107,9 @@ class ExHentaiApiService {
     final adapter = IOHttpClientAdapter();
     adapter.createHttpClient = () {
       final client = HttpClient();
-      client.badCertificateCallback = (cert, host, port) => true;
+      if (_configuredProxy != null && _configuredProxy!.isNotEmpty) {
+        client.badCertificateCallback = (cert, host, port) => true;
+      }
       if (_configuredProxy != null && _configuredProxy!.isNotEmpty) {
         final clean = _configuredProxy!.replaceAll(RegExp(r'https?://|socks5?://'), '');
         if (_configuredProxy!.startsWith('socks')) {

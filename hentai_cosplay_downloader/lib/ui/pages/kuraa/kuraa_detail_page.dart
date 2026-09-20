@@ -1,10 +1,8 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:photo_view/photo_view.dart';
-import 'package:photo_view/photo_view_gallery.dart';
+import '../../widgets/unified_photo_viewer.dart';
 import 'package:provider/provider.dart';
-import 'package:share_plus/share_plus.dart';
 import '../../../models/album_item.dart';
 import '../../../models/download_task.dart';
 import '../../../providers/browsing_history_provider.dart';
@@ -14,6 +12,7 @@ import '../../widgets/bouncing_button.dart';
 import '../../widgets/frosted_glass.dart';
 import '../../widgets/random_action_button.dart';
 import '../../widgets/scroll_to_top_button.dart';
+import 'package:hentai_cosplay_downloader/utils/app_share.dart';
 
 class KuraaDetailPage extends StatefulWidget {
   final KuraaFileItem folderItem;
@@ -116,16 +115,13 @@ class _KuraaDetailPageState extends State<KuraaDetailPage> {
 
   void _openGallery(int initialIndex) {
     if (_album == null || _album!.imageUrls.isEmpty) return;
-
-    Navigator.push(
+    UnifiedPhotoViewer.open(
       context,
-      MaterialPageRoute(
-        builder: (_) => KuraaPhotoGalleryView(
-          imageUrls: _album!.imageUrls,
-          initialIndex: initialIndex,
-          title: _album!.title,
-        ),
-      ),
+      imageUrls: _album!.imageUrls,
+      initialIndex: initialIndex,
+      title: _album!.title,
+      author: _album!.author,
+      sourceType: MediaSourceType.kuraa,
     );
   }
 
@@ -134,15 +130,14 @@ class _KuraaDetailPageState extends State<KuraaDetailPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     const themeColor = Color(0xFF00897B);
 
-    final existingTask = context.select<DownloadProvider, AlbumDownloadTask?>((p) {
-      if (_album == null) return null;
-      for (final t in p.allTasks) {
-        if (t.albumItem.slug == _album!.slug) {
-          return t;
-        }
-      }
-      return null;
-    });
+    final taskStatus = context.select<DownloadProvider, TaskStatus?>(
+      (p) => _album != null
+          ? p.getTaskStatus(slug: _album!.slug, detailUrl: _album!.detailUrl)
+          : null,
+    );
+    final isDownloaded = taskStatus == TaskStatus.completed;
+    final isDownloading = taskStatus == TaskStatus.downloading ||
+        taskStatus == TaskStatus.queued;
 
     final imageUrls = _album?.imageUrls ?? [];
 
@@ -181,7 +176,7 @@ class _KuraaDetailPageState extends State<KuraaDetailPage> {
                 tooltip: '分享',
                 onPressed: () {
                   final shareUrl = 'https://p.kuraa.cc/?storageLocationId=${widget.folderItem.storageLocationId}&folderId=${widget.folderItem.id}';
-                  Share.share('${widget.folderItem.name}\n$shareUrl');
+                  AppShare.share(context, '${widget.folderItem.name}\n$shareUrl');
                 },
               ),
             ],
@@ -260,7 +255,7 @@ class _KuraaDetailPageState extends State<KuraaDetailPage> {
                       children: [
                         Expanded(
                           child: BouncingButton(
-                            onTap: imageUrls.isNotEmpty ? _downloadAlbum : null,
+                            onTap: (imageUrls.isNotEmpty && !isDownloading) ? _downloadAlbum : null,
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 12),
                               decoration: BoxDecoration(
@@ -280,17 +275,21 @@ class _KuraaDetailPageState extends State<KuraaDetailPage> {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Icon(
-                                    existingTask?.status == TaskStatus.completed
+                                    isDownloaded
                                         ? CupertinoIcons.checkmark_alt
-                                        : CupertinoIcons.arrow_down_circle_fill,
+                                        : (isDownloading
+                                            ? CupertinoIcons.arrow_down_circle
+                                            : CupertinoIcons.arrow_down_circle_fill),
                                     color: Colors.white,
                                     size: 18,
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
-                                    existingTask?.status == TaskStatus.completed
+                                    isDownloaded
                                         ? '已下载至相册 (重新下载)'
-                                        : '一键下载全部原图 (${imageUrls.length}P)',
+                                        : (isDownloading
+                                            ? '正在下载中...'
+                                            : '一键下载全部原图 (${imageUrls.length}P)'),
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 14,
@@ -415,102 +414,4 @@ class _KuraaDetailPageState extends State<KuraaDetailPage> {
   }
 }
 
-class KuraaPhotoGalleryView extends StatefulWidget {
-  final List<String> imageUrls;
-  final int initialIndex;
-  final String title;
 
-  const KuraaPhotoGalleryView({
-    super.key,
-    required this.imageUrls,
-    required this.initialIndex,
-    required this.title,
-  });
-
-  @override
-  State<KuraaPhotoGalleryView> createState() => _KuraaPhotoGalleryViewState();
-}
-
-class _KuraaPhotoGalleryViewState extends State<KuraaPhotoGalleryView> {
-  late int _currentIndex;
-  late PageController _pageController;
-
-  @override
-  void initState() {
-    super.initState();
-    _currentIndex = widget.initialIndex;
-    _pageController = PageController(initialPage: widget.initialIndex);
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          PhotoViewGallery.builder(
-            itemCount: widget.imageUrls.length,
-            pageController: _pageController,
-            onPageChanged: (idx) => setState(() => _currentIndex = idx),
-            scrollPhysics: const BouncingScrollPhysics(),
-            builder: (context, index) {
-              final url = widget.imageUrls[index];
-              return PhotoViewGalleryPageOptions(
-                imageProvider: CachedNetworkImageProvider(url),
-                minScale: PhotoViewComputedScale.contained,
-                maxScale: PhotoViewComputedScale.covered * 3.5,
-              );
-            },
-            loadingBuilder: (context, event) => const Center(
-              child: CupertinoActivityIndicator(radius: 14, color: Colors.white),
-            ),
-          ),
-
-          // Top Header Bar
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 8,
-            left: 16,
-            right: 16,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                BouncingButton(
-                  onTap: () => Navigator.pop(context),
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: const BoxDecoration(
-                      color: Colors.black54,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(CupertinoIcons.clear, color: Colors.white, size: 20),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(
-                    '${_currentIndex + 1} / ${widget.imageUrls.length}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

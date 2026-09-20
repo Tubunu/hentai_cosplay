@@ -116,14 +116,12 @@ class _VjavDetailPageState extends State<VjavDetailPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final downloadTask = context.select<DownloadProvider, AlbumDownloadTask?>((p) {
-      for (final t in p.allTasks) {
-        if (t.albumItem.slug == _item.slug || t.albumItem.detailUrl == _item.detailUrl) {
-          return t;
-        }
-      }
-      return null;
-    });
+    final taskStatus = context.select<DownloadProvider, TaskStatus?>(
+      (p) => p.getTaskStatus(slug: _item.slug, detailUrl: _item.detailUrl),
+    );
+    final isDownloaded = taskStatus == TaskStatus.completed;
+    final isDownloading = taskStatus == TaskStatus.downloading ||
+        taskStatus == TaskStatus.queued;
 
     final duration = _item.duration.isNotEmpty ? _item.duration : (_item.rawData['duration'] as String? ?? '');
     final views = _item.views.isNotEmpty ? _item.views : (_item.rawData['views'] as String? ?? '');
@@ -436,14 +434,16 @@ class _VjavDetailPageState extends State<VjavDetailPage> {
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                             color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
                             borderRadius: BorderRadius.circular(12),
-                            onPressed: downloadTask?.status == TaskStatus.completed
+                            onPressed: isDownloaded || isDownloading
                                 ? null
                                 : _startDownload,
                             child: Icon(
-                              downloadTask?.status == TaskStatus.completed
+                              isDownloaded
                                   ? CupertinoIcons.checkmark_alt
-                                  : CupertinoIcons.arrow_down,
-                              color: downloadTask?.status == TaskStatus.completed
+                                  : (isDownloading
+                                      ? CupertinoIcons.arrow_down_circle
+                                      : CupertinoIcons.arrow_down),
+                              color: isDownloaded
                                   ? const Color(0xFF34C759)
                                   : (isDark ? Colors.white : Colors.black87),
                               size: 20,

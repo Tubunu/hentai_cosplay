@@ -4,6 +4,8 @@ import 'dart:isolate';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import '../models/video_item.dart';
+import '../services/playback_progress_service.dart';
+import '../utils/format_utils.dart';
 
 enum VideoSortOption {
   dateDesc('时间: 从新到旧'),
@@ -28,6 +30,8 @@ class LocalVideoProvider extends ChangeNotifier {
   final Set<String> _videoSourceUrls = {};
   bool _disposed = false;
 
+  String _selectedSource = '全部';
+
   @override
   void dispose() {
     _disposed = true;
@@ -48,8 +52,25 @@ class LocalVideoProvider extends ChangeNotifier {
   bool get isScanning => _isScanning;
   String get searchQuery => _searchQuery;
   VideoSortOption get sortOption => _sortOption;
+  String get selectedSource => _selectedSource;
   int get totalCount => _videos.length;
   int get totalBytes => _totalBytes;
+
+  List<String> get availableSources {
+    final set = <String>{};
+    for (final v in _videos) {
+      set.add(v.sourceBadge);
+    }
+    final list = set.toList()..sort();
+    return ['全部', ...list];
+  }
+
+  void setSelectedSource(String source) {
+    if (_selectedSource == source) return;
+    _selectedSource = source;
+    _cachedVideos = null;
+    notifyListeners();
+  }
 
   bool isVideoDownloaded({required String title, String detailUrl = ''}) {
     if (_videoTitles.contains(title)) return true;
@@ -66,16 +87,7 @@ class LocalVideoProvider extends ChangeNotifier {
     }
   }
 
-  String get formattedTotalSize {
-    if (_totalBytes <= 0) return '0 MB';
-    if (_totalBytes < 1024 * 1024) {
-      return '${(_totalBytes / 1024).toStringAsFixed(1)} KB';
-    }
-    if (_totalBytes < 1024 * 1024 * 1024) {
-      return '${(_totalBytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-    }
-    return '${(_totalBytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
-  }
+  String get formattedTotalSize => FormatUtils.formatBytes(_totalBytes);
 
   void setSortOption(VideoSortOption option) {
     if (_sortOption == option) return;
@@ -93,12 +105,19 @@ class LocalVideoProvider extends ChangeNotifier {
   }
 
   Future<void> scanLocalVideos(String baseSavePath) async {
+    if (_isScanning) return;
     if (baseSavePath.trim().isEmpty) return;
     _isScanning = true;
     notifyListeners();
 
     final videoDir = Directory(p.join(baseSavePath, 'video'));
-    if (!await videoDir.exists()) {
+    final jableDir = Directory(p.join(baseSavePath, 'jabletv'));
+
+    final pathsToScan = <String>[];
+    if (await videoDir.exists()) pathsToScan.add(videoDir.path);
+    if (await jableDir.exists()) pathsToScan.add(jableDir.path);
+
+    if (pathsToScan.isEmpty) {
       _videos = [];
       _totalBytes = 0;
       _cachedVideos = null;
@@ -109,7 +128,7 @@ class LocalVideoProvider extends ChangeNotifier {
     }
 
     try {
-      final res = await Isolate.run(() => _scanVideosSync(videoDir.path));
+      final res = await Isolate.run(() => _scanMultipleDirsSync(pathsToScan));
       _videos = res.$1;
       _totalBytes = res.$2;
       _cachedVideos = null;
@@ -120,6 +139,17 @@ class LocalVideoProvider extends ChangeNotifier {
       _isScanning = false;
       notifyListeners();
     }
+  }
+
+  static (List<LocalVideoItem>, int) _scanMultipleDirsSync(List<String> dirPaths) {
+    final List<LocalVideoItem> allFound = [];
+    int totalSize = 0;
+    for (final dir in dirPaths) {
+      final (found, size) = _scanVideosSync(dir);
+      allFound.addAll(found);
+      totalSize += size;
+    }
+    return (allFound, totalSize);
   }
 
   static (List<LocalVideoItem>, int) _scanVideosSync(String videoDirPath) {
@@ -161,8 +191,8 @@ class LocalVideoProvider extends ChangeNotifier {
             coverPath = coverPng.path;
           }
 
-          final title = meta?['title'] as String? ?? baseNameNoExt;
-          final author = meta?['author'] as String? ?? p.basename(parentDir);
+          final title = meta?['title'] as String? ?? (meta?['name'] as String?) ?? baseNameNoExt;
+          final author = meta?['author'] as String? ?? (meta?['siteName'] as String?) ?? p.basename(parentDir);
           final duration = meta?['duration'] as String? ?? '';
           final sourceUrl = meta?['sourceUrl'] as String? ?? '';
           final tags = (meta?['tags'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
@@ -206,6 +236,8 @@ class LocalVideoProvider extends ChangeNotifier {
       final coverPng = File(p.join(parentDir, '$baseNoExt.png'));
       if (await coverPng.exists()) await coverPng.delete();
 
+      PlaybackProgressService.clearProgress(PlaybackProgressService.computeKey(filePath: item.filePath));
+
       _videos.removeWhere((v) => v.id == item.id);
       _totalBytes -= item.fileSizeBytes;
       _cachedVideos = null;
@@ -218,8 +250,47 @@ class LocalVideoProvider extends ChangeNotifier {
     }
   }
 
+  Future<int> deleteBatchVideos(List<LocalVideoItem> items) async {
+    int deletedCount = 0;
+    for (final item in items) {
+      try {
+        final videoFile = File(item.filePath);
+        if (await videoFile.exists()) {
+          await videoFile.delete();
+        }
+
+        final baseNoExt = p.basenameWithoutExtension(item.filePath);
+        final parentDir = p.dirname(item.filePath);
+        final metaFile = File(p.join(parentDir, '$baseNoExt.json'));
+        if (await metaFile.exists()) await metaFile.delete();
+
+        final coverJpg = File(p.join(parentDir, '$baseNoExt.jpg'));
+        if (await coverJpg.exists()) await coverJpg.delete();
+
+        final coverPng = File(p.join(parentDir, '$baseNoExt.png'));
+        if (await coverPng.exists()) await coverPng.delete();
+
+        PlaybackProgressService.clearProgress(PlaybackProgressService.computeKey(filePath: item.filePath));
+
+        _videos.removeWhere((v) => v.id == item.id);
+        _totalBytes -= item.fileSizeBytes;
+        deletedCount++;
+      } catch (e) {
+        debugPrint('Error deleting video ${item.filePath}: $e');
+      }
+    }
+    _cachedVideos = null;
+    _rebuildIndex();
+    notifyListeners();
+    return deletedCount;
+  }
+
   List<LocalVideoItem> _getFilteredAndSortedVideos() {
     List<LocalVideoItem> list = List.of(_videos);
+
+    if (_selectedSource != '全部') {
+      list = list.where((v) => v.sourceBadge.toUpperCase() == _selectedSource.toUpperCase()).toList();
+    }
 
     if (_searchQuery.isNotEmpty) {
       list = list.where((v) {

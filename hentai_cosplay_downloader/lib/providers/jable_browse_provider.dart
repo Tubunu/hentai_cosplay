@@ -53,6 +53,11 @@ class JableBrowseProvider extends ChangeNotifier {
   BaseScraper get currentScraper => _scrapers[_currentSiteIndex];
   SiteBrowseState get currentState => _siteStates[_currentSiteIndex];
 
+  SiteBrowseState getStateFor(int siteIndex) =>
+      _siteStates[siteIndex.clamp(0, _siteStates.length - 1)];
+  BaseScraper getScraperFor(int siteIndex) =>
+      _scrapers[siteIndex.clamp(0, _scrapers.length - 1)];
+
   List<CategoryModel> get categories => List.unmodifiable(currentState.categories);
   List<VideoCardModel> get videos => List.unmodifiable(currentState.videos);
   Set<VideoCardModel> get selectedBatchVideos => currentState.selectedBatchVideos;
@@ -78,13 +83,14 @@ class JableBrowseProvider extends ChangeNotifier {
     notifyListeners();
 
     // Only load if this site has not been loaded yet
-    if (!currentState.isInitialized && currentState.categories.isEmpty && !currentState.loadingCategories) {
-      loadCategories();
+    final state = _siteStates[index];
+    if (!state.isInitialized && state.categories.isEmpty && !state.loadingCategories) {
+      loadCategories(siteIndex: index);
     }
   }
 
-  Future<void> loadCategories({bool forceRefresh = false}) async {
-    final targetIndex = _currentSiteIndex;
+  Future<void> loadCategories({int? siteIndex, bool forceRefresh = false}) async {
+    final targetIndex = siteIndex ?? _currentSiteIndex;
     final state = _siteStates[targetIndex];
     final scraper = _scrapers[targetIndex];
     if (state.loadingCategories) return;
@@ -105,8 +111,8 @@ class JableBrowseProvider extends ChangeNotifier {
       state.loadingCategories = false;
       notifyListeners();
 
-      if (_currentSiteIndex == targetIndex && state.selectedCategoryUrl != null && (state.videos.isEmpty || forceRefresh)) {
-        loadVideos();
+      if (state.selectedCategoryUrl != null && (state.videos.isEmpty || forceRefresh)) {
+        loadVideos(siteIndex: targetIndex);
       }
     } catch (e) {
       if (_disposed) return;
@@ -116,8 +122,8 @@ class JableBrowseProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> loadVideos() async {
-    final targetIndex = _currentSiteIndex;
+  Future<void> loadVideos({int? siteIndex}) async {
+    final targetIndex = siteIndex ?? _currentSiteIndex;
     final state = _siteStates[targetIndex];
     final scraper = _scrapers[targetIndex];
     if (state.loadingVideos) return;
@@ -173,8 +179,9 @@ class JableBrowseProvider extends ChangeNotifier {
     return uri.replace(queryParameters: qp).toString();
   }
 
-  void selectCategory(String url) {
-    final state = currentState;
+  void selectCategory(String url, {int? siteIndex}) {
+    final targetIndex = siteIndex ?? _currentSiteIndex;
+    final state = _siteStates[targetIndex];
     if (state.selectedCategoryUrl == url && state.searchQuery.isEmpty) return;
     state.selectedCategoryUrl = url;
     state.searchQuery = '';
@@ -182,53 +189,61 @@ class JableBrowseProvider extends ChangeNotifier {
     state.currentPage = 1;
     _isBatchMode = false;
     state.selectedBatchVideos.clear();
-    loadVideos();
+    loadVideos(siteIndex: targetIndex);
   }
 
-  void setSort(String sortVal) {
-    final state = currentState;
+  void setSort(String sortVal, {int? siteIndex}) {
+    final targetIndex = siteIndex ?? _currentSiteIndex;
+    final state = _siteStates[targetIndex];
     if (state.selectedSort == sortVal) return;
     state.selectedSort = sortVal;
     state.currentPage = 1;
     state.selectedBatchVideos.clear();
-    loadVideos();
+    loadVideos(siteIndex: targetIndex);
   }
 
-  void search(String query) {
-    final state = currentState;
+  void search(String query, {int? siteIndex}) {
+    final targetIndex = siteIndex ?? _currentSiteIndex;
+    final state = _siteStates[targetIndex];
     state.searchQuery = query.trim();
     state.currentPage = 1;
     state.selectedBatchVideos.clear();
-    loadVideos();
+    loadVideos(siteIndex: targetIndex);
   }
 
-  void gotoPage(int page) {
-    final state = currentState;
+  void gotoPage(int page, {int? siteIndex}) {
+    final targetIndex = siteIndex ?? _currentSiteIndex;
+    final state = _siteStates[targetIndex];
     if (page < 1 || page == state.currentPage) return;
     state.currentPage = page;
     state.selectedBatchVideos.clear();
-    loadVideos();
+    loadVideos(siteIndex: targetIndex);
   }
 
-  void toggleBatchMode() {
+  void toggleBatchMode({int? siteIndex}) {
+    final targetIndex = siteIndex ?? _currentSiteIndex;
+    final state = _siteStates[targetIndex];
     _isBatchMode = !_isBatchMode;
     if (!_isBatchMode) {
-      currentState.selectedBatchVideos.clear();
+      state.selectedBatchVideos.clear();
     }
     notifyListeners();
   }
 
-  void toggleVideoSelection(VideoCardModel video) {
-    if (currentState.selectedBatchVideos.contains(video)) {
-      currentState.selectedBatchVideos.remove(video);
+  void toggleVideoSelection(VideoCardModel video, {int? siteIndex}) {
+    final targetIndex = siteIndex ?? _currentSiteIndex;
+    final state = _siteStates[targetIndex];
+    if (state.selectedBatchVideos.contains(video)) {
+      state.selectedBatchVideos.remove(video);
     } else {
-      currentState.selectedBatchVideos.add(video);
+      state.selectedBatchVideos.add(video);
     }
     notifyListeners();
   }
 
-  void selectAllVideos() {
-    final state = currentState;
+  void selectAllVideos({int? siteIndex}) {
+    final targetIndex = siteIndex ?? _currentSiteIndex;
+    final state = _siteStates[targetIndex];
     if (state.selectedBatchVideos.length == state.videos.length) {
       state.selectedBatchVideos.clear();
     } else {

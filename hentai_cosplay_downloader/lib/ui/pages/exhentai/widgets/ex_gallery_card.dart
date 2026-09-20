@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../models/album_item.dart';
+import '../../../../models/download_task.dart';
 import '../../../../providers/download_provider.dart';
 import '../../../../providers/exhentai_browse_provider.dart';
 import '../../../widgets/bouncing_button.dart';
@@ -36,6 +37,13 @@ class ExGalleryCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isSelected = context.select<ExHentaiBrowseProvider, bool>((p) => p.isSelected(item));
     final isSelectionMode = context.select<ExHentaiBrowseProvider, bool>((p) => p.isSelectionMode);
+
+    final taskStatus = context.select<DownloadProvider, TaskStatus?>(
+      (p) => p.getTaskStatus(slug: item.slug, detailUrl: item.detailUrl),
+    );
+    final isDownloaded = taskStatus == TaskStatus.completed;
+    final isDownloading = taskStatus == TaskStatus.downloading ||
+        taskStatus == TaskStatus.queued;
 
     final category = item.author.isNotEmpty ? item.author : 'ExHentai';
     final catColor = _getCategoryColor(category);
@@ -270,26 +278,36 @@ class ExGalleryCard extends StatelessWidget {
                       const Spacer(),
                       // Quick download button
                       GestureDetector(
-                        onTap: () {
-                          context.read<DownloadProvider>().addBatchAlbumTasks([item]);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('已添加至下载队列: ${item.title}'),
-                              duration: const Duration(seconds: 1),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        },
+                        onTap: isDownloaded || isDownloading
+                            ? null
+                            : () {
+                                context.read<DownloadProvider>().addBatchAlbumTasks([item]);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('已添加至下载队列: ${item.title}'),
+                                    duration: const Duration(seconds: 1),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              },
                         child: Container(
                           padding: const EdgeInsets.all(4),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF9C27B0).withValues(alpha: 0.12),
+                            color: isDownloaded
+                                ? const Color(0xFF4CAF50).withValues(alpha: 0.15)
+                                : const Color(0xFF9C27B0).withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: const Icon(
-                            CupertinoIcons.arrow_down_to_line,
+                          child: Icon(
+                            isDownloaded
+                                ? CupertinoIcons.checkmark_alt
+                                : (isDownloading
+                                    ? CupertinoIcons.arrow_down_circle
+                                    : CupertinoIcons.arrow_down_to_line),
                             size: 13,
-                            color: Color(0xFF9C27B0),
+                            color: isDownloaded
+                                ? const Color(0xFF4CAF50)
+                                : const Color(0xFF9C27B0),
                           ),
                         ),
                       ),

@@ -170,7 +170,7 @@ class Hanime1BrowseProvider extends ChangeNotifier {
         broadcaster: _selectedBroadcaster,
       );
 
-      if (reqId != _requestId) return;
+      if (_disposed || reqId != _requestId) return;
 
       if (res != null) {
         _items = res.items;
@@ -182,10 +182,10 @@ class Hanime1BrowseProvider extends ChangeNotifier {
         _errorMessage = '加载失败，请检查网络后重试';
       }
     } catch (e) {
-      if (reqId != _requestId) return;
+      if (_disposed || reqId != _requestId) return;
       _errorMessage = '请求异常: $e';
     } finally {
-      if (reqId == _requestId) {
+      if (!_disposed && reqId == _requestId) {
         _isLoading = false;
         notifyListeners();
       }

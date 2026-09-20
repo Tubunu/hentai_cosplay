@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hentai_cosplay_downloader/models/resource_site_item.dart';
+import 'package:hentai_cosplay_downloader/ui/site_registry.dart';
 import 'package:hentai_cosplay_downloader/providers/pornhub_author_provider.dart';
 import 'package:hentai_cosplay_downloader/providers/xvideos_author_provider.dart';
 import 'package:hentai_cosplay_downloader/services/xvideos/xvideos_api_service.dart';

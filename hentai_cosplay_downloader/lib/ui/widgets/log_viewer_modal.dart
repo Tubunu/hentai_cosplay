@@ -1,9 +1,10 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:share_plus/share_plus.dart';
 import '../../services/app_logger.dart';
+import '../theme/ios_theme.dart';
 import 'bouncing_button.dart';
+import 'package:hentai_cosplay_downloader/utils/app_share.dart';
 
 class LogViewerModal extends StatefulWidget {
   final String? initialFilter;
@@ -72,8 +73,8 @@ class _LogViewerModalState extends State<LogViewerModal> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF1C1C1E) : Colors.white;
-    final cardColor = isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF2F2F7);
+    final bgColor = IosTheme.surfaceLayer1(isDark);
+    final cardColor = IosTheme.surfaceLayer2(isDark);
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.85,
@@ -107,73 +108,94 @@ class _LogViewerModalState extends State<LogViewerModal> {
                 ),
                 const Spacer(),
                 // Copy Button
-                BouncingButton(
-                  onTap: () {
-                    final logs = AppLogger().getAllLogsFormatted(_selectedTag);
-                    if (logs.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('当前无日志内容'), behavior: SnackBarBehavior.floating),
-                      );
-                      return;
-                    }
-                    Clipboard.setData(ClipboardData(text: logs));
-                    HapticFeedback.mediumImpact();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('已复制全部日志到剪贴板 📋'),
-                        backgroundColor: Color(0xFF30D158),
-                        behavior: SnackBarBehavior.floating,
+                Semantics(
+                  button: true,
+                  label: '复制全部日志',
+                  child: Tooltip(
+                    message: '复制全部日志',
+                    child: BouncingButton(
+                      onTap: () {
+                        final logs = AppLogger().getAllLogsFormatted(_selectedTag);
+                        if (logs.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('当前无日志内容'), behavior: SnackBarBehavior.floating),
+                          );
+                          return;
+                        }
+                        Clipboard.setData(ClipboardData(text: logs));
+                        HapticFeedback.mediumImpact();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('已复制全部日志到剪贴板 📋'),
+                            backgroundColor: Color(0xFF30D158),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0A84FF).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(CupertinoIcons.doc_on_clipboard, size: 14, color: Color(0xFF0A84FF)),
+                            SizedBox(width: 4),
+                            Text('复制', style: TextStyle(color: Color(0xFF0A84FF), fontSize: 12, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
                       ),
-                    );
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0A84FF).withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(CupertinoIcons.doc_on_clipboard, size: 14, color: Color(0xFF0A84FF)),
-                        SizedBox(width: 4),
-                        Text('复制', style: TextStyle(color: Color(0xFF0A84FF), fontSize: 12, fontWeight: FontWeight.bold)),
-                      ],
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
                 // Share Button
-                BouncingButton(
-                  onTap: () {
-                    final logs = AppLogger().getAllLogsFormatted(_selectedTag);
-                    if (logs.isNotEmpty) {
-                      Share.share(logs, subject: 'App网络诊断日志');
-                    }
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: cardColor,
-                      shape: BoxShape.circle,
+                Semantics(
+                  button: true,
+                  label: '分享日志',
+                  child: Tooltip(
+                    message: '分享日志',
+                    child: BouncingButton(
+                      onTap: () {
+                        final logs = AppLogger().getAllLogsFormatted(_selectedTag);
+                        if (logs.isNotEmpty) {
+                          AppShare.share(context, logs, subject: 'App网络诊断日志');
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: cardColor,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(CupertinoIcons.share, size: 16),
+                      ),
                     ),
-                    child: const Icon(CupertinoIcons.share, size: 16),
                   ),
                 ),
                 const SizedBox(width: 6),
                 // Clear Button
-                BouncingButton(
-                  onTap: () {
-                    AppLogger().clear();
-                    HapticFeedback.selectionClick();
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: cardColor,
-                      shape: BoxShape.circle,
+                Semantics(
+                  button: true,
+                  label: '清空日志',
+                  child: Tooltip(
+                    message: '清空日志',
+                    child: BouncingButton(
+                      onTap: () {
+                        AppLogger().clear();
+                        HapticFeedback.selectionClick();
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: cardColor,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(CupertinoIcons.trash, size: 16, color: Colors.grey),
+                      ),
                     ),
-                    child: const Icon(CupertinoIcons.trash, size: 16, color: Colors.grey),
                   ),
                 ),
               ],
@@ -229,21 +251,22 @@ class _LogViewerModalState extends State<LogViewerModal> {
               listenable: AppLogger(),
               builder: (context, _) {
                 final allLogs = AppLogger().logs;
-                final filteredLogs = allLogs.where((l) {
+                final query = _searchQuery.toLowerCase();
+                final filteredLogs = allLogs.reversed.where((l) {
                   if (_selectedTag != '全部') {
                     if (!l.tag.contains(_selectedTag) && !l.message.contains(_selectedTag)) {
                       return false;
                     }
                   }
-                  if (_searchQuery.isNotEmpty) {
-                    if (!l.message.toLowerCase().contains(_searchQuery) &&
-                        !l.tag.toLowerCase().contains(_searchQuery) &&
-                        !(l.error?.toString().toLowerCase().contains(_searchQuery) ?? false)) {
+                  if (query.isNotEmpty) {
+                    if (!l.message.toLowerCase().contains(query) &&
+                        !l.tag.toLowerCase().contains(query) &&
+                        !(l.error?.toString().toLowerCase().contains(query) ?? false)) {
                       return false;
                     }
                   }
                   return true;
-                }).toList().reversed.toList();
+                }).toList();
 
                 if (filteredLogs.isEmpty) {
                   return Center(
@@ -317,31 +340,55 @@ class _LogViewerModalState extends State<LogViewerModal> {
                           const SizedBox(height: 6),
 
                           // Message
-                          SelectableText(
-                            entry.message,
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 12,
-                              height: 1.35,
-                              color: isDark ? Colors.white.withValues(alpha: 0.9) : Colors.black87,
+                          GestureDetector(
+                            onLongPress: () {
+                              Clipboard.setData(ClipboardData(text: entry.message));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('已复制日志内容'),
+                                  behavior: SnackBarBehavior.floating,
+                                  duration: Duration(seconds: 1),
+                                ),
+                              );
+                            },
+                            child: Text(
+                              entry.message,
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 12,
+                                height: 1.35,
+                                color: isDark ? Colors.white.withValues(alpha: 0.9) : Colors.black87,
+                              ),
                             ),
                           ),
 
                           // Error detail
                           if (entry.error != null) ...[
                             const SizedBox(height: 4),
-                            Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: Colors.red.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: SelectableText(
-                                'Error: ${entry.error}',
-                                style: const TextStyle(
-                                  fontFamily: 'monospace',
-                                  fontSize: 11,
-                                  color: Color(0xFFFF453A),
+                            GestureDetector(
+                              onLongPress: () {
+                                Clipboard.setData(ClipboardData(text: entry.error.toString()));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('已复制错误内容'),
+                                    behavior: SnackBarBehavior.floating,
+                                    duration: Duration(seconds: 1),
+                                  ),
+                                );
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  'Error: ${entry.error}',
+                                  style: const TextStyle(
+                                    fontFamily: 'monospace',
+                                    fontSize: 11,
+                                    color: Color(0xFFFF453A),
+                                  ),
                                 ),
                               ),
                             ),

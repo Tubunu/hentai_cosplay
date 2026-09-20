@@ -32,9 +32,14 @@ class IwaraApiService {
   static const String kImageBaseUrl = 'https://i.iwara.tv';
 
   static String? _configuredProxy;
+  static Dio _dio = _createDio();
 
   static void setProxy(String? proxy) {
     _configuredProxy = proxy?.trim();
+    try {
+      _dio.close(force: true);
+    } catch (_) {}
+    _dio = _createDio();
   }
 
   static Dio _createDio() {
@@ -118,7 +123,7 @@ class IwaraApiService {
 
     // 3. Fallback: Dio HTTP Client
     try {
-      final dio = _createDio();
+      final dio = _dio;
       final res = await dio.get(url);
       if (res.data is String) {
         return res.data as String;

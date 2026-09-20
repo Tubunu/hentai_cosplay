@@ -81,9 +81,10 @@ class _VideoBatchDownloadDialogState extends State<VideoBatchDownloadDialog> {
     setState(() => _isSubmitting = true);
 
     final downloadProv = context.read<DownloadProvider>();
+    final messenger = ScaffoldMessenger.of(context);
     Navigator.pop(context);
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    messenger.showSnackBar(
       SnackBar(
         content: Text('已启动第 $start 到 $end 页视频批量下载队列...'),
         backgroundColor: IosTheme.primaryPink,

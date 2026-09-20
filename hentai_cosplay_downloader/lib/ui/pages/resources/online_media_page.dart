@@ -2,7 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import '../../../models/resource_site_item.dart';
+import '../../site_registry.dart';
 import '../../../providers/browse_provider.dart';
 import '../../../providers/coomer_browse_provider.dart';
 import '../../../providers/cosplaytele_browse_provider.dart';
@@ -38,10 +38,14 @@ import '../../../providers/vjav_browse_provider.dart';
 import '../../../providers/javguru_browse_provider.dart';
 import '../../../providers/av123_browse_provider.dart';
 import '../../../providers/javmost_browse_provider.dart';
+import '../../../providers/memojav_browse_provider.dart';
+import '../../../providers/hohoj_browse_provider.dart';
 import '../../../providers/jable_browse_provider.dart';
 import '../../theme/ios_theme.dart';
 import '../../widgets/bouncing_button.dart';
+import '../../widgets/chrome_insets_coordinator.dart';
 import '../../widgets/liquid_glass.dart';
+import '../favorites/favorites_page.dart';
 import '../history/browsing_history_page.dart';
 import '../settings/resource_order_setting_page.dart';
 import 'online_resources_hub_sheet.dart';
@@ -125,8 +129,23 @@ class _OnlineMediaPageState extends State<OnlineMediaPage> {
     switch (siteKey) {
       case 'jable':
         final p = context.read<JableBrowseProvider>();
-        if (p.categories.isEmpty && !p.loadingCategories && p.errorMessage == null) {
-          p.loadCategories();
+        final s0 = p.getStateFor(0);
+        if (s0.categories.isEmpty && !s0.loadingCategories && s0.errorMessage == null) {
+          p.loadCategories(siteIndex: 0);
+        }
+        break;
+      case 'missav':
+        final p = context.read<JableBrowseProvider>();
+        final s1 = p.getStateFor(1);
+        if (s1.categories.isEmpty && !s1.loadingCategories && s1.errorMessage == null) {
+          p.loadCategories(siteIndex: 1);
+        }
+        break;
+      case 'supjav':
+        final p = context.read<JableBrowseProvider>();
+        final s2 = p.getStateFor(2);
+        if (s2.categories.isEmpty && !s2.loadingCategories && s2.errorMessage == null) {
+          p.loadCategories(siteIndex: 2);
         }
         break;
       case 'hc_gallery':
@@ -266,6 +285,14 @@ class _OnlineMediaPageState extends State<OnlineMediaPage> {
       case 'javmost':
         final p = context.read<JavmostBrowseProvider>();
         if (p.items.isEmpty && !p.isLoading && p.errorMessage == null) p.loadVideos();
+        break;
+      case 'memojav':
+        final p = context.read<MemojavBrowseProvider>();
+        if (p.items.isEmpty && !p.isLoading && p.errorMessage == null) p.loadPage(1);
+        break;
+      case 'hohoj':
+        final p = context.read<HohojBrowseProvider>();
+        if (p.items.isEmpty && !p.isLoading && p.errorMessage == null) p.loadPage(1);
         break;
     }
   }
@@ -490,11 +517,27 @@ class _OnlineMediaPageState extends State<OnlineMediaPage> {
             top: topPadding + 6,
             left: 10,
             right: 10,
-            child: Row(
-              children: [
-                // Site switcher capsule bar
-                Expanded(
-                  child: LiquidGlass(
+            child: RepaintBoundary(
+              child: AnimatedBuilder(
+                animation: ChromeInsetsScope.of(context, listen: false),
+              builder: (context, child) {
+                final isHidden = ChromeInsets.isHidden(context);
+                return AnimatedSlide(
+                  duration: const Duration(milliseconds: 280),
+                  curve: Curves.easeInOutCubic,
+                  offset: isHidden ? const Offset(0, -1.4) : Offset.zero,
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 220),
+                    opacity: isHidden ? 0.0 : 1.0,
+                    child: child,
+                  ),
+                );
+              },
+              child: Row(
+                children: [
+                  // Site switcher capsule bar
+                  Expanded(
+                    child: LiquidGlass(
                     borderRadius: 24,
                     blur: 24,
                     padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3.5),
@@ -603,6 +646,30 @@ class _OnlineMediaPageState extends State<OnlineMediaPage> {
 
                 const SizedBox(width: 6),
 
+                // My Favorites Button (⭐ 我的收藏)
+                BouncingButton(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    Navigator.push(
+                      context,
+                      CupertinoPageRoute(builder: (_) => const FavoritesPage()),
+                    );
+                  },
+                  child: LiquidGlass(
+                    borderRadius: 24,
+                    blur: 24,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8.5),
+                    fluidAuraColor: activeSite.color,
+                    child: const Icon(
+                      CupertinoIcons.star_fill,
+                      color: Color(0xFFFFB300),
+                      size: 15.5,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(width: 6),
+
                 // Browsing History Button (🕒 浏览历史)
                 BouncingButton(
                   onTap: () => BrowsingHistoryPage.open(context),
@@ -621,9 +688,11 @@ class _OnlineMediaPageState extends State<OnlineMediaPage> {
               ],
             ),
           ),
-        ],
+        ),
       ),
-    );
+      ],
+    ),
+  );
   }
 
   Widget _buildSegmentItem({

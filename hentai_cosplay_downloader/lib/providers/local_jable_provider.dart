@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import '../models/jable_video_item.dart';
 import '../services/config_service.dart';
+import '../services/playback_progress_service.dart';
 
 class LocalJableProvider extends ChangeNotifier {
   final List<JableLocalVideoItem> _videos = [];
@@ -95,6 +96,7 @@ class LocalJableProvider extends ChangeNotifier {
   }
 
   Future<void> scanLocalVideos() async {
+    if (_isLoading) return;
     _isLoading = true;
     notifyListeners();
 
@@ -205,6 +207,8 @@ class LocalJableProvider extends ChangeNotifier {
         await jsonFile.delete();
       }
 
+      PlaybackProgressService.clearProgress(PlaybackProgressService.computeKey(filePath: item.filePath));
+
       _videos.removeWhere((v) => v.filePath == item.filePath);
       _cachedFilteredVideos = null;
       notifyListeners();
@@ -213,5 +217,39 @@ class LocalJableProvider extends ChangeNotifier {
       debugPrint('Error deleting local video: $e');
       return false;
     }
+  }
+
+  Future<int> deleteBatchVideos(List<JableLocalVideoItem> items) async {
+    int count = 0;
+    for (final item in items) {
+      try {
+        final videoFile = File(item.filePath);
+        if (await videoFile.exists()) {
+          await videoFile.delete();
+        }
+        if (item.coverPath != null) {
+          final coverFile = File(item.coverPath!);
+          if (await coverFile.exists()) {
+            await coverFile.delete();
+          }
+        }
+        final parent = p.dirname(item.filePath);
+        final base = p.basenameWithoutExtension(item.filePath);
+        final jsonFile = File(p.join(parent, '$base.json'));
+        if (await jsonFile.exists()) {
+          await jsonFile.delete();
+        }
+
+        PlaybackProgressService.clearProgress(PlaybackProgressService.computeKey(filePath: item.filePath));
+
+        _videos.removeWhere((v) => v.filePath == item.filePath);
+        count++;
+      } catch (e) {
+        debugPrint('Error deleting local video: $e');
+      }
+    }
+    _cachedFilteredVideos = null;
+    notifyListeners();
+    return count;
   }
 }

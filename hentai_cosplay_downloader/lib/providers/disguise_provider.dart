@@ -1,6 +1,5 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-
 class DisguiseProvider extends ChangeNotifier {
   bool _isUnlocked;
 
@@ -39,8 +38,20 @@ class DisguiseProvider extends ChangeNotifier {
   /// 监听生命周期（切后台自动重锁）
   void onLifecycleStateChanged(AppLifecycleState state, bool disguiseMode, bool relockOnBackground) {
     if (!disguiseMode || !relockOnBackground) return;
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
       lock();
+    }
+  }
+
+  /// 当设置中的伪装模式开关被修改时联动
+  void onDisguiseModeChanged(bool newDisguiseMode) {
+    if (newDisguiseMode && _isUnlocked) {
+      // 伪装模式被开启，立即锁定
+      lock();
+    } else if (!newDisguiseMode && !_isUnlocked) {
+      // 伪装模式被关闭，立即解锁
+      unlock();
     }
   }
 }

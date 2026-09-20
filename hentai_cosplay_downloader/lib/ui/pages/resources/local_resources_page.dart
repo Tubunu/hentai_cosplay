@@ -1,9 +1,9 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import '../favorites/favorites_page.dart';
 import '../gallery/local_gallery_page.dart';
 import '../../theme/ios_theme.dart';
 import '../video/local_video_page.dart';
-import '../local_jable/local_jable_page.dart';
 import '../../widgets/bouncing_button.dart';
 import '../../widgets/frosted_glass.dart';
 
@@ -15,7 +15,7 @@ class LocalResourcesPage extends StatefulWidget {
 }
 
 class _LocalResourcesPageState extends State<LocalResourcesPage> {
-  int _currentIndex = 0; // 0: 图片, 1: 视频, 2: Jable
+  int _currentIndex = 0; // 0: 本地图片, 1: 本地视频, 2: 我的收藏
 
   @override
   Widget build(BuildContext context) {
@@ -31,11 +31,11 @@ class _LocalResourcesPageState extends State<LocalResourcesPage> {
             children: const [
               LocalGalleryPage(),
               LocalVideoPage(),
-              LocalJablePage(),
+              FavoritesPage(),
             ],
           ),
 
-          // Floating Top Segmented Control Capsule (Compact: 图片 / 视频 / Jable)
+          // Floating Top Segmented Control Capsule (Compact: 本地图片 / 本地视频 / 我的收藏)
           Positioned(
             top: MediaQuery.of(context).padding.top + 6,
             right: 14,
@@ -51,9 +51,9 @@ class _LocalResourcesPageState extends State<LocalResourcesPage> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _buildSegmentItem(0, '图片', CupertinoIcons.photo_fill_on_rectangle_fill, isDark),
-                  _buildSegmentItem(1, '视频', CupertinoIcons.film_fill, isDark),
-                  _buildSegmentItem(2, 'Jable', CupertinoIcons.play_rectangle_fill, isDark),
+                  _buildSegmentItem(0, '本地图片', CupertinoIcons.photo_fill_on_rectangle_fill, isDark),
+                  _buildSegmentItem(1, '本地视频', CupertinoIcons.film_fill, isDark),
+                  _buildSegmentItem(2, '我的收藏', CupertinoIcons.heart_fill, isDark),
                 ],
               ),
             ),

@@ -1,6 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hentai_cosplay_downloader/models/resource_site_item.dart';
+import 'package:hentai_cosplay_downloader/ui/site_registry.dart';
 import 'package:hentai_cosplay_downloader/models/video_item.dart';
 import 'package:hentai_cosplay_downloader/providers/av123_browse_provider.dart';
 import 'package:hentai_cosplay_downloader/providers/javguru_browse_provider.dart';

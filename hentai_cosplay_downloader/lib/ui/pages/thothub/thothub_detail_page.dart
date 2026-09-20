@@ -106,14 +106,12 @@ class _ThothubDetailPageState extends State<ThothubDetailPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     const themeColor = Color(0xFF00ADB5);
 
-    final existingTask = context.select<DownloadProvider, AlbumDownloadTask?>((p) {
-      for (final t in p.allTasks) {
-        if (t.albumItem.slug == _item.slug || t.albumItem.detailUrl == _item.detailUrl) {
-          return t;
-        }
-      }
-      return null;
-    });
+    final taskStatus = context.select<DownloadProvider, TaskStatus?>(
+      (p) => p.getTaskStatus(slug: _item.slug, detailUrl: _item.detailUrl),
+    );
+    final isDownloaded = taskStatus == TaskStatus.completed;
+    final isDownloading = taskStatus == TaskStatus.downloading ||
+        taskStatus == TaskStatus.queued;
 
     final streamUrl = _item.videoUrl ?? '';
     final hasDirectStream = streamUrl.isNotEmpty &&
@@ -368,16 +366,16 @@ class _ThothubDetailPageState extends State<ThothubDetailPage> {
                         width: double.infinity,
                         child: OutlinedButton.icon(
                           icon: Icon(
-                            existingTask != null
+                            isDownloaded
                                 ? CupertinoIcons.check_mark_circled_solid
-                                : CupertinoIcons.arrow_down_to_line,
+                                : (isDownloading ? CupertinoIcons.arrow_down_circle_fill : CupertinoIcons.arrow_down_to_line),
                             size: 18,
                             color: themeColor,
                           ),
                           label: Text(
-                            existingTask != null
-                                ? (existingTask.status == TaskStatus.completed ? '视频已下载完成' : '视频正在下载中...')
-                                : '下载视频',
+                            isDownloaded
+                                ? '视频已下载完成'
+                                : (isDownloading ? '视频正在下载中...' : '下载视频'),
                             style: const TextStyle(
                               color: themeColor,
                               fontWeight: FontWeight.bold,
@@ -388,7 +386,7 @@ class _ThothubDetailPageState extends State<ThothubDetailPage> {
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
-                          onPressed: existingTask != null
+                          onPressed: (isDownloaded || isDownloading)
                               ? null
                               : () {
                                   final downloadProv = context.read<DownloadProvider>();

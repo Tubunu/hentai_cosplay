@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/album_item.dart';
 import '../services/hc_api_service.dart';
+import '../services/search_relay_service.dart';
 
 class BrowseProvider extends ChangeNotifier {
   List<AlbumItem> _items = [];
@@ -65,32 +66,45 @@ class BrowseProvider extends ChangeNotifier {
     }
   }
 
+  void _resetSelection() {
+    _selectedSlugs.clear();
+    _isSelectionMode = false;
+  }
+
   void setCategory(BrowseCategory newCat) {
     _category = newCat;
     _searchKeyword = '';
     _currentTag = null;
+    _resetSelection();
     loadPage(1);
   }
 
   void setSearchKeyword(String keyword) {
     _searchKeyword = keyword.trim();
+    if (_searchKeyword.isNotEmpty) {
+      SearchRelayService.instance.recordSearch(_searchKeyword);
+    }
     _currentTag = null;
+    _resetSelection();
     loadPage(1);
   }
 
   void setTag(String tag) {
     _currentTag = tag.trim();
     _searchKeyword = '';
+    _resetSelection();
     loadPage(1);
   }
 
   void clearSearch() {
     _searchKeyword = '';
+    _resetSelection();
     loadPage(1);
   }
 
   void clearTag() {
     _currentTag = null;
+    _resetSelection();
     loadPage(1);
   }
 
@@ -98,6 +112,7 @@ class BrowseProvider extends ChangeNotifier {
     _category = BrowseCategory.latest;
     _searchKeyword = '';
     _currentTag = null;
+    _resetSelection();
     loadPage(1);
   }
 
@@ -174,8 +189,6 @@ class BrowseProvider extends ChangeNotifier {
     } finally {
       if (currentReq == _requestId && !_disposed) {
         _isLoading = false;
-        _selectedSlugs.clear();
-        _isSelectionMode = false;
         notifyListeners();
       }
     }

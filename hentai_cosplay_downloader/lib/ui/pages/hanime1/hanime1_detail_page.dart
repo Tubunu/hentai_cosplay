@@ -170,14 +170,12 @@ class _Hanime1DetailPageState extends State<Hanime1DetailPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     const themeColor = Color(0xFFFF2E63);
 
-    final existingTask = context.select<DownloadProvider, AlbumDownloadTask?>((p) {
-      for (final t in p.allTasks) {
-        if (t.albumItem.slug == _item.slug || t.albumItem.detailUrl == _item.detailUrl) {
-          return t;
-        }
-      }
-      return null;
-    });
+    final taskStatus = context.select<DownloadProvider, TaskStatus?>(
+      (p) => p.getTaskStatus(slug: _item.slug, detailUrl: _item.detailUrl),
+    );
+    final isDownloaded = taskStatus == TaskStatus.completed;
+    final isDownloading = taskStatus == TaskStatus.downloading ||
+        taskStatus == TaskStatus.queued;
 
     final episodes = (_item.rawData['episodes'] as List?)?.cast<Map<String, dynamic>>() ?? [];
     final qualities = (_item.rawData['qualities'] as Map?)?.cast<String, String>() ?? {};
@@ -472,7 +470,7 @@ class _Hanime1DetailPageState extends State<Hanime1DetailPage> {
                                         color: isDark ? const Color(0xFF2C2C2E) : Colors.white,
                                         borderRadius: BorderRadius.circular(12),
                                         border: Border.all(
-                                          color: existingTask != null
+                                          color: isDownloaded
                                               ? const Color(0xFF4CAF50)
                                               : (isDark ? const Color(0x33FFFFFF) : const Color(0x22000000)),
                                         ),
@@ -488,21 +486,21 @@ class _Hanime1DetailPageState extends State<Hanime1DetailPage> {
                                         mainAxisAlignment: MainAxisAlignment.center,
                                         children: [
                                           Icon(
-                                            existingTask?.status == TaskStatus.completed
+                                            isDownloaded
                                                 ? CupertinoIcons.check_mark_circled_solid
                                                 : CupertinoIcons.arrow_down_to_line,
-                                            color: existingTask?.status == TaskStatus.completed
+                                            color: isDownloaded
                                                 ? const Color(0xFF4CAF50)
                                                 : themeColor,
                                             size: 18,
                                           ),
                                           const SizedBox(width: 8),
                                           Text(
-                                            existingTask?.status == TaskStatus.completed
+                                            isDownloaded
                                                 ? '已下载'
-                                                : (existingTask != null ? '下载中' : '下载到本地'),
+                                                : (isDownloading ? '下载中' : '下载到本地'),
                                             style: TextStyle(
-                                              color: existingTask?.status == TaskStatus.completed
+                                              color: isDownloaded
                                                   ? const Color(0xFF4CAF50)
                                                   : (isDark ? Colors.white : const Color(0xFF1C1C1E)),
                                               fontSize: 15,

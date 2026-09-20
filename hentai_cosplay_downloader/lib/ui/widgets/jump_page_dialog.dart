@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import '../theme/ios_theme.dart';
 
 /// A reusable, memory-safe dialog for jumping to a specific page number.
 /// Accurately manages and disposes its [FixedExtentScrollController] to eliminate memory leaks.
@@ -66,7 +67,7 @@ class _JumpPageDialogState extends State<JumpPageDialog> {
     final maxPages = widget.totalPages > 0 ? widget.totalPages : 50;
 
     return AlertDialog(
-      backgroundColor: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+      backgroundColor: IosTheme.surfaceLayer1(isDark),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       title: const Text(
         '跳转页码',

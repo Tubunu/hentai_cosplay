@@ -1,8 +1,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../providers/download_provider.dart';
 import '../../providers/settings_provider.dart';
+import 'chrome_insets_coordinator.dart';
 import 'bouncing_button.dart';
 import 'liquid_glass.dart';
 
@@ -62,11 +62,14 @@ class _ScrollToTopButtonState extends State<ScrollToTopButton> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final themeColor = widget.color ?? const Color(0xFFFF2D55);
-    final isDownloading = context.select<DownloadProvider, bool>((p) => p.isDownloading);
     final customOpacity = context.select<SettingsProvider, double>((p) => p.config.navBarOpacity);
-    final bottom = widget.bottomOffset ?? (isDownloading ? 165.0 : 105.0);
+    final isHidden = ChromeInsets.isHidden(context);
+    final insets = MediaQuery.paddingOf(context);
+    final bottom = widget.bottomOffset ?? (isHidden ? insets.bottom + 20.0 : ChromeInsets.floatingBottom(context, extra: 16.0));
 
-    return Positioned(
+    return AnimatedPositioned(
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeInOutCubic,
       bottom: bottom,
       right: widget.rightOffset,
       child: AnimatedScale(
@@ -76,34 +79,41 @@ class _ScrollToTopButtonState extends State<ScrollToTopButton> {
         child: AnimatedOpacity(
           opacity: _isVisible ? 1.0 : 0.0,
           duration: const Duration(milliseconds: 180),
-          child: BouncingButton(
-            onTap: () {
-              if (widget.scrollController.hasClients) {
-                widget.scrollController.animateTo(
-                  0,
-                  duration: const Duration(milliseconds: 350),
-                  curve: Curves.easeOutCubic,
-                );
-              }
-            },
-            child: LiquidGlass(
-              borderRadius: 22,
-              blur: 24,
-              opacity: customOpacity,
-              fluidAuraColor: themeColor,
-              padding: EdgeInsets.zero,
-              border: Border.all(
-                color: isDark ? Colors.white.withValues(alpha: 0.25) : Colors.black.withValues(alpha: 0.12),
-                width: 1.0,
-              ),
-              child: SizedBox(
-                width: 44,
-                height: 44,
-                child: Center(
-                  child: Icon(
-                    CupertinoIcons.arrow_up,
-                    size: 20,
-                    color: themeColor,
+          child: Tooltip(
+            message: '回到顶部',
+            child: Semantics(
+              button: true,
+              label: '回到顶部',
+              child: BouncingButton(
+                onTap: () {
+                  if (widget.scrollController.hasClients) {
+                    widget.scrollController.animateTo(
+                      0,
+                      duration: const Duration(milliseconds: 350),
+                      curve: Curves.easeOutCubic,
+                    );
+                  }
+                },
+                child: LiquidGlass(
+                  borderRadius: 22,
+                  blur: 24,
+                  opacity: customOpacity,
+                  fluidAuraColor: themeColor,
+                  padding: EdgeInsets.zero,
+                  border: Border.all(
+                    color: isDark ? Colors.white.withValues(alpha: 0.25) : Colors.black.withValues(alpha: 0.12),
+                    width: 1.0,
+                  ),
+                  child: SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: Center(
+                      child: Icon(
+                        CupertinoIcons.arrow_up,
+                        size: 20,
+                        color: themeColor,
+                      ),
+                    ),
                   ),
                 ),
               ),

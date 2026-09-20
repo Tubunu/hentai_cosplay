@@ -504,7 +504,7 @@ class _MztBrowsePageState extends State<MztBrowsePage> {
                             } else {
                               Navigator.push(
                                 context,
-                                CupertinoPageRoute(
+                                MaterialPageRoute(
                                   builder: (_) => MztDetailPage(item: item),
                                 ),
                               );
@@ -655,20 +655,15 @@ class _MztPackCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     // Check if album is in download queue or already in completed history
-    final existingTask = context.select<DownloadProvider, AlbumDownloadTask?>((p) {
-      for (final t in p.allTasks) {
-        if (t.albumItem.slug == item.slug || t.albumItem.title == item.title) {
-          return t;
-        }
-      }
-      return null;
-    });
+    final taskStatus = context.select<DownloadProvider, TaskStatus?>(
+      (p) => p.getTaskStatus(slug: item.slug, detailUrl: item.detailUrl, title: item.title),
+    );
 
     final isHistoryRecorded = context.select<HistoryProvider, bool>((p) {
       return p.records.any((r) => r.id == item.slug || r.title == item.title);
     });
 
-    final isCompleted = existingTask?.status == TaskStatus.completed || isHistoryRecorded;
+    final isCompleted = taskStatus == TaskStatus.completed || isHistoryRecorded;
 
     return BouncingButton(
       onTap: onTap,
@@ -800,8 +795,8 @@ class _MztPackCard extends StatelessWidget {
                             ),
                             child: const Icon(CupertinoIcons.checkmark_alt, size: 14, color: Colors.white),
                           )
-                        : (existingTask != null
-                            ? _buildTaskStatusBadge(existingTask)
+                        : (taskStatus != null
+                            ? _buildTaskStatusBadge(taskStatus)
                             : Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                                 decoration: BoxDecoration(
@@ -890,11 +885,11 @@ class _MztPackCard extends StatelessWidget {
     );
   }
 
-  Widget _buildTaskStatusBadge(AlbumDownloadTask task) {
+  Widget _buildTaskStatusBadge(TaskStatus status) {
     Color bg;
     IconData icon;
 
-    switch (task.status) {
+    switch (status) {
       case TaskStatus.completed:
         bg = IosTheme.primaryGreen;
         icon = CupertinoIcons.checkmark_alt;

@@ -169,15 +169,12 @@ class _JavguruDetailPageState extends State<JavguruDetailPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final downloadProvider = context.watch<DownloadProvider>();
-    final task = downloadProvider.allTasks.cast<AlbumDownloadTask?>().firstWhere(
-          (t) => t?.albumItem.slug == _item.slug || t?.albumItem.detailUrl == _item.detailUrl,
-          orElse: () => null,
-        );
-
-    final isDownloaded = task?.status == TaskStatus.completed;
-    final isDownloading = task?.status == TaskStatus.downloading ||
-        task?.status == TaskStatus.queued;
+    final taskStatus = context.select<DownloadProvider, TaskStatus?>(
+      (p) => p.getTaskStatus(slug: _item.slug, detailUrl: _item.detailUrl),
+    );
+    final isDownloaded = taskStatus == TaskStatus.completed;
+    final isDownloading = taskStatus == TaskStatus.downloading ||
+        taskStatus == TaskStatus.queued;
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF121212) : const Color(0xFFF7F7F8),
@@ -605,13 +602,11 @@ class _JavguruDetailPageState extends State<JavguruDetailPage> {
           ),
 
           // Scroll to top
-          Positioned(
-            right: 16,
-            bottom: 24,
-            child: ScrollToTopButton(
-              scrollController: _scrollController,
-              threshold: 400,
-            ),
+          ScrollToTopButton(
+            scrollController: _scrollController,
+            threshold: 400,
+            rightOffset: 16,
+            bottomOffset: 24,
           ),
         ],
       ),

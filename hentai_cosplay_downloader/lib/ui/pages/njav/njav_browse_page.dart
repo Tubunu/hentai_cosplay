@@ -5,6 +5,7 @@ import '../../../providers/download_provider.dart';
 import '../../../providers/njav_browse_provider.dart';
 import '../../../services/njav/njav_api_service.dart';
 import '../../widgets/bouncing_button.dart';
+import '../../widgets/chrome_insets_coordinator.dart';
 import '../../widgets/frosted_glass.dart';
 import '../../widgets/random_action_button.dart';
 import '../../widgets/scroll_to_top_button.dart';
@@ -63,23 +64,25 @@ class _NjavBrowsePageState extends State<NjavBrowsePage> {
         bottom: false,
         child: Stack(
           children: [
-            RefreshIndicator(
-              color: _themeColor,
-              edgeOffset: 58.0,
-              displacement: 40.0,
-              onRefresh: () async {
-                await provider.loadPage(provider.currentPage);
-              },
-              child: CustomScrollView(
-                controller: _scrollController,
-                physics: const AlwaysScrollableScrollPhysics(
-                  parent: BouncingScrollPhysics(),
-                ),
-                slivers: [
-                  // Top Safe Spacing for Floating Segmented Capsule Bar
-                  const SliverToBoxAdapter(
-                    child: SizedBox(height: 54),
+            ChromeScrollWrapper(
+              child: RefreshIndicator(
+                color: _themeColor,
+                edgeOffset: 58.0,
+                displacement: 40.0,
+                onRefresh: () async {
+                  await provider.loadPage(provider.currentPage);
+                },
+                child: CustomScrollView(
+                  controller: _scrollController,
+                  cacheExtent: 600.0,
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: BouncingScrollPhysics(),
                   ),
+                  slivers: [
+                    // Top Safe Spacing for Floating Segmented Capsule Bar
+                    SliverToBoxAdapter(
+                      child: SizedBox(height: ChromeInsets.top(context)),
+                    ),
 
                   // Search Bar + Random Button
                   SliverToBoxAdapter(
@@ -339,7 +342,7 @@ class _NjavBrowsePageState extends State<NjavBrowsePage> {
                           crossAxisCount: 2,
                           crossAxisSpacing: 10,
                           mainAxisSpacing: 12,
-                          childAspectRatio: 0.82,
+                          childAspectRatio: 1.45,
                         ),
                         delegate: SliverChildBuilderDelegate(
                           (context, index) {
@@ -410,19 +413,18 @@ class _NjavBrowsePageState extends State<NjavBrowsePage> {
                     ),
 
                   // Bottom padding
-                  SliverToBoxAdapter(
-                    child: SizedBox(
-                      height: context.select<DownloadProvider, bool>((p) => p.isDownloading) ? 220 : 140,
-                    ),
-                  ),
+                  const ChromeSliverBottomSpacing(),
                 ],
               ),
             ),
+          ),
 
             // Selection Floating Bar
             if (provider.isSelectionMode)
-              Positioned(
-                bottom: context.select<DownloadProvider, bool>((p) => p.isDownloading) ? 145 : 85,
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeInOutCubic,
+                bottom: ChromeInsets.bottom(context) - 10.0,
                 left: 20,
                 right: 20,
                 child: FrostedGlass(
@@ -487,7 +489,7 @@ class _NjavBrowsePageState extends State<NjavBrowsePage> {
               threshold: 400,
               color: _themeColor,
               bottomOffset: provider.isSelectionMode
-                  ? (context.select<DownloadProvider, bool>((p) => p.isDownloading) ? 215 : 155)
+                  ? ChromeInsets.bottom(context) + 50.0
                   : null,
             ),
           ],

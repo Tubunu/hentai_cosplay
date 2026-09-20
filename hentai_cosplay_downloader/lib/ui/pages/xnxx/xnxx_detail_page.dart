@@ -118,14 +118,12 @@ class _XnxxDetailPageState extends State<XnxxDetailPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     const themeColor = Color(0xFF0275D8);
 
-    final existingTask = context.select<DownloadProvider, AlbumDownloadTask?>((p) {
-      for (final t in p.allTasks) {
-        if (t.albumItem.slug == _item.slug || t.albumItem.detailUrl == _item.detailUrl) {
-          return t;
-        }
-      }
-      return null;
-    });
+    final taskStatus = context.select<DownloadProvider, TaskStatus?>(
+      (p) => p.getTaskStatus(slug: _item.slug, detailUrl: _item.detailUrl),
+    );
+    final isDownloaded = taskStatus == TaskStatus.completed;
+    final isDownloading = taskStatus == TaskStatus.downloading ||
+        taskStatus == TaskStatus.queued;
 
     final hasHigh = (_item.rawData['video_high'] as String? ?? '').isNotEmpty;
     final hasLow = (_item.rawData['video_low'] as String? ?? '').isNotEmpty;
@@ -498,13 +496,13 @@ class _XnxxDetailPageState extends State<XnxxDetailPage> {
                           Expanded(
                             child: OutlinedButton.icon(
                               icon: Icon(
-                                existingTask != null
+                                isDownloaded
                                     ? CupertinoIcons.check_mark_circled_solid
-                                    : CupertinoIcons.cloud_download,
+                                    : (isDownloading ? CupertinoIcons.arrow_down_circle_fill : CupertinoIcons.cloud_download),
                                 size: 18,
                               ),
                               label: Text(
-                                existingTask != null ? '已在下载' : '下载视频',
+                                isDownloaded ? '已下载' : (isDownloading ? '下载中' : '下载视频'),
                                 style: const TextStyle(fontWeight: FontWeight.bold),
                               ),
                               style: OutlinedButton.styleFrom(
@@ -513,7 +511,7 @@ class _XnxxDetailPageState extends State<XnxxDetailPage> {
                                 padding: const EdgeInsets.symmetric(vertical: 12),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                               ),
-                              onPressed: existingTask != null
+                              onPressed: (isDownloaded || isDownloading)
                                   ? null
                                   : () {
                                       final downloadProv = context.read<DownloadProvider>();

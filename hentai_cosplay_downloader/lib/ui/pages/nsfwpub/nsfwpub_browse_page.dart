@@ -316,7 +316,7 @@ class _NsfwpubBrowsePageState extends State<NsfwpubBrowsePage> {
                               onTap: () {
                                 Navigator.push(
                                   context,
-                                  CupertinoPageRoute(
+                                  MaterialPageRoute(
                                     builder: (_) => NsfwpubDetailPage(item: item),
                                   ),
                                 );

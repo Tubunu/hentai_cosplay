@@ -86,6 +86,8 @@ class JableDownloadProvider extends ChangeNotifier {
     return (sum / (active.length * 100.0)).clamp(0.0, 1.0);
   }
 
+  double get currentSpeedBps => _currentSpeedBps;
+  
   String get formattedSpeed {
     if (_currentSpeedBps <= 0) return '0 KB/s';
     if (_currentSpeedBps < 1024 * 1024) {

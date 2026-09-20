@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import '../models/album_item.dart';
 import '../models/app_config.dart';
 import '../models/download_task.dart';
@@ -23,6 +24,7 @@ import '../services/pinse/pinse_api_service.dart';
 import '../services/pornbox/pornbox_api_service.dart';
 import '../services/storage_service.dart';
 import '../services/twitter_rankings/twitter_site_config.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 const MethodChannel _bgChannel = MethodChannel('com.hentaicosplay/background_keeper');
 
@@ -110,20 +112,6 @@ class DownloadProvider extends ChangeNotifier {
     }
   }
 
-  // Backward-compatible setters
-  void Function(HistoryRecord record)? get onAlbumCompleted => null;
-  set onAlbumCompleted(void Function(HistoryRecord record)? callback) {
-    if (callback != null) {
-      addAlbumCompletedListener(callback);
-    }
-  }
-
-  void Function()? get onAlbumsChanged => null;
-  set onAlbumsChanged(void Function()? callback) {
-    if (callback != null) {
-      addAlbumsChangedListener(callback);
-    }
-  }
 
   List<AlbumDownloadTask> get allTasks => List.unmodifiable(_allTasks);
   List<AlbumDownloadTask> get activeTasks =>
@@ -193,6 +181,8 @@ class DownloadProvider extends ChangeNotifier {
     return (finishedImages / totalImages).clamp(0.0, 1.0);
   }
 
+  double get currentSpeedBps => _currentSpeedBps;
+
   String get formattedSpeed {
     if (_currentSpeedBps <= 0) return '0 KB/s';
     if (_currentSpeedBps < 1024 * 1024) {
@@ -255,18 +245,37 @@ class DownloadProvider extends ChangeNotifier {
     String? id,
   }) {
     if (id != null && _taskById.containsKey(id)) return _taskById[id];
-    if (slug != null && slug.isNotEmpty) {
-      return _taskBySlug[slug];
-    }
     if (detailUrl != null && detailUrl.isNotEmpty) {
       return _taskByDetailUrl[detailUrl];
+    }
+    if (slug != null && slug.isNotEmpty) {
+      final candidate = _taskBySlug[slug];
+      if (candidate != null) {
+        if (detailUrl != null &&
+            detailUrl.isNotEmpty &&
+            candidate.albumItem.detailUrl.isNotEmpty &&
+            candidate.albumItem.detailUrl != detailUrl) {
+          // Different items with different detail URLs sharing identical slug
+        } else {
+          return candidate;
+        }
+      }
     }
     if (videoUrl != null && videoUrl.isNotEmpty) {
       final clean = videoUrl.split('?').first;
       return _taskByVideoUrl[clean];
     }
     if (title != null && title.isNotEmpty) {
-      return _taskByTitle[title];
+      final candidate = _taskByTitle[title];
+      if (candidate != null) {
+        if (slug != null && slug.isNotEmpty && candidate.albumItem.slug.isNotEmpty && candidate.albumItem.slug != slug) {
+          // Different albums sharing identical title
+        } else if (detailUrl != null && detailUrl.isNotEmpty && candidate.albumItem.detailUrl.isNotEmpty && candidate.albumItem.detailUrl != detailUrl) {
+          // Different albums sharing identical title
+        } else {
+          return candidate;
+        }
+      }
     }
     return null;
   }
@@ -278,6 +287,32 @@ class DownloadProvider extends ChangeNotifier {
       detailUrl: item.detailUrl,
       title: item.title,
     );
+  }
+
+  /// O(1) task status lookup returning immutable TaskStatus enum
+  TaskStatus? getTaskStatus({
+    String? slug,
+    String? detailUrl,
+    String? title,
+    String? videoUrl,
+    String? id,
+  }) {
+    return findTask(
+      slug: slug,
+      detailUrl: detailUrl,
+      title: title,
+      videoUrl: videoUrl,
+      id: id,
+    )?.status;
+  }
+
+  /// O(1) task status lookup for AlbumItem
+  TaskStatus? getTaskStatusForAlbum(AlbumItem item) {
+    return findTask(
+      slug: item.slug,
+      detailUrl: item.detailUrl,
+      title: item.title,
+    )?.status;
   }
 
   String _generateTaskId(String title) {
@@ -324,9 +359,11 @@ class DownloadProvider extends ChangeNotifier {
     _progressThrottleTimer?.cancel();
     _progressThrottleTimer = null;
     for (final engine in _activeEngines.values) {
-      engine.cancel();
+      engine.dispose();
     }
     _activeEngines.clear();
+    _albumCompletedListeners.clear();
+    _albumsChangedListeners.clear();
     _persistenceService.dispose();
     super.dispose();
   }
@@ -386,6 +423,10 @@ class DownloadProvider extends ChangeNotifier {
 
     final existingTask = getTaskForAlbum(item);
     if (existingTask != null) {
+      if (existingTask.status == TaskStatus.completed) {
+        debugPrint('Skipping duplicate album: ${item.title} (already downloaded)');
+        return;
+      }
       _currentBatchTaskIds.add(existingTask.id);
       if (existingTask.status == TaskStatus.paused || existingTask.status == TaskStatus.failed) {
         existingTask.status = TaskStatus.queued;
@@ -427,6 +468,10 @@ class DownloadProvider extends ChangeNotifier {
     for (final item in items) {
       final existingTask = getTaskForAlbum(item);
       if (existingTask != null) {
+        if (existingTask.status == TaskStatus.completed) {
+          debugPrint('Skipping duplicate album: ${item.title} (already downloaded)');
+          continue;
+        }
         _currentBatchTaskIds.add(existingTask.id);
         if (existingTask.status == TaskStatus.paused || existingTask.status == TaskStatus.failed) {
           existingTask.status = TaskStatus.queued;
@@ -632,26 +677,27 @@ class DownloadProvider extends ChangeNotifier {
     }
 
     for (final video in videos) {
-      final key = video.slug.isNotEmpty ? video.slug : video.title;
-      final incomingCleanVideoUrl = video.videoUrl != null && video.videoUrl!.isNotEmpty
-          ? video.videoUrl!.split('?').first
-          : '';
-      final incomingTwId = _extractMediaIdentifier(video.videoUrl ?? video.detailUrl, video.slug);
+      AlbumDownloadTask? existingTask = findTask(
+        detailUrl: video.detailUrl,
+        slug: video.slug,
+        title: video.title,
+        videoUrl: video.videoUrl,
+      );
 
-      final existingIndex = _allTasks.indexWhere((t) {
-        if (t.albumItem.slug == key || t.albumItem.title == key) return true;
-        if (incomingCleanVideoUrl.isNotEmpty && t.videoUrl != null && t.videoUrl!.isNotEmpty) {
-          if (t.videoUrl!.split('?').first == incomingCleanVideoUrl) return true;
-        }
+      if (existingTask == null) {
+        final incomingTwId = _extractMediaIdentifier(video.videoUrl ?? video.detailUrl, video.slug);
         if (incomingTwId != null && incomingTwId.isNotEmpty) {
-          final existingTwId = _extractMediaIdentifier(t.videoUrl ?? t.albumItem.detailUrl, t.albumItem.slug);
-          if (existingTwId != null && existingTwId == incomingTwId) return true;
+          final twIndex = _allTasks.indexWhere((t) {
+            final existingTwId = _extractMediaIdentifier(t.videoUrl ?? t.albumItem.detailUrl, t.albumItem.slug);
+            return existingTwId != null && existingTwId == incomingTwId;
+          });
+          if (twIndex != -1) {
+            existingTask = _allTasks[twIndex];
+          }
         }
-        return false;
-      });
+      }
 
-      if (existingIndex != -1) {
-        final existingTask = _allTasks[existingIndex];
+      if (existingTask != null) {
         if (existingTask.status == TaskStatus.completed) {
           debugPrint('Skipping duplicate video: ${video.title} (already downloaded)');
           continue;
@@ -755,6 +801,10 @@ class DownloadProvider extends ChangeNotifier {
     _activeEngines.remove(task.id);
     task.status = TaskStatus.paused;
     _runningTasks.remove(task);
+    if (_runningTasks.isEmpty) {
+      _setIosBackgroundKeeper(false);
+      WakelockPlus.disable().catchError((_) {});
+    }
     _invalidateFilteredCache();
     _persistTasks(immediate: true);
     notifyListeners();
@@ -763,18 +813,20 @@ class DownloadProvider extends ChangeNotifier {
   }
 
   /// Pause all downloading and queued tasks
-  void pauseAllTasks() {
-    for (final engine in _activeEngines.values) {
-      engine.cancel();
-    }
-    _activeEngines.clear();
+  void pauseAllTasks({bool? isVideo}) {
     for (final task in _allTasks) {
+      if (isVideo != null && task.isVideo != isVideo) continue;
       if (task.status == TaskStatus.downloading || task.status == TaskStatus.queued) {
+        _activeEngines[task.id]?.cancel();
+        _activeEngines.remove(task.id);
         task.status = TaskStatus.paused;
       }
     }
-    _runningTasks.clear();
-    _setIosBackgroundKeeper(false);
+    _runningTasks.removeWhere((t) => isVideo == null || t.isVideo == isVideo);
+    if (_runningTasks.isEmpty) {
+      _setIosBackgroundKeeper(false);
+      WakelockPlus.disable().catchError((_) {});
+    }
     _invalidateFilteredCache();
     _persistTasks(immediate: true);
     notifyListeners();
@@ -794,8 +846,9 @@ class DownloadProvider extends ChangeNotifier {
   }
 
   /// Resume all paused and failed tasks
-  void resumeAllTasks() {
+  void resumeAllTasks({bool? isVideo}) {
     for (final task in _allTasks) {
+      if (isVideo != null && task.isVideo != isVideo) continue;
       if (task.status == TaskStatus.paused || task.status == TaskStatus.failed) {
         task.status = TaskStatus.queued;
         _currentBatchTaskIds.add(task.id);
@@ -808,8 +861,9 @@ class DownloadProvider extends ChangeNotifier {
   }
 
   /// Retry failed tasks
-  void retryFailedTasks() {
-    for (final task in failedTasks) {
+  void retryFailedTasks({bool? isVideo}) {
+    final targets = failedTasks.where((t) => isVideo == null || t.isVideo == isVideo).toList();
+    for (final task in targets) {
       task.status = TaskStatus.queued;
       _currentBatchTaskIds.add(task.id);
     }
@@ -820,8 +874,16 @@ class DownloadProvider extends ChangeNotifier {
   }
 
   /// Clear finished/completed tasks from task manager list
-  void clearCompleted() {
-    _allTasks.removeWhere((t) => t.status == TaskStatus.completed);
+  void clearCompleted({bool? isVideo}) {
+    final targets = _allTasks.where((t) =>
+      t.status == TaskStatus.completed && (isVideo == null || t.isVideo == isVideo)
+    ).toList();
+    for (final t in targets) {
+      _cleanupTaskTempDirectory(t.id);
+    }
+    _allTasks.removeWhere((t) =>
+      t.status == TaskStatus.completed && (isVideo == null || t.isVideo == isVideo)
+    );
     _currentBatchTaskIds.clear();
     _rebuildIndexes();
     _persistTasks(immediate: true);
@@ -834,6 +896,7 @@ class DownloadProvider extends ChangeNotifier {
   /// Remove task
   void removeTask(AlbumDownloadTask task) {
     pauseTask(task);
+    _cleanupTaskTempDirectory(task.id);
     _allTasks.remove(task);
     _currentBatchTaskIds.remove(task.id);
     _runningTasks.remove(task);
@@ -843,6 +906,15 @@ class DownloadProvider extends ChangeNotifier {
     if (_allTasks.isEmpty) {
       NotificationService.cancelNotification();
     }
+  }
+
+  void _cleanupTaskTempDirectory(String taskId) {
+    getTemporaryDirectory().then((tempDir) async {
+      final taskTempDir = Directory(p.join(tempDir.path, 'dl_m3u8_$taskId'));
+      if (await taskTempDir.exists()) {
+        await taskTempDir.delete(recursive: true);
+      }
+    }).catchError((_) {});
   }
 
   void _triggerDownloadLoop() {
@@ -868,6 +940,7 @@ class DownloadProvider extends ChangeNotifier {
       task.startTime ??= DateTime.now();
       _runningTasks.add(task);
       _setIosBackgroundKeeper(true);
+      WakelockPlus.enable().catchError((_) {});
       _invalidateFilteredCache();
       notifyListeners();
       _updateNotification();
@@ -965,6 +1038,7 @@ class DownloadProvider extends ChangeNotifier {
   void _finishBatchIfNeeded() {
     if (_currentBatchTaskIds.isEmpty) return;
     _setIosBackgroundKeeper(false);
+    WakelockPlus.disable().catchError((_) {});
     final duration = _batchStartTime != null
         ? DateTime.now().difference(_batchStartTime!).inMilliseconds / 1000.0
         : 1.0;

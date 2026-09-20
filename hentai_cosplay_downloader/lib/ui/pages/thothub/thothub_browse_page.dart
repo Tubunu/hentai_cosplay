@@ -304,7 +304,7 @@ class _ThothubBrowsePageState extends State<ThothubBrowsePage> {
                       sliver: SliverGrid(
                         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 2,
-                          childAspectRatio: 0.85,
+                          childAspectRatio: 1.45,
                           crossAxisSpacing: 10,
                           mainAxisSpacing: 10,
                         ),

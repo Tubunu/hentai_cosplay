@@ -35,7 +35,15 @@ class SettingsProvider extends ChangeNotifier {
         notifyListeners();
       }
     } catch (e) {
-      debugPrint('Error ensuring default save path: $e');
+      debugPrint('Error ensuring default save path: $e, falling back to default.');
+      try {
+        final fallback = await StorageService.getDefaultDownloadPath();
+        _config.savePath = fallback;
+        await ConfigService.saveConfig(_config);
+        notifyListeners();
+      } catch (fallbackErr) {
+        debugPrint('Fallback error: $fallbackErr');
+      }
     }
   }
 
@@ -47,6 +55,12 @@ class SettingsProvider extends ChangeNotifier {
 
   Future<void> setSavePath(String path) async {
     _config.savePath = path;
+    await ConfigService.saveConfig(_config);
+    notifyListeners();
+  }
+
+  Future<void> setPhotoPreloadCount(int count) async {
+    _config.photoPreloadCount = count;
     await ConfigService.saveConfig(_config);
     notifyListeners();
   }
@@ -69,6 +83,12 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setCustomProxy(String proxy) async {
     _config.customProxy = proxy.trim();
     ConfigService.applyProxy(_config.customProxy);
+    await ConfigService.saveConfig(_config);
+    notifyListeners();
+  }
+
+  Future<void> setAllowInsecureCertificates(bool allow) async {
+    _config.allowInsecureCertificates = allow;
     await ConfigService.saveConfig(_config);
     notifyListeners();
   }
@@ -145,6 +165,12 @@ class SettingsProvider extends ChangeNotifier {
 
   Future<void> setNavBarOpacity(double opacity) async {
     _config.navBarOpacity = opacity.clamp(0.1, 1.0);
+    await ConfigService.saveConfig(_config);
+    notifyListeners();
+  }
+
+  Future<void> setAutoHideNavigationOnScroll(bool enabled) async {
+    _config.autoHideNavigationOnScroll = enabled;
     await ConfigService.saveConfig(_config);
     notifyListeners();
   }
@@ -276,6 +302,12 @@ class SettingsProvider extends ChangeNotifier {
 
   Future<void> setDisguiseRelockOnBackground(bool enabled) async {
     _config.disguiseRelockOnBackground = enabled;
+    await ConfigService.saveConfig(_config);
+    notifyListeners();
+  }
+
+  Future<void> setDisguiseBiometricUnlock(bool enabled) async {
+    _config.disguiseBiometricUnlock = enabled;
     await ConfigService.saveConfig(_config);
     notifyListeners();
   }

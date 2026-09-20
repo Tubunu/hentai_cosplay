@@ -172,6 +172,14 @@ class BrowsingHistoryProvider extends ChangeNotifier {
     await _saveHistory();
   }
 
+  /// Clear history within a specific time range
+  Future<void> clearByTimeRange(Duration duration) async {
+    final cutoff = DateTime.now().subtract(duration);
+    _records.removeWhere((r) => r.viewedAt.isAfter(cutoff));
+    notifyListeners();
+    await _saveHistory();
+  }
+
   /// Clear records by site key
   Future<void> clearBySite(String siteKey) async {
     _records.removeWhere((r) => r.siteKey == siteKey);

@@ -25,14 +25,9 @@ class MisskonAlbumCard extends StatelessWidget {
     final isSelected = context.select<MisskonBrowseProvider, bool>((p) => p.isSelected(item));
     final isSelectionMode = context.select<MisskonBrowseProvider, bool>((p) => p.isSelectionMode);
 
-    final existingTask = context.select<DownloadProvider, AlbumDownloadTask?>((p) {
-      for (final t in p.allTasks) {
-        if (t.albumItem.slug == item.slug || t.albumItem.detailUrl == item.detailUrl) {
-          return t;
-        }
-      }
-      return null;
-    });
+    final taskStatus = context.select<DownloadProvider, TaskStatus?>(
+      (p) => p.getTaskStatus(slug: item.slug, detailUrl: item.detailUrl),
+    );
 
     final views = item.rawData['views']?.toString() ?? '';
 
@@ -167,24 +162,24 @@ class MisskonAlbumCard extends StatelessWidget {
                     ),
 
                   // Task Status Badge
-                  if (existingTask != null)
+                  if (taskStatus != null)
                     Positioned(
                       top: 8,
                       right: 8,
                       child: Container(
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
-                          color: _getStatusColor(existingTask.status),
+                          color: _getStatusColor(taskStatus),
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: _getStatusColor(existingTask.status).withValues(alpha: 0.5),
+                              color: _getStatusColor(taskStatus).withValues(alpha: 0.5),
                               blurRadius: 4,
                             ),
                           ],
                         ),
                         child: Icon(
-                          _getStatusIcon(existingTask.status),
+                          _getStatusIcon(taskStatus),
                           size: 11,
                           color: Colors.white,
                         ),

@@ -9,6 +9,7 @@ import '../../widgets/bouncing_button.dart';
 import '../../widgets/frosted_glass.dart';
 import '../../widgets/random_action_button.dart';
 import '../../widgets/scroll_to_top_button.dart';
+import '../../widgets/unified_photo_viewer.dart';
 import 'kuraa_detail_page.dart';
 import 'widgets/kuraa_item_card.dart';
 
@@ -285,15 +286,12 @@ class _KuraaBrowsePageState extends State<KuraaBrowsePage> {
           .toList();
 
       if (imageUrls.isNotEmpty) {
-        Navigator.push(
+        UnifiedPhotoViewer.open(
           context,
-          MaterialPageRoute(
-            builder: (_) => KuraaPhotoGalleryView(
-              imageUrls: imageUrls,
-              initialIndex: validInitialIndex,
-              title: item.name,
-            ),
-          ),
+          imageUrls: imageUrls,
+          initialIndex: validInitialIndex,
+          title: item.name,
+          sourceType: MediaSourceType.kuraa,
         );
       }
     }
