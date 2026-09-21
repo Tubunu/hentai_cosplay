@@ -84,6 +84,7 @@ jobs:
       - name: Build Android Release APK
         run: |
           cd hentai_cosplay_downloader
+          chmod +x android/gradlew
           flutter build apk --release --target-platform android-arm64 --split-per-abi
           if [ -f build/app/outputs/flutter-apk/app-arm64-v8a-release.apk ]; then
             cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "$GITHUB_WORKSPACE/hentai_cosplay_downloader-arm64-v8a.apk"
