@@ -45,44 +45,51 @@ class ApiClient {
   Dio get dio => _dio;
 
   /// Configures HTTP/HTTPS proxies inside Dio.
-  void setProxy(String proxyUrl) {
-    _proxyUrl = proxyUrl.trim();
+  void setProxy(String proxy) {
+    _proxyUrl = proxy.trim();
+    
     if (_proxyUrl.isEmpty) {
       _dio.httpClientAdapter = IOHttpClientAdapter();
-      return;
-    }
+    } else {
+      String formattedProxy = _proxyUrl;
+      if (!_proxyUrl.startsWith('http://') &&
+          !_proxyUrl.startsWith('https://') &&
+          !_proxyUrl.startsWith('socks5://') &&
+          !_proxyUrl.startsWith('socks://')) {
+        formattedProxy = 'http://$_proxyUrl';
+      }
 
-    String formattedProxy = _proxyUrl;
-    if (!_proxyUrl.startsWith('http://') && !_proxyUrl.startsWith('https://') && !_proxyUrl.startsWith('socks5://')) {
-      formattedProxy = 'http://$_proxyUrl';
-    }
-
-    _dio.httpClientAdapter = IOHttpClientAdapter(
-      createHttpClient: () {
-        final client = HttpClient();
-        client.findProxy = (uri) {
-          final cleaned = formattedProxy.replaceAll(RegExp(r'https?://|socks5?://'), '');
-          if (formattedProxy.startsWith('socks')) {
-            return "SOCKS5 $cleaned; DIRECT";
-          } else {
-            return "PROXY $cleaned; DIRECT";
-          }
-        };
-        // 仅在使用代理时绕过 SSL 验证（代理服务器可能使用自签证书）
-        if (_proxyUrl.isNotEmpty) {
+      _dio.httpClientAdapter = IOHttpClientAdapter(
+        createHttpClient: () {
+          final client = HttpClient();
+          client.findProxy = (uri) {
+            final cleaned = formattedProxy.replaceAll(RegExp(r'https?://|socks5?://'), '');
+            if (formattedProxy.startsWith('socks')) {
+              return "SOCKS5 $cleaned; DIRECT";
+            } else {
+              return "PROXY $cleaned; DIRECT";
+            }
+          };
           client.badCertificateCallback = (cert, host, port) => true;
-        }
-        return client;
-      },
-    );
+          return client;
+        },
+      );
+    }
 
     if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
       try {
         final pc = ProxyController.instance();
         if (_proxyUrl.isNotEmpty) {
+          String webViewProxy = _proxyUrl;
+          if (webViewProxy.toLowerCase().startsWith('socks5://')) {
+            webViewProxy = 'socks://${webViewProxy.substring(9)}';
+          } else if (!webViewProxy.contains('://')) {
+            webViewProxy = 'http://$webViewProxy';
+          }
           pc.setProxyOverride(
             settings: ProxySettings(
-              proxyRules: [ProxyRule(url: formattedProxy)],
+              proxyRules: [ProxyRule(url: webViewProxy)],
+              bypassRules: ['<local>'],
             ),
           );
         } else {

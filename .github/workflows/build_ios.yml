@@ -121,32 +121,27 @@ jobs:
       - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.10-release
-          name: "Hentai Cosplay Downloader v1.0.10 Release (iOS IPA & Android APK)"
+          tag_name: v1.0.11-release
+          name: "Hentai Cosplay Downloader v1.0.11 Release (iOS IPA & Android APK)"
           body: |
             ### 📱 安装包下载
             - **🍎 iOS (iPhone / iPad)**: 下载 `hentai_cosplay_downloader.ipa`，使用 **爱思助手** / **Sideloadly** / **TrollStore (巨魔)** / **AltStore** / **牛蛙助手** / **GBox** / **ESign** 签名安装。
             - **🤖 Android (安卓 64位推荐)**: 下载 `hentai_cosplay_downloader-arm64-v8a.apk`，在安卓手机上直接安装即可。
 
-            ### 🚀 最新功能与更新 (v1.0.10)
-            - **【新增 MemoJAV 视频专区】**：
-              - 完整支持全网最佳推荐（支持任意选择最佳历史页码）、最新收录与番号/关键词极速检索；
-              - 自动提取番号、片商（FALENO、S1、Moodyz 等）、主演女优标签与高清封面；
-              - 支持原生 4K/1080P 在线播放、断点续传下载与多选批量下载任务调度。
-            - **【新增 HoHoJ 影视专区】**：
-              - 完整收录热门推荐、最新发布、最多观看、最多赞榜单与全站搜索；
-              - 精准覆盖有码、无码、中文字幕、欧美分类，支持播放量与热度多维度呈现；
-              - 全面加固海外 CDN 图床 SSL 证书穿透与等比安全解码，封面加载丝滑可靠。
-            - **【列表极致流畅滑动深度优化（120Hz 满帧高刷）】**：
-              - 采用纯静态微质感无损占位符，彻底消除滑动时数十个转圈动画导致的 Ticker 线程争抢；
-              - 实施 50ms 手势防抖与点击回弹分离，快划列表绝不误触发卡片动画；
-              - 卡片全量启用 RepaintBoundary 独立光栅化栅格图层隔离，单张卡片刷新不重绘整屏；
-              - 视口预渲染深度扩展至 600px，进屏即展示，杜绝掉帧与瞬时卡顿。
-            - **【内置播放器全尺寸与比例自由切换】**：
-              - 新增视频画面比例控制：支持原始自适应（Fit）、居中等比裁剪填充（Cover）、全屏填满（Fill）；
-              - 双击手势快速循环切换画面比例，记忆用户偏好，杜绝黑边与变形困扰。
-            - **【跨站点统一搜索中继服务】**：
-              - 支持番号、女优、主题全网多站点一键中继快捷检索与快速切换。
+            ### 🚀 最新功能与更新 (v1.0.11)
+            - **【网页播放白屏彻底修复】**：
+              - 根治各专区视频详情点击“网页播放”白屏问题：重构 Android InAppWebView 导航拦截逻辑，杜绝主框架请求被底层自动取消；
+              - 开启 HTML5 现代播放器必需的 `DOM Storage` (localStorage) 与 `Database` 支持，彻底杜绝播放器内核 JS 报错闪退；
+              - 全面加固 SSL 证书信任握手穿透与混合内容放行，保障海外视频源与代理环境下顺畅稳定加载；
+              - 新增暗黑过渡加载遮罩（告别刺眼白屏闪烁）与网页加载异常重试面板（支持一键重新加载与复制链接）；
+              - 顶部导航栏新增快捷“复制网页链接”按钮，方便一键呼出系统外部浏览器播放。
+            - **【网络与代理兼容性优化】**：
+              - 修复清除代理配置时的 WebView 原生代理残留问题，规范 SOCKS5 代理协议注入格式。
+            - **【往期核心特性 (v1.0.10)】**：
+              - 新增 MemoJAV 视频专区（全网最佳推荐、番号检索、4K播放与批量下载）；
+              - 新增 HoHoJ 影视专区（热门/最新/高赞榜单、多维标签、海外 CDN 证书穿透）；
+              - 列表 120Hz 极速满帧滑动优化（静态微质感占位符 0 Ticker、50ms 手势防误触、RepaintBoundary 独立图层隔离、600px 视口预渲染）；
+              - 内置播放器画面比例自由切换（自适应 Fit、居中填充 Cover、全屏拉伸 Fill，双击快捷循环切换）。
           files: |
             hentai_cosplay_downloader.ipa
             hentai_cosplay_downloader-arm64-v8a.apk*
