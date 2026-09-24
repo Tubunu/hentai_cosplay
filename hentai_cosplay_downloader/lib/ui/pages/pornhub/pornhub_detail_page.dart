@@ -52,14 +52,14 @@ class _PornhubDetailPageState extends State<PornhubDetailPage> {
     });
   }
 
-  Future<void> _resolveDetail() async {
+  Future<void> _resolveDetail({bool forceRefresh = false}) async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
     try {
-      final resolved = await PornhubApiService.resolveVideoDetail(_item);
+      final resolved = await PornhubApiService.resolveVideoDetail(_item, forceRefresh: forceRefresh);
       if (mounted) {
         setState(() {
           _item = resolved;
@@ -149,7 +149,7 @@ class _PornhubDetailPageState extends State<PornhubDetailPage> {
           ),
           IconButton(
             icon: const Icon(CupertinoIcons.refresh),
-            onPressed: _resolveDetail,
+            onPressed: () => _resolveDetail(forceRefresh: true),
           ),
         ],
       ),
@@ -162,7 +162,10 @@ class _PornhubDetailPageState extends State<PornhubDetailPage> {
                     children: [
                       Text(_errorMessage!, style: const TextStyle(color: Colors.redAccent)),
                       const SizedBox(height: 12),
-                      ElevatedButton(onPressed: _resolveDetail, child: const Text('重试')),
+                      ElevatedButton(
+                        onPressed: () => _resolveDetail(forceRefresh: true),
+                        child: const Text('重试'),
+                      ),
                     ],
                   ),
                 )

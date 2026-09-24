@@ -480,12 +480,38 @@ class PornhubApiService {
     );
   }
 
+  /// Check if a signed video URL is expired or expiring within 5 minutes
+  static bool isVideoUrlExpired(String url) {
+    try {
+      final uri = Uri.parse(url);
+      final nowSec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      final validto = uri.queryParameters['validto'];
+      if (validto != null) {
+        final exp = int.tryParse(validto);
+        if (exp != null && exp <= nowSec + 300) {
+          return true;
+        }
+      }
+      final e = uri.queryParameters['e'];
+      if (e != null) {
+        final exp = int.tryParse(e);
+        if (exp != null && exp <= nowSec + 300) {
+          return true;
+        }
+      }
+    } catch (_) {}
+    return false;
+  }
+
   /// Resolve direct video stream
-  static Future<VideoItem> resolveVideoDetail(VideoItem item) async {
-    if (item.isDetailLoaded &&
+  static Future<VideoItem> resolveVideoDetail(VideoItem item, {bool forceRefresh = false}) async {
+    if (!forceRefresh &&
+        item.isDetailLoaded &&
         item.videoUrl != null &&
         item.videoUrl!.isNotEmpty &&
-        item.videoUrl != item.detailUrl) {
+        item.videoUrl != item.detailUrl &&
+        !item.videoUrl!.contains('get_media') &&
+        !isVideoUrlExpired(item.videoUrl!)) {
       return item;
     }
 
@@ -525,29 +551,60 @@ class PornhubApiService {
 
             for (final m in mediaList) {
               if (m is! Map) continue;
-              final format = m['format']?.toString().toLowerCase();
               final rawVUrl = m['videoUrl']?.toString().trim();
               if (rawVUrl == null || rawVUrl.isEmpty || !rawVUrl.startsWith('http')) continue;
 
+              // Filter out fake / remote / get_media placeholder endpoints
+              if (rawVUrl.contains('get_media') || m['remote'] == true) {
+                continue;
+              }
+
+              final format = m['format']?.toString().toLowerCase();
               var vUrl = rawVUrl;
               if (vUrl.startsWith('//')) {
                 vUrl = 'https:$vUrl';
               }
 
+              final isHls = format == 'hls' || vUrl.contains('.m3u8');
+              final isMp4 = format == 'mp4' || vUrl.contains('.mp4');
+              if (!isHls && !isMp4) {
+                continue;
+              }
+
               // Compute resolution / quality score
               int score = 0;
-              final qStr = (m['quality']?.toString() ?? '').toLowerCase();
-              final qMatch = RegExp(r'(\d+)').firstMatch(qStr);
-              if (qMatch != null) {
-                score = int.tryParse(qMatch.group(1)!) ?? 0;
-              } else if (qStr.contains('4k') || qStr.contains('2160')) {
-                score = 2160;
-              } else if (qStr.contains('2k') || qStr.contains('1440')) {
-                score = 1440;
-              } else if (format == 'hls' || vUrl.contains('.m3u8')) {
-                score = 1080; // Master HLS carries 1080p+ adaptive stream
-              } else {
-                score = 720;
+              final height = m['height'];
+              if (height is int && height > 0) {
+                score = height;
+              } else if (height is String) {
+                score = int.tryParse(height) ?? 0;
+              }
+
+              if (score == 0) {
+                final qStr = (m['quality']?.toString() ?? '').toLowerCase();
+                final qMatch = RegExp(r'(\d+)').firstMatch(qStr);
+                if (qMatch != null) {
+                  score = int.tryParse(qMatch.group(1)!) ?? 0;
+                } else if (qStr.contains('4k') || qStr.contains('2160')) {
+                  score = 2160;
+                } else if (qStr.contains('2k') || qStr.contains('1440')) {
+                  score = 1440;
+                } else if (qStr.contains('1080')) {
+                  score = 1080;
+                } else if (qStr.contains('720')) {
+                  score = 720;
+                } else if (qStr.contains('480')) {
+                  score = 480;
+                } else if (isHls) {
+                  score = 720;
+                } else {
+                  score = 480;
+                }
+              }
+
+              // Slightly prefer HLS master playlist of the same resolution
+              if (isHls) {
+                score += 5;
               }
 
               if (score > bestQualityScore || bestStreamUrl == null) {
@@ -562,17 +619,17 @@ class PornhubApiService {
           }
         }
 
-        // 2. Search for master m3u8 or mp4 via regex in cleanHtml
+        // 2. Search for master m3u8 or mp4 via regex in cleanHtml if mediaDefinitions didn't yield a stream
         if (directVideoUrl == null || directVideoUrl.isEmpty) {
           final m3u8Match = RegExp(r'(https?://[^\s"<>&]+?\.m3u8[^\s"<>&]*)').firstMatch(cleanHtml);
-          if (m3u8Match != null) {
+          if (m3u8Match != null && !m3u8Match.group(1)!.contains('get_media')) {
             directVideoUrl = m3u8Match.group(1);
           }
         }
 
         if (directVideoUrl == null || directVideoUrl.isEmpty) {
           final mp4Match = RegExp(r'(https?://[^\s"<>&]+?\.mp4[^\s"<>&]*)').firstMatch(cleanHtml);
-          if (mp4Match != null) {
+          if (mp4Match != null && !mp4Match.group(1)!.contains('get_media')) {
             directVideoUrl = mp4Match.group(1);
           }
         }
@@ -601,6 +658,7 @@ class PornhubApiService {
         if (directVideoUrl != null &&
             (!directVideoUrl.startsWith('http') ||
                 directVideoUrl.isEmpty ||
+                directVideoUrl.contains('get_media') ||
                 (!directVideoUrl.contains('.mp4') && !directVideoUrl.contains('.m3u8')))) {
           directVideoUrl = null;
         }

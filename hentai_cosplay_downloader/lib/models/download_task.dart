@@ -115,7 +115,7 @@ class AlbumDownloadTask {
   double speed; // bytes per second
   String? errorMessage;
   final bool isVideo;
-  final String? videoUrl;
+  String? videoUrl;
   final String? duration;
 
   AlbumDownloadTask({

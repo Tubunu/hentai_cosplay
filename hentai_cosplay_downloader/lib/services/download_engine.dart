@@ -500,7 +500,16 @@ class DownloadEngine {
     // 3. Resolve video direct URL if needed
     String? directUrl = task.videoUrl;
     VideoItem? vDetail;
-    if (directUrl == null || directUrl.isEmpty) {
+
+    final bool isPornhub = item.detailUrl.contains('pornhub.com');
+    final bool needPornhubRefresh = isPornhub &&
+        (directUrl == null ||
+            directUrl.isEmpty ||
+            directUrl == item.detailUrl ||
+            directUrl.contains('get_media') ||
+            PornhubApiService.isVideoUrlExpired(directUrl));
+
+    if (directUrl == null || directUrl.isEmpty || needPornhubRefresh) {
       onLog('正在解析视频播放地址: ${item.title}', 'info');
       if (item.detailUrl.contains('hanime1.me')) {
         vDetail = await Hanime1ApiService.fetchVideoDetail(
@@ -577,6 +586,7 @@ class DownloadEngine {
             tags: item.tags,
             rawData: item.rawData,
           ),
+          forceRefresh: true,
         );
       } else if (item.detailUrl.contains('xvideos.com')) {
         vDetail = await XVideosApiService.resolveVideoDetail(
@@ -697,6 +707,7 @@ class DownloadEngine {
       }
 
       directUrl = vDetail?.videoUrl;
+      task.videoUrl = directUrl;
     }
 
     if (directUrl == null || directUrl.isEmpty || directUrl == item.detailUrl) {
@@ -738,6 +749,38 @@ class DownloadEngine {
         if (finalPath != null) {
           videoFilePath = finalPath;
           downloadSuccess = true;
+        } else if (!_isCancelled && isPornhub) {
+          onLog('Pornhub 视频流凭证过期或连接重置，正在重新获取直链重试...', 'info');
+          final refreshed = await PornhubApiService.resolveVideoDetail(
+            VideoItem(
+              title: item.title,
+              slug: item.slug,
+              detailUrl: item.detailUrl,
+              coverUrl: item.coverUrl,
+              date: item.date,
+              author: item.author,
+              tags: item.tags,
+              rawData: item.rawData,
+            ),
+            forceRefresh: true,
+          );
+          if (refreshed.videoUrl != null &&
+              refreshed.videoUrl!.isNotEmpty &&
+              refreshed.videoUrl != item.detailUrl &&
+              refreshed.videoUrl != directUrl) {
+            directUrl = refreshed.videoUrl!;
+            task.videoUrl = directUrl;
+            final retryFinalPath = await _downloadM3u8Video(
+              m3u8Url: directUrl,
+              targetVideoPath: videoFilePath,
+              task: task,
+              onBytesReceived: onBytesReceived,
+            );
+            if (retryFinalPath != null) {
+              videoFilePath = retryFinalPath;
+              downloadSuccess = true;
+            }
+          }
         }
       } else {
         // Direct MP4 file download
@@ -856,18 +899,30 @@ class DownloadEngine {
     } else {
       try {
         final u = Uri.parse(videoUrl);
-        referer = '${u.scheme}://${u.host}/';
+        if (u.host.contains('phncdn.com') || u.host.contains('pornhub.com')) {
+          referer = 'https://cn.pornhub.com/';
+        } else {
+          referer = '${u.scheme}://${u.host}/';
+        }
       } catch (_) {}
     }
 
-    return {
+    final headers = {
       'User-Agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
       'Referer': referer,
       'Origin': referer.replaceAll(RegExp(r'/$'), ''),
-      'Cookie':
-          'age_verified=1; platform=pc; accessAgeDisclaimerPH=1; cookie_preferences=%7B%221%22%3A1%2C%222%22%3A1%2C%223%22%3A1%2C%224%22%3A1%7D; hasVisited=1;',
     };
+
+    if (referer.contains('pornhub.com') || videoUrl.contains('phncdn.com')) {
+      headers['Cookie'] =
+          'age_verified=1; platform=pc; accessAgeDisclaimerPH=1; cookie_preferences=%7B%221%22%3A1%2C%222%22%3A1%2C%223%22%3A1%2C%224%22%3A1%7D; hasVisited=1;';
+      headers['Sec-Fetch-Dest'] = 'empty';
+      headers['Sec-Fetch-Mode'] = 'cors';
+      headers['Sec-Fetch-Site'] = 'cross-site';
+    }
+
+    return headers;
   }
 
   /// Download M3U8 HLS stream by fetching playlist and concatenating TS video segments

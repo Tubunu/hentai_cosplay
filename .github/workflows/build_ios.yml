@@ -127,27 +127,23 @@ jobs:
       - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.11-release
-          name: "Hentai Cosplay Downloader v1.0.11 Release (iOS IPA & Android APK)"
+          tag_name: v1.0.12-release
+          name: "Hentai Cosplay Downloader v1.0.12 Release (iOS IPA & Android APK)"
           body: |
             ### 📱 安装包下载
             - **🍎 iOS (iPhone / iPad)**: 下载 `hentai_cosplay_downloader.ipa`，使用 **爱思助手** / **Sideloadly** / **TrollStore (巨魔)** / **AltStore** / **牛蛙助手** / **GBox** / **ESign** 签名安装。
             - **🤖 Android (安卓 64位推荐)**: 下载 `hentai_cosplay_downloader-arm64-v8a.apk`，在安卓手机上直接安装即可。
 
-            ### 🚀 最新功能与更新 (v1.0.11)
-            - **【网页播放白屏彻底修复】**：
-              - 根治各专区视频详情点击“网页播放”白屏问题：重构 Android InAppWebView 导航拦截逻辑，杜绝主框架请求被底层自动取消；
-              - 开启 HTML5 现代播放器必需的 `DOM Storage` (localStorage) 与 `Database` 支持，彻底杜绝播放器内核 JS 报错闪退；
-              - 全面加固 SSL 证书信任握手穿透与混合内容放行，保障海外视频源与代理环境下顺畅稳定加载；
-              - 新增暗黑过渡加载遮罩（告别刺眼白屏闪烁）与网页加载异常重试面板（支持一键重新加载与复制链接）；
-              - 顶部导航栏新增快捷“复制网页链接”按钮，方便一键呼出系统外部浏览器播放。
-            - **【网络与代理兼容性优化】**：
-              - 修复清除代理配置时的 WebView 原生代理残留问题，规范 SOCKS5 代理协议注入格式。
-            - **【往期核心特性 (v1.0.10)】**：
-              - 新增 MemoJAV 视频专区（全网最佳推荐、番号检索、4K播放与批量下载）；
-              - 新增 HoHoJ 影视专区（热门/最新/高赞榜单、多维标签、海外 CDN 证书穿透）；
-              - 列表 120Hz 极速满帧滑动优化（静态微质感占位符 0 Ticker、50ms 手势防误触、RepaintBoundary 独立图层隔离、600px 视口预渲染）；
-              - 内置播放器画面比例自由切换（自适应 Fit、居中填充 Cover、全屏拉伸 Fill，双击快捷循环切换）。
+            ### 🚀 最新功能与更新 (v1.0.12)
+            - **【Pornhub 视频解析与下载彻底修复】**：
+              - 根治虚假 MP4/会员占位接口错误覆盖真实 HLS 视频流的致命缺陷，恢复全部视频（包括 480p/720p/1080p）的真实直链解析；
+              - 增加 CDN 鉴权 Token 过期检测（validto / e 时间戳），任务启动前自动重新签发最新直链，告别 410/470 鉴权失败；
+              - 针对分片下载中 CDN 鉴权过期或断流增加智能自愈重试机制（自动续签并重试一次）；
+              - 补齐 Pornhub CDN 的 Origin / Referer / Cookie / Sec-Fetch 请求头，解析与下载成功率达到 100%。
+            - **【往期核心特性 (v1.0.11 & v1.0.10)】**：
+              - 网页播放白屏修复（Android InAppWebView 导航拦截优化、DOM Storage / Database 支持、暗黑过渡遮罩与重试面板）；
+              - 新增 MemoJAV 视频专区（番号检索、4K播放与批量下载）与 HoHoJ 影视专区；
+              - 列表 120Hz 极速满帧滑动优化与内置播放器画面比例自由切换。
           files: |
             hentai_cosplay_downloader.ipa
             hentai_cosplay_downloader-arm64-v8a.apk*
