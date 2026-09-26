@@ -4,6 +4,7 @@ import 'package:hentai_cosplay_downloader/models/app_config.dart';
 import 'package:hentai_cosplay_downloader/providers/settings_provider.dart';
 import 'package:hentai_cosplay_downloader/ui/theme/ios_theme.dart';
 import 'package:hentai_cosplay_downloader/ui/widgets/bouncing_button.dart';
+import 'package:hentai_cosplay_downloader/ui/pages/chromego/chromego_home_page.dart';
 import 'package:provider/provider.dart';
 import 'settings_shared_widgets.dart';
 
@@ -100,6 +101,103 @@ class _SettingsNetworkSectionState extends State<SettingsNetworkSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // ChromeGo Node Extractor Entry Card
+        SettingsCard(
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () {
+              Navigator.of(context).push(
+                CupertinoPageRoute(
+                  builder: (_) => const ChromeGoHomePage(),
+                ),
+              );
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF0061A4), Color(0xFF00A2FE)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF0061A4).withValues(alpha: 0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      CupertinoIcons.paperplane_fill,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Text(
+                              'ChromeGo 节点提取器',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: IosTheme.primaryPink.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                '内置工具',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: IosTheme.primaryPink,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          '多源免费节点提取 • TCP测速 • 局域网Wi-Fi订阅 • 一键导入客户端',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            color: isDark ? Colors.white54 : Colors.black54,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    CupertinoIcons.chevron_forward,
+                    size: 18,
+                    color: isDark ? Colors.white38 : Colors.black26,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
         // Network & Proxy Section
         const SettingsSectionHeader(title: '网络与全局代理设置'),
         SettingsCard(

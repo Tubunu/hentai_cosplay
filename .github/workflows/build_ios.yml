@@ -127,23 +127,25 @@ jobs:
       - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.12-release
-          name: "Hentai Cosplay Downloader v1.0.12 Release (iOS IPA & Android APK)"
+          tag_name: v1.0.13-release
+          name: "Hentai Cosplay Downloader v1.0.13 Release (iOS IPA & Android APK)"
           body: |
             ### 📱 安装包下载
             - **🍎 iOS (iPhone / iPad)**: 下载 `hentai_cosplay_downloader.ipa`，使用 **爱思助手** / **Sideloadly** / **TrollStore (巨魔)** / **AltStore** / **牛蛙助手** / **GBox** / **ESign** 签名安装。
             - **🤖 Android (安卓 64位推荐)**: 下载 `hentai_cosplay_downloader-arm64-v8a.apk`，在安卓手机上直接安装即可。
 
-            ### 🚀 最新功能与更新 (v1.0.12)
-            - **【Pornhub 视频解析与下载彻底修复】**：
-              - 根治虚假 MP4/会员占位接口错误覆盖真实 HLS 视频流的致命缺陷，恢复全部视频（包括 480p/720p/1080p）的真实直链解析；
-              - 增加 CDN 鉴权 Token 过期检测（validto / e 时间戳），任务启动前自动重新签发最新直链，告别 410/470 鉴权失败；
-              - 针对分片下载中 CDN 鉴权过期或断流增加智能自愈重试机制（自动续签并重试一次）；
-              - 补齐 Pornhub CDN 的 Origin / Referer / Cookie / Sec-Fetch 请求头，解析与下载成功率达到 100%。
-            - **【往期核心特性 (v1.0.11 & v1.0.10)】**：
-              - 网页播放白屏修复（Android InAppWebView 导航拦截优化、DOM Storage / Database 支持、暗黑过渡遮罩与重试面板）；
-              - 新增 MemoJAV 视频专区（番号检索、4K播放与批量下载）与 HoHoJ 影视专区；
-              - 列表 120Hz 极速满帧滑动优化与内置播放器画面比例自由切换。
+            ### 🚀 最新功能与更新 (v1.0.13)
+            - **【全新集成 ChromeGo 节点提取器】**：
+              - 在【系统设置】->【网络与全局代理设置】中新增专属 **ChromeGo 节点提取器** 入口；
+              - **多协议配置抓取**：聚合抓取 Hysteria 1/2、VLESS、Sing-box、Xray、VMess、Trojan、Shadowsocks、Juicity、NaiveProxy、ShadowQUIC 多源节点；
+              - **高速国内镜像**：内置免翻墙高速国内镜像源与 GitLab 主源自适应切换；
+              - **并发测速与去重**：支持并发 12 线程 TCP Socket 连通性与毫秒级延迟测速，自动节点去重与来源标记；
+              - **多样导出与分享**：支持单节点二维码、小火箭/v2rayNG 一码全入批量二维码、完整 Clash Meta 规则配置导出与通用明文/Base64 订阅复制；
+              - **局域网 Wi-Fi 订阅服务器**：手机可作为局域网轻量订阅服务器，同 Wi-Fi 手机/平板小火箭直接扫码即可订阅；
+              - **一键客户端导入**：支持一键拉起本机已安装的 v2rayNG / Clash Meta / Sing-box / Nekobox 等代理客户端。
+            - **【稳定性与性能提升】**：
+              - 适配 Android 11+ 包可见性与 iOS URL Scheme 权限；
+              - 优化核心网络包与依赖环境。
           files: |
             hentai_cosplay_downloader.ipa
             hentai_cosplay_downloader-arm64-v8a.apk*
