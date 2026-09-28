@@ -127,25 +127,22 @@ jobs:
       - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.13-release
-          name: "Hentai Cosplay Downloader v1.0.13 Release (iOS IPA & Android APK)"
+          tag_name: v1.0.14-release
+          name: "Hentai Cosplay Downloader v1.0.14 Release (iOS IPA & Android APK)"
           body: |
             ### 📱 安装包下载
             - **🍎 iOS (iPhone / iPad)**: 下载 `hentai_cosplay_downloader.ipa`，使用 **爱思助手** / **Sideloadly** / **TrollStore (巨魔)** / **AltStore** / **牛蛙助手** / **GBox** / **ESign** 签名安装。
             - **🤖 Android (安卓 64位推荐)**: 下载 `hentai_cosplay_downloader-arm64-v8a.apk`，在安卓手机上直接安装即可。
 
-            ### 🚀 最新功能与更新 (v1.0.13)
-            - **【全新集成 ChromeGo 节点提取器】**：
-              - 在【系统设置】->【网络与全局代理设置】中新增专属 **ChromeGo 节点提取器** 入口；
-              - **多协议配置抓取**：聚合抓取 Hysteria 1/2、VLESS、Sing-box、Xray、VMess、Trojan、Shadowsocks、Juicity、NaiveProxy、ShadowQUIC 多源节点；
-              - **高速国内镜像**：内置免翻墙高速国内镜像源与 GitLab 主源自适应切换；
-              - **并发测速与去重**：支持并发 12 线程 TCP Socket 连通性与毫秒级延迟测速，自动节点去重与来源标记；
-              - **多样导出与分享**：支持单节点二维码、小火箭/v2rayNG 一码全入批量二维码、完整 Clash Meta 规则配置导出与通用明文/Base64 订阅复制；
-              - **局域网 Wi-Fi 订阅服务器**：手机可作为局域网轻量订阅服务器，同 Wi-Fi 手机/平板小火箭直接扫码即可订阅；
-              - **一键客户端导入**：支持一键拉起本机已安装的 v2rayNG / Clash Meta / Sing-box / Nekobox 等代理客户端。
+            ### 🚀 最新功能与更新 (v1.0.14)
+            - **【全内置 Libbox 代理引擎与智能分流网关】**：
+              - 内置嵌入式 Sing-box / Libbox 高性能代理引擎，支持 VLESS、VMess、Trojan、Shadowsocks、Hysteria 2、TUIC 现代主流协议；
+              - 智能分流网关与独立网站代理开关：支持为各个海外漫画/视频站点（Pornhub、Jable、Iwara 等）单独控制是否走代理，国内直连站点自动旁路；
+              - 彻底修复 Android 平台 Linux 内核 Socket 绑定权限限制与 DNS 路由解析，全面杜绝启动闪退与空指针异常。
+            - **【ChromeGo 节点提取器】**：
+              - 聚合抓取海量免费节点并支持并发测速、去重、一码全入二维码导入与局域网 Wi-Fi 订阅共享。
             - **【稳定性与性能提升】**：
-              - 适配 Android 11+ 包可见性与 iOS URL Scheme 权限；
-              - 优化核心网络包与依赖环境。
+              - 优化核心网络包与依赖环境，增强多线程下载稳定性。
           files: |
             hentai_cosplay_downloader.ipa
             hentai_cosplay_downloader-arm64-v8a.apk*
