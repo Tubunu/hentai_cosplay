@@ -46,7 +46,13 @@ class LibboxManager extends ChangeNotifier {
     final savedNode = ConfigService.loadActiveNode();
     final config = ConfigService.loadConfig();
     if (savedNode != null && config.proxyMode == AppProxyMode.builtin) {
-      unawaited(start(savedNode, port: config.builtinProxyPort));
+      // 延迟到首帧渲染完成后在后台平滑恢复核心，确保主应用界面秒开，绝不阻碍启动
+      Future.delayed(const Duration(milliseconds: 1500), () {
+        start(savedNode, port: config.builtinProxyPort).catchError((e) {
+          AppLogger.w('LibboxManager', '启动时恢复内置代理核心失败: $e');
+          return false;
+        });
+      });
     }
   }
 

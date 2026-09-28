@@ -149,9 +149,9 @@ class ConfigService {
       } catch (_) {}
     }
 
-    // 针对 Android 平台 InAppWebView 配置全局代理重写（解决网页播放与海外站点白屏）
+    // 针对 Android 平台 InAppWebView 配置全局代理重写（延迟执行，避免在应用启动初期阻塞或与 Chromium 初始化竞态）
     if (Platform.isAndroid) {
-      () async {
+      Future.delayed(const Duration(milliseconds: 2500), () async {
         try {
           final isSupported = await WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE);
           if (!isSupported) return;
@@ -170,7 +170,7 @@ class ConfigService {
         } catch (e) {
           AppLogger.w('ConfigService', 'WebView proxy override notice: $e');
         }
-      }().catchError((_) {});
+      }).catchError((_) {});
     }
   }
 

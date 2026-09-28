@@ -1,11 +1,14 @@
 package com.hentaicosplay.hentai_cosplay_downloader
 
+import android.util.Base64
 import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import io.nekohasekai.libbox.*
 import java.io.File
+import java.security.KeyStore
+import java.security.cert.X509Certificate
 import kotlin.concurrent.thread
 
 class MainActivity : FlutterActivity() {
@@ -112,26 +115,38 @@ class MainActivity : FlutterActivity() {
             override fun autoDetectInterfaceControl(fd: Int) {}
             override fun clearDNSCache() {}
             override fun closeDefaultInterfaceMonitor(listener: InterfaceUpdateListener?) {}
-            override fun findConnectionOwner(ipProtocol: Int, sourceAddress: String?, sourcePort: Int, destinationAddress: String?, destinationPort: Int): ConnectionOwner {
-                throw Exception("not supported")
-            }
-            override fun getInterfaces(): NetworkInterfaceIterator {
-                throw Exception("not supported")
+            override fun findConnectionOwner(ipProtocol: Int, sourceAddress: String?, sourcePort: Int, destinationAddress: String?, destinationPort: Int): ConnectionOwner? = null
+            override fun getInterfaces(): NetworkInterfaceIterator = object : NetworkInterfaceIterator {
+                override fun hasNext(): Boolean = false
+                override fun next(): NetworkInterface = NetworkInterface()
             }
             override fun includeAllNetworks(): Boolean = false
-            override fun localDNSTransport(): LocalDNSTransport {
-                throw Exception("not supported")
-            }
-            override fun openTun(options: TunOptions?): Int {
-                throw Exception("tun not supported")
-            }
-            override fun readWIFIState(): WIFIState {
-                throw Exception("not supported")
-            }
+            override fun localDNSTransport(): LocalDNSTransport? = null
+            override fun openTun(options: TunOptions?): Int = -1
+            override fun readWIFIState(): WIFIState? = null
             override fun sendNotification(notification: Notification?) {}
             override fun startDefaultInterfaceMonitor(listener: InterfaceUpdateListener?) {}
             override fun systemCertificates(): StringIterator {
-                throw Exception("not supported")
+                val certList = mutableListOf<String>()
+                try {
+                    val keyStore = KeyStore.getInstance("AndroidCAStore")
+                    keyStore.load(null, null)
+                    val aliases = keyStore.aliases()
+                    while (aliases.hasMoreElements()) {
+                        val alias = aliases.nextElement()
+                        val cert = keyStore.getCertificate(alias) as? X509Certificate ?: continue
+                        val encoded = Base64.encodeToString(cert.encoded, Base64.NO_WRAP)
+                        certList.add("-----BEGIN CERTIFICATE-----\n$encoded\n-----END CERTIFICATE-----")
+                    }
+                } catch (e: Throwable) {
+                    Log.w("MainActivity", "Failed to load system certificates: ${e.message}")
+                }
+                var index = 0
+                return object : StringIterator {
+                    override fun hasNext(): Boolean = index < certList.size
+                    override fun len(): Int = certList.size
+                    override fun next(): String = if (index < certList.size) certList[index++] else ""
+                }
             }
             override fun underNetworkExtension(): Boolean = false
             override fun usePlatformAutoDetectInterfaceControl(): Boolean = false
@@ -142,7 +157,12 @@ class MainActivity : FlutterActivity() {
         try {
             server.startWithTemporaryPort()
         } catch (e: Throwable) {
-            server.start()
+            Log.w("MainActivity", "startWithTemporaryPort error: ${e.message}")
+            try {
+                server.start()
+            } catch (e2: Throwable) {
+                Log.w("MainActivity", "server.start error: ${e2.message}")
+            }
         }
         val overrideOptions = OverrideOptions().apply {
             autoRedirect = false
