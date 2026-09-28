@@ -85,8 +85,11 @@ class LibboxManager extends ChangeNotifier {
       config.builtinProxyPort = effectivePort;
       await ConfigService.saveConfig(config);
 
-      // 3. 异步测速当前连接延迟
-      unawaited(testActiveNodeLatency());
+      // 3. 异步测速当前连接延迟 (延迟 600ms 避开核心启动握手期)
+      unawaited(
+        Future.delayed(const Duration(milliseconds: 600), () => testActiveNodeLatency())
+            .catchError((_) => null),
+      );
 
       AppLogger.i('LibboxManager', '内置代理已成功启动: 127.0.0.1:$effectivePort, 节点: ${node.cleanName()}');
       return true;

@@ -80,6 +80,7 @@ class MainActivity : FlutterActivity() {
             basePath = filesDir.absolutePath
             workingPath = workingDir.absolutePath
             tempPath = cacheDir.absolutePath
+            fixAndroidStack = true
             debug = false
         }
         try {
@@ -111,29 +112,38 @@ class MainActivity : FlutterActivity() {
             override fun autoDetectInterfaceControl(fd: Int) {}
             override fun clearDNSCache() {}
             override fun closeDefaultInterfaceMonitor(listener: InterfaceUpdateListener?) {}
-            override fun findConnectionOwner(ipProtocol: Int, sourceAddress: String?, sourcePort: Int, destinationAddress: String?, destinationPort: Int): ConnectionOwner? = null
-            override fun getInterfaces(): NetworkInterfaceIterator = object : NetworkInterfaceIterator {
-                override fun hasNext(): Boolean = false
-                override fun next(): NetworkInterface? = null
+            override fun findConnectionOwner(ipProtocol: Int, sourceAddress: String?, sourcePort: Int, destinationAddress: String?, destinationPort: Int): ConnectionOwner {
+                throw Exception("not supported")
+            }
+            override fun getInterfaces(): NetworkInterfaceIterator {
+                throw Exception("not supported")
             }
             override fun includeAllNetworks(): Boolean = false
-            override fun localDNSTransport(): LocalDNSTransport? = null
-            override fun openTun(options: TunOptions?): Int = -1
-            override fun readWIFIState(): WIFIState? = null
+            override fun localDNSTransport(): LocalDNSTransport {
+                throw Exception("not supported")
+            }
+            override fun openTun(options: TunOptions?): Int {
+                throw Exception("tun not supported")
+            }
+            override fun readWIFIState(): WIFIState {
+                throw Exception("not supported")
+            }
             override fun sendNotification(notification: Notification?) {}
             override fun startDefaultInterfaceMonitor(listener: InterfaceUpdateListener?) {}
-            override fun systemCertificates(): StringIterator = object : StringIterator {
-                override fun hasNext(): Boolean = false
-                override fun len(): Int = 0
-                override fun next(): String = ""
+            override fun systemCertificates(): StringIterator {
+                throw Exception("not supported")
             }
             override fun underNetworkExtension(): Boolean = false
             override fun usePlatformAutoDetectInterfaceControl(): Boolean = false
-            override fun useProcFS(): Boolean = false
+            override fun useProcFS(): Boolean = true
         }
 
         val server = CommandServer(handler, platformInterface)
-        server.start()
+        try {
+            server.startWithTemporaryPort()
+        } catch (e: Throwable) {
+            server.start()
+        }
         val overrideOptions = OverrideOptions().apply {
             autoRedirect = false
         }

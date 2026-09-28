@@ -151,22 +151,26 @@ class ConfigService {
 
     // 针对 Android 平台 InAppWebView 配置全局代理重写（解决网页播放与海外站点白屏）
     if (Platform.isAndroid) {
-      try {
-        final proxyController = ProxyController.instance();
-        if (activeProxy.isNotEmpty) {
-          final clean = activeProxy.replaceAll(RegExp(r'https?://|socks5?://'), '').trim();
-          unawaited(proxyController.setProxyOverride(
-            settings: ProxySettings(
-              proxyRules: [ProxyRule(url: clean)],
-              bypassRules: ['localhost', '127.0.0.1', '::1', '<local>'],
-            ),
-          ));
-        } else {
-          unawaited(proxyController.clearProxyOverride());
+      () async {
+        try {
+          final isSupported = await WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE);
+          if (!isSupported) return;
+          final proxyController = ProxyController.instance();
+          if (activeProxy.isNotEmpty) {
+            final clean = activeProxy.replaceAll(RegExp(r'https?://|socks5?://'), '').trim();
+            await proxyController.setProxyOverride(
+              settings: ProxySettings(
+                proxyRules: [ProxyRule(url: 'http://$clean')],
+                bypassRules: ['localhost', '127.0.0.1', '::1', '<local>'],
+              ),
+            );
+          } else {
+            await proxyController.clearProxyOverride();
+          }
+        } catch (e) {
+          AppLogger.w('ConfigService', 'WebView proxy override notice: $e');
         }
-      } catch (e) {
-        AppLogger.w('ConfigService', 'WebView proxy override notice: $e');
-      }
+      }().catchError((_) {});
     }
   }
 
