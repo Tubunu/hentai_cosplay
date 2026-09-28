@@ -5,6 +5,8 @@ import '../services/config_service.dart';
 import '../services/hc_api_service.dart';
 import '../services/mzt_api_service.dart';
 import '../services/storage_service.dart';
+import '../services/proxy/site_registry.dart';
+import '../services/proxy/proxy_router.dart';
 
 class SettingsProvider extends ChangeNotifier {
   AppConfig _config = ConfigService.loadConfig();
@@ -53,6 +55,11 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void reloadConfig() {
+    _config = ConfigService.loadConfig();
+    notifyListeners();
+  }
+
   Future<void> setSavePath(String path) async {
     _config.savePath = path;
     await ConfigService.saveConfig(_config);
@@ -82,7 +89,44 @@ class SettingsProvider extends ChangeNotifier {
 
   Future<void> setCustomProxy(String proxy) async {
     _config.customProxy = proxy.trim();
-    ConfigService.applyProxy(_config.customProxy);
+    await ConfigService.saveConfig(_config);
+    notifyListeners();
+  }
+
+  Future<void> setProxyMode(AppProxyMode mode) async {
+    _config.proxyMode = mode;
+    await ConfigService.saveConfig(_config);
+    notifyListeners();
+  }
+
+  Future<void> setProxyRoutingStrategy(ProxyRoutingStrategy strategy) async {
+    _config.proxyRoutingStrategy = strategy;
+    await ConfigService.saveConfig(_config);
+    notifyListeners();
+  }
+
+  Future<void> setBuiltinProxyPort(int port) async {
+    _config.builtinProxyPort = port.clamp(1024, 65535);
+    await ConfigService.saveConfig(_config);
+    notifyListeners();
+  }
+
+  Future<void> setSiteProxyToggle(String siteKey, bool enabled) async {
+    _config.siteProxyToggles[siteKey] = enabled;
+    await ConfigService.saveConfig(_config);
+    notifyListeners();
+  }
+
+  Future<void> setAllSiteProxyToggles(bool enabled) async {
+    for (final site in SiteRegistry.allSites) {
+      _config.siteProxyToggles[site.key] = enabled;
+    }
+    await ConfigService.saveConfig(_config);
+    notifyListeners();
+  }
+
+  Future<void> resetSiteProxyToggles() async {
+    _config.siteProxyToggles = SiteRegistry.getDefaultToggles();
     await ConfigService.saveConfig(_config);
     notifyListeners();
   }
@@ -312,7 +356,11 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<int?> testConnectivity() async {
-    return await HCApiService.testConnectivity(proxy: _config.customProxy);
+  Future<int?> testConnectivity([String? proxyOverride]) async {
+    final proxy = proxyOverride ??
+        (_config.proxyMode == AppProxyMode.custom
+            ? _config.customProxy
+            : ProxyRouter.getActiveProxyAddress());
+    return await HCApiService.testConnectivity(proxy: proxy.isNotEmpty ? proxy : null);
   }
 }

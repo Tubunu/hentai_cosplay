@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import '../../../models/chromego/proxy_node.dart';
+import '../../../providers/settings_provider.dart';
 import '../../../services/chromego/chromego_fetcher.dart';
 import '../../../services/chromego/chromego_exporter.dart';
 import '../../../services/chromego/chromego_cache_service.dart';
 import '../../../services/chromego/chromego_ping_service.dart';
 import '../../../services/chromego/chromego_sub_server.dart';
+import '../../../services/proxy/libbox_manager.dart';
 import 'chromego_qr_dialog.dart';
 import 'chromego_settings_dialog.dart';
 
@@ -414,6 +417,126 @@ class _ChromeGoHomePageState extends State<ChromeGoHomePage> {
             ),
           ),
 
+          // Built-in Proxy Active Status Pill
+          ListenableBuilder(
+            listenable: LibboxManager.instance,
+            builder: (context, _) {
+              final mgr = LibboxManager.instance;
+              final isRunning = mgr.isRunning;
+              final activeNode = mgr.activeNode;
+
+              if (!isRunning) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.2)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.bolt, size: 18, color: theme.colorScheme.primary),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '提示: 点击任意节点上的【⚡ 设为内置代理】，即可在当前应用内一键翻墙，无需外部客户端！',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.green.withValues(alpha: 0.4), width: 1.2),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: const BoxDecoration(
+                          color: Colors.green,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.bolt, size: 16, color: Colors.white),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Text(
+                                  '内置代理运行中',
+                                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '127.0.0.1:${mgr.listenPort}',
+                                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              activeNode?.cleanName() ?? '未知节点',
+                              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (mgr.latencyMs != null) ...[
+                        Text(
+                          '${mgr.latencyMs}ms',
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                      IconButton(
+                        icon: const Icon(Icons.speed, size: 18),
+                        tooltip: '测试延迟',
+                        onPressed: () => mgr.testActiveNodeLatency(),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.stop_circle_outlined, size: 20, color: Colors.red),
+                        tooltip: '断开内置代理',
+                        onPressed: () async {
+                          await mgr.stop();
+                          if (context.mounted) {
+                            try {
+                              context.read<SettingsProvider>().reloadConfig();
+                            } catch (_) {}
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+
           // Search bar
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -557,90 +680,178 @@ class _ChromeGoHomePageState extends State<ChromeGoHomePage> {
   Widget _buildNodeCard(ProxyNode node, ThemeData theme) {
     final protoColor = _getProtocolColor(node.protocol);
 
-    return Card(
-      elevation: 0.5,
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        leading: CircleAvatar(
-          backgroundColor: protoColor.withValues(alpha: 0.15),
-          child: Text(
-            node.protocol.length > 3 ? node.protocol.substring(0, 3).toUpperCase() : node.protocol.toUpperCase(),
-            style: TextStyle(color: protoColor, fontSize: 11, fontWeight: FontWeight.bold),
+    return ListenableBuilder(
+      listenable: LibboxManager.instance,
+      builder: (context, _) {
+        final mgr = LibboxManager.instance;
+        final isActive = mgr.isRunning &&
+            mgr.activeNode?.server == node.server &&
+            mgr.activeNode?.port == node.port &&
+            mgr.activeNode?.protocol == node.protocol;
+
+        return Card(
+          elevation: isActive ? 2 : 0.5,
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: isActive
+                ? const BorderSide(color: Colors.green, width: 1.5)
+                : BorderSide.none,
           ),
-        ),
-        title: Text(
-          node.cleanName(),
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 2),
-            Text(
-              '${node.server}:${node.port}',
-              style: TextStyle(fontSize: 12, color: theme.colorScheme.outline),
-            ),
-            if (node.sourceTag.isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Text(
-                node.sourceTag,
-                style: TextStyle(fontSize: 11, color: theme.colorScheme.primary.withValues(alpha: 0.8)),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ],
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Ping latency badge
-            if (node.pingMs != null)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                decoration: BoxDecoration(
-                  color: node.pingMs! < 0
-                      ? Colors.red.withValues(alpha: 0.12)
-                      : (node.pingMs! < 400 ? Colors.green.withValues(alpha: 0.12) : Colors.orange.withValues(alpha: 0.12)),
-                  borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      backgroundColor: protoColor.withValues(alpha: 0.15),
+                      child: Text(
+                        node.protocol.length > 3
+                            ? node.protocol.substring(0, 3).toUpperCase()
+                            : node.protocol.toUpperCase(),
+                        style: TextStyle(color: protoColor, fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            node.cleanName(),
+                            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${node.server}:${node.port}',
+                            style: TextStyle(fontSize: 11.5, color: theme.colorScheme.outline),
+                          ),
+                          if (node.sourceTag.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              node.sourceTag,
+                              style: TextStyle(fontSize: 10.5, color: theme.colorScheme.primary.withValues(alpha: 0.8)),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    if (node.pingMs != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                        margin: const EdgeInsets.only(right: 4),
+                        decoration: BoxDecoration(
+                          color: node.pingMs! < 0
+                              ? Colors.red.withValues(alpha: 0.12)
+                              : (node.pingMs! < 400
+                                  ? Colors.green.withValues(alpha: 0.12)
+                                  : Colors.orange.withValues(alpha: 0.12)),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          node.pingMs! < 0 ? '超时' : '${node.pingMs}ms',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: node.pingMs! < 0
+                                ? Colors.red
+                                : (node.pingMs! < 400 ? Colors.green : Colors.orange),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-                child: Text(
-                  node.pingMs! < 0 ? '超时' : '${node.pingMs}ms',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: node.pingMs! < 0
-                        ? Colors.red
-                        : (node.pingMs! < 400 ? Colors.green : Colors.orange),
-                  ),
+                const SizedBox(height: 6),
+                const Divider(height: 1, thickness: 0.5),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    // Set as built-in proxy button
+                    FilledButton.tonalIcon(
+                      style: FilledButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        backgroundColor: isActive
+                            ? Colors.green.withValues(alpha: 0.15)
+                            : null,
+                        foregroundColor: isActive ? Colors.green : null,
+                      ),
+                      icon: Icon(
+                        isActive ? Icons.check_circle : Icons.bolt,
+                        size: 15,
+                        color: isActive ? Colors.green : null,
+                      ),
+                      label: Text(
+                        isActive ? '当前内置代理' : '⚡ 设为内置代理',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.bold,
+                          color: isActive ? Colors.green : null,
+                        ),
+                      ),
+                      onPressed: () async {
+                        if (isActive) {
+                          await mgr.stop();
+                          if (context.mounted) {
+                            try {
+                              context.read<SettingsProvider>().reloadConfig();
+                            } catch (_) {}
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('内置代理已断开')),
+                            );
+                          }
+                        } else {
+                          final success = await mgr.start(node);
+                          if (context.mounted) {
+                            try {
+                              context.read<SettingsProvider>().reloadConfig();
+                            } catch (_) {}
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(success
+                                    ? '已成功连接并设置为内置代理！(127.0.0.1:${mgr.listenPort})'
+                                    : '启动内置代理失败: ${mgr.errorMessage ?? "未知错误"}'),
+                                backgroundColor: success ? Colors.green : Colors.red,
+                              ),
+                            );
+                          }
+                        }
+                      },
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.qr_code, size: 18),
+                      tooltip: '查看二维码',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => showDialog(
+                        context: context,
+                        builder: (_) => SingleQrDialog(node: node),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.copy, size: 18),
+                      tooltip: '复制链接',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () {
+                        final link = node.toShareLink();
+                        Clipboard.setData(ClipboardData(text: link));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('已复制: ${node.cleanName()}')),
+                        );
+                      },
+                    ),
+                  ],
                 ),
-              ),
-            IconButton(
-              icon: const Icon(Icons.qr_code, size: 20),
-              tooltip: '查看二维码',
-              onPressed: () => showDialog(
-                context: context,
-                builder: (_) => SingleQrDialog(node: node),
-              ),
+              ],
             ),
-            IconButton(
-              icon: const Icon(Icons.copy, size: 20),
-              tooltip: '复制链接',
-              onPressed: () {
-                final link = node.toShareLink();
-                Clipboard.setData(ClipboardData(text: link));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('已复制: ${node.cleanName()}')),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }

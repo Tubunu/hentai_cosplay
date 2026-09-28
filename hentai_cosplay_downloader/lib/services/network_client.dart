@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
+import 'proxy/proxy_router.dart';
 
 /// Centralized network client manager for creating and configuring Dio instances,
 /// proxies (HTTP & SOCKS5), and connection parameters across all API services.
@@ -74,7 +75,7 @@ class NetworkClient {
           client.findProxy = (uri) => 'PROXY $clean; DIRECT';
         }
       } else {
-        client.findProxy = HttpClient.findProxyFromEnvironment;
+        client.findProxy = (uri) => ProxyRouter.findProxyString(uri);
       }
       return client;
     };

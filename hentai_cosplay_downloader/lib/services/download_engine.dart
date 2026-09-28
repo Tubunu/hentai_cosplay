@@ -40,6 +40,7 @@ import 'nsfwpub/nsfwpub_api_service.dart';
 import 'thothub/thothub_api_service.dart';
 import 'njav/njav_api_service.dart';
 import 'vjav/vjav_api_service.dart';
+import 'proxy/proxy_router.dart';
 
 typedef DownloadLogCallback = void Function(String message, String level);
 typedef TaskProgressCallback = void Function(AlbumDownloadTask task);
@@ -75,21 +76,10 @@ class DownloadEngine {
     final adapter = IOHttpClientAdapter();
     adapter.createHttpClient = () {
       final client = HttpClient();
-      // 仅在用户明确开启不安全证书且配置了代理时绕过 SSL 验证
-      if (config.allowInsecureCertificates && config.customProxy.trim().isNotEmpty) {
+      if (config.allowInsecureCertificates) {
         client.badCertificateCallback = (cert, host, port) => true;
       }
-
-      if (config.customProxy.trim().isNotEmpty) {
-        final clean = config.customProxy.trim().replaceAll(RegExp(r'https?://|socks5?://'), '');
-        if (config.customProxy.trim().startsWith('socks')) {
-          client.findProxy = (uri) => 'SOCKS5 $clean; DIRECT';
-        } else {
-          client.findProxy = (uri) => 'PROXY $clean; DIRECT';
-        }
-      } else {
-        client.findProxy = HttpClient.findProxyFromEnvironment;
-      }
+      client.findProxy = (uri) => ProxyRouter.findProxyString(uri);
       return client;
     };
     _dio.httpClientAdapter = adapter;

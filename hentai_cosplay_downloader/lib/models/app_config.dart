@@ -1,5 +1,17 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import '../services/proxy/site_registry.dart';
+
+enum AppProxyMode {
+  builtin, // 内置 Libbox/ChromeGo 代理 (推荐)
+  custom,  // 外部自定义代理 (如 127.0.0.1:7890)
+  direct,  // 完全直连 (关闭代理)
+}
+
+enum ProxyRoutingStrategy {
+  perSite, // 智能分站点代理 (推荐)
+  global,  // 全局走代理
+}
 
 const String kAlbumMetadataFilename = '.hc_album.json';
 const String kMztMetadataFilename = '.mzt_pack.json';
@@ -27,6 +39,10 @@ class AppConfig {
   int startPage;
   int? endPage;
   String customProxy; // e.g. '127.0.0.1:7890' or ''
+  AppProxyMode proxyMode;
+  ProxyRoutingStrategy proxyRoutingStrategy;
+  int builtinProxyPort;
+  Map<String, bool> siteProxyToggles;
   List<String> mztProxyDomains;
   bool autoArchive;
   String archiveStrategy; // 'author' or 'date'
@@ -58,6 +74,10 @@ class AppConfig {
     this.startPage = 1,
     this.endPage,
     this.customProxy = '',
+    this.proxyMode = AppProxyMode.builtin,
+    this.proxyRoutingStrategy = ProxyRoutingStrategy.perSite,
+    this.builtinProxyPort = 20808,
+    Map<String, bool>? siteProxyToggles,
     List<String>? mztProxyDomains,
     this.autoArchive = true,
     this.archiveStrategy = 'author',
@@ -80,7 +100,8 @@ class AppConfig {
     this.autoHideNavigationOnScroll = true,
     this.photoPreloadCount = 8,
     this.allowInsecureCertificates = false,
-  })  : mztProxyDomains = mztProxyDomains ?? List.from(kDefaultMztProxyDomains),
+  })  : siteProxyToggles = siteProxyToggles ?? SiteRegistry.getDefaultToggles(),
+        mztProxyDomains = mztProxyDomains ?? List.from(kDefaultMztProxyDomains),
         onlineResourceSortOrder = onlineResourceSortOrder ?? [],
         hiddenResourceSites = hiddenResourceSites ?? [],
         favoriteResourceSites = favoriteResourceSites ?? List.from(kDefaultFavoriteResourceSites);
@@ -93,6 +114,10 @@ class AppConfig {
     int? startPage,
     int? endPage,
     String? customProxy,
+    AppProxyMode? proxyMode,
+    ProxyRoutingStrategy? proxyRoutingStrategy,
+    int? builtinProxyPort,
+    Map<String, bool>? siteProxyToggles,
     List<String>? mztProxyDomains,
     bool? autoArchive,
     String? archiveStrategy,
@@ -124,6 +149,10 @@ class AppConfig {
       startPage: startPage ?? this.startPage,
       endPage: endPage ?? this.endPage,
       customProxy: customProxy ?? this.customProxy,
+      proxyMode: proxyMode ?? this.proxyMode,
+      proxyRoutingStrategy: proxyRoutingStrategy ?? this.proxyRoutingStrategy,
+      builtinProxyPort: builtinProxyPort ?? this.builtinProxyPort,
+      siteProxyToggles: siteProxyToggles ?? Map.from(this.siteProxyToggles),
       mztProxyDomains: mztProxyDomains ?? List.from(this.mztProxyDomains),
       autoArchive: autoArchive ?? this.autoArchive,
       archiveStrategy: archiveStrategy ?? this.archiveStrategy,
@@ -158,6 +187,29 @@ class AppConfig {
       startPage: (json['startPage'] as num?)?.toInt().clamp(1, 99999) ?? 1,
       endPage: (json['endPage'] as num?)?.toInt(),
       customProxy: json['customProxy'] ?? '',
+      proxyMode: () {
+        final modeStr = json['proxyMode'] as String?;
+        if (modeStr == 'direct') return AppProxyMode.direct;
+        if (modeStr == 'custom') return AppProxyMode.custom;
+        return AppProxyMode.builtin;
+      }(),
+      proxyRoutingStrategy: () {
+        final stratStr = json['proxyRoutingStrategy'] as String?;
+        if (stratStr == 'global') return ProxyRoutingStrategy.global;
+        return ProxyRoutingStrategy.perSite;
+      }(),
+      builtinProxyPort: (json['builtinProxyPort'] as num?)?.toInt().clamp(1024, 65535) ?? 20808,
+      siteProxyToggles: () {
+        final saved = (json['siteProxyToggles'] as Map<String, dynamic>?)?.map(
+              (k, v) => MapEntry(k, v == true),
+            );
+        final defaults = SiteRegistry.getDefaultToggles();
+        if (saved == null) return defaults;
+        for (final entry in defaults.entries) {
+          saved.putIfAbsent(entry.key, () => entry.value);
+        }
+        return saved;
+      }(),
       mztProxyDomains: (json['mztProxyDomains'] as List<dynamic>?)?.map((e) => e.toString()).toList() ??
           List.from(kDefaultMztProxyDomains),
       autoArchive: json['autoArchive'] ?? true,
@@ -201,6 +253,10 @@ class AppConfig {
     'startPage': startPage,
     'endPage': endPage,
     'customProxy': customProxy,
+    'proxyMode': proxyMode.name,
+    'proxyRoutingStrategy': proxyRoutingStrategy.name,
+    'builtinProxyPort': builtinProxyPort,
+    'siteProxyToggles': siteProxyToggles,
     'mztProxyDomains': mztProxyDomains,
     'autoArchive': autoArchive,
     'archiveStrategy': archiveStrategy,
@@ -239,6 +295,10 @@ class AppConfig {
         other.startPage == startPage &&
         other.endPage == endPage &&
         other.customProxy == customProxy &&
+        other.proxyMode == proxyMode &&
+        other.proxyRoutingStrategy == proxyRoutingStrategy &&
+        other.builtinProxyPort == builtinProxyPort &&
+        mapEquals(other.siteProxyToggles, siteProxyToggles) &&
         listEquals(other.mztProxyDomains, mztProxyDomains) &&
         other.autoArchive == autoArchive &&
         other.archiveStrategy == archiveStrategy &&
@@ -272,6 +332,10 @@ class AppConfig {
         startPage,
         endPage,
         customProxy,
+        proxyMode,
+        proxyRoutingStrategy,
+        builtinProxyPort,
+        Object.hashAll(siteProxyToggles.entries),
         Object.hashAll(mztProxyDomains),
         autoArchive,
         archiveStrategy,

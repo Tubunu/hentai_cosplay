@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/app_config.dart';
 import '../models/browsing_history_record.dart';
@@ -42,12 +44,15 @@ import 'thothub/thothub_api_service.dart';
 import 'vjav/vjav_api_service.dart';
 import 'memojav/memojav_api_service.dart';
 import 'hohoj/hohoj_api_service.dart';
+import 'proxy/proxy_router.dart';
+import 'proxy/libbox_manager.dart';
+import '../models/chromego/proxy_node.dart';
 import 'app_logger.dart';
 
 class AppHttpOverrides extends HttpOverrides {
-  final String proxyString;
+  final String? proxyString;
 
-  AppHttpOverrides(this.proxyString);
+  AppHttpOverrides([this.proxyString]);
 
   @override
   HttpClient createHttpClient(SecurityContext? context) {
@@ -55,17 +60,20 @@ class AppHttpOverrides extends HttpOverrides {
     // Allow insecure certificates globally (e.g. Let's Encrypt ECDSA certs on older Android and CDN proxying)
     client.badCertificateCallback = (cert, host, port) => true;
 
-    final cleanProxy = proxyString.trim();
-    if (cleanProxy.isNotEmpty) {
-      final clean = cleanProxy.replaceAll(RegExp(r'https?://|socks5?://'), '');
-      if (cleanProxy.toLowerCase().startsWith('socks')) {
-        client.findProxy = (uri) => 'SOCKS5 $clean; DIRECT';
-      } else {
-        client.findProxy = (uri) => 'PROXY $clean; DIRECT';
+    // Use intelligent dynamic router or explicit proxy override
+    client.findProxy = (uri) {
+      if (proxyString != null && proxyString!.trim().isNotEmpty) {
+        final cleanProxy = proxyString!.trim();
+        final clean = cleanProxy.replaceAll(RegExp(r'https?://|socks5?://'), '');
+        if (cleanProxy.toLowerCase().startsWith('socks')) {
+          return 'SOCKS5 $clean; DIRECT';
+        } else {
+          return 'PROXY $clean; DIRECT';
+        }
       }
-    } else {
-      client.findProxy = HttpClient.findProxyFromEnvironment;
-    }
+      return ProxyRouter.findProxyString(uri);
+    };
+
     return client;
   }
 }
@@ -80,56 +88,118 @@ class ConfigService {
     _proxyApplicators.add(applicator);
   }
 
-  static void applyProxy(String? proxy) {
-    final p = proxy ?? '';
-    
-    // Apply proxy to all native Dart Http clients (for flutter_cache_manager, CachedNetworkImage, etc.)
-    HttpOverrides.global = AppHttpOverrides(p);
+  /// 依据完整配置应用智能代理策略（分流网关与内置/外部代理）
+  static void applyProxySettings([AppConfig? cfg]) {
+    final config = cfg ?? loadConfig();
+    ProxyRouter.updateConfig(config);
 
-    NetworkClient.setProxy(p);
-    HCApiService.setProxy(p);
-    VideoApiService.setProxy(p);
-    MztApiService.setProxy(p);
-    ApiClient().setProxy(p);
-    MisskonApiService.setProxy(p);
-    CoomerApiService.setProxy(p);
-    PinseApiService.setProxy(p);
-    PornboxApiService.setProxy(p);
-    KuraaApiService.setProxy(p);
-    TwitterRankingApiService.setProxy(p);
-    ExHentaiApiService.setProxy(p);
-    PixibbApiService.setProxy(p);
-    CosplayteleApiService.setProxy(p);
-    NucosplayApiService.setProxy(p);
-    Hanime1ApiService.setProxy(p);
-    EpornerApiService.setProxy(p);
-    HqpornerApiService.setProxy(p);
-    SpankbangApiService.setProxy(p);
-    PornhubApiService.setProxy(p);
-    XVideosApiService.setProxy(p);
-    IwaraApiService.setProxy(p);
-    Rule34VideoApiService.setProxy(p);
-    CosvaultApiService.setProxy(p);
-    GalleryepicApiService.setProxy(p);
-    CosxplayApiService.setProxy(p);
-    CosplayporntubeApiService.setProxy(p);
-    XhamsterApiService.setProxy(p);
-    XnxxApiService.setProxy(p);
-    Av123ApiService.setProxy(p);
-    JavguruApiService.setProxy(p);
-    JavmostApiService.setProxy(p);
-    NjavApiService.setProxy(p);
-    NsfwpubApiService.setProxy(p);
-    ThothubApiService.setProxy(p);
-    VjavApiService.setProxy(p);
-    MemojavApiService.setProxy(p);
-    HohojApiService.setProxy(p);
+    // Apply global dynamic PAC resolver for all native Dart HttpClient instances
+    HttpOverrides.global = AppHttpOverrides();
+
+    final globalOrDirectProxy = config.proxyRoutingStrategy == ProxyRoutingStrategy.global
+        ? ProxyRouter.getActiveProxyAddress()
+        : null;
+
+    String p(String siteKey) => globalOrDirectProxy ?? ProxyRouter.getProxyForSite(siteKey);
+
+    NetworkClient.setProxy(ProxyRouter.getActiveProxyAddress());
+    HCApiService.setProxy(p('hc_gallery'));
+    VideoApiService.setProxy(p('jable'));
+    MztApiService.setProxy(p('mzt'));
+    ApiClient().setProxy(p('jable'));
+    MisskonApiService.setProxy(p('misskon'));
+    CoomerApiService.setProxy(p('coomer'));
+    PinseApiService.setProxy(p('pinse'));
+    PornboxApiService.setProxy(p('pornbox'));
+    KuraaApiService.setProxy(p('kuraa'));
+    TwitterRankingApiService.setProxy(p('twitter'));
+    ExHentaiApiService.setProxy(p('exhentai'));
+    PixibbApiService.setProxy(p('pixibb'));
+    CosplayteleApiService.setProxy(p('cosplaytele'));
+    NucosplayApiService.setProxy(p('nucosplay'));
+    Hanime1ApiService.setProxy(p('hanime1'));
+    EpornerApiService.setProxy(p('eporner'));
+    HqpornerApiService.setProxy(p('hqporner'));
+    SpankbangApiService.setProxy(p('spankbang'));
+    PornhubApiService.setProxy(p('pornhub'));
+    XVideosApiService.setProxy(p('xvideos'));
+    IwaraApiService.setProxy(p('iwara'));
+    Rule34VideoApiService.setProxy(p('rule34video'));
+    CosvaultApiService.setProxy(p('cosvault'));
+    GalleryepicApiService.setProxy(p('galleryepic'));
+    CosxplayApiService.setProxy(p('cosxplay'));
+    CosplayporntubeApiService.setProxy(p('cosplayporntube'));
+    XhamsterApiService.setProxy(p('xhamster'));
+    XnxxApiService.setProxy(p('xnxx'));
+    Av123ApiService.setProxy(p('av123'));
+    JavguruApiService.setProxy(p('javguru'));
+    JavmostApiService.setProxy(p('javmost'));
+    NjavApiService.setProxy(p('njav'));
+    NsfwpubApiService.setProxy(p('nsfwpub'));
+    ThothubApiService.setProxy(p('thothub'));
+    VjavApiService.setProxy(p('vjav'));
+    MemojavApiService.setProxy(p('memojav'));
+    HohojApiService.setProxy(p('hohoj'));
 
     // 通知所有动态注册的代理应用器
+    final activeProxy = ProxyRouter.getActiveProxyAddress();
     for (final applicator in _proxyApplicators) {
       try {
-        applicator(p);
+        applicator(activeProxy);
       } catch (_) {}
+    }
+
+    // 针对 Android 平台 InAppWebView 配置全局代理重写（解决网页播放与海外站点白屏）
+    if (Platform.isAndroid) {
+      try {
+        final proxyController = ProxyController.instance();
+        if (activeProxy.isNotEmpty) {
+          final clean = activeProxy.replaceAll(RegExp(r'https?://|socks5?://'), '').trim();
+          unawaited(proxyController.setProxyOverride(
+            settings: ProxySettings(
+              proxyRules: [ProxyRule(url: clean)],
+              bypassRules: ['localhost', '127.0.0.1', '::1', '<local>'],
+            ),
+          ));
+        } else {
+          unawaited(proxyController.clearProxyOverride());
+        }
+      } catch (e) {
+        AppLogger.w('ConfigService', 'WebView proxy override notice: $e');
+      }
+    }
+  }
+
+  /// 兼容旧方法调用，重定向至 applyProxySettings
+  static void applyProxy([String? proxy]) {
+    if (proxy != null && _prefs != null) {
+      final config = loadConfig();
+      config.customProxy = proxy;
+      applyProxySettings(config);
+    } else {
+      applyProxySettings();
+    }
+  }
+
+  static const String _kLastActiveNodeKey = 'chromego_active_builtin_node';
+
+  static Future<void> saveActiveNode(ProxyNode? node) async {
+    _prefs ??= await SharedPreferences.getInstance();
+    if (node == null) {
+      await _prefs!.remove(_kLastActiveNodeKey);
+    } else {
+      await _prefs!.setString(_kLastActiveNodeKey, jsonEncode(node.toJson()));
+    }
+  }
+
+  static ProxyNode? loadActiveNode() {
+    if (_prefs == null) return null;
+    final jsonStr = _prefs!.getString(_kLastActiveNodeKey);
+    if (jsonStr == null || jsonStr.isEmpty) return null;
+    try {
+      return ProxyNode.fromJson(jsonDecode(jsonStr) as Map<String, dynamic>);
+    } catch (_) {
+      return null;
     }
   }
 
@@ -137,7 +207,9 @@ class ConfigService {
     _prefs = await SharedPreferences.getInstance();
     final config = loadConfig();
     NetworkClient.setAllowInsecureCertificates(config.allowInsecureCertificates);
-    applyProxy(config.customProxy);
+    applyProxySettings(config);
+    // 自动恢复并初始化内置代理核心（若已配置为内置模式）
+    await LibboxManager.instance.init();
   }
 
   static AppConfig loadConfig() {
@@ -158,7 +230,7 @@ class ConfigService {
   static Future<bool> saveConfig(AppConfig config) async {
     _prefs ??= await SharedPreferences.getInstance();
     NetworkClient.setAllowInsecureCertificates(config.allowInsecureCertificates);
-    applyProxy(config.customProxy);
+    applyProxySettings(config);
     return _prefs!.setString(_kConfigKey, config.toRawJson());
   }
 
