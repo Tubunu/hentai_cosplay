@@ -84,7 +84,7 @@ class MainActivity : FlutterActivity() {
             workingPath = workingDir.absolutePath
             tempPath = cacheDir.absolutePath
             fixAndroidStack = true
-            debug = false
+            debug = true
         }
         try {
             Libbox.setup(setupOptions)
@@ -150,7 +150,7 @@ class MainActivity : FlutterActivity() {
             }
             override fun underNetworkExtension(): Boolean = false
             override fun usePlatformAutoDetectInterfaceControl(): Boolean = false
-            override fun useProcFS(): Boolean = true
+            override fun useProcFS(): Boolean = false
         }
 
         val server = CommandServer(handler, platformInterface)

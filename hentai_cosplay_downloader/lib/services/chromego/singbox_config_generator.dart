@@ -14,22 +14,20 @@ class SingboxConfigGenerator {
 
     return {
       "log": {
-        "level": "warn",
+        "level": "info",
         "timestamp": true,
       },
       "dns": {
         "servers": [
           {
-            "tag": "remote-dns",
-            "type": "https",
-            "server": "1.1.1.1",
-            "path": "/dns-query",
-            "detour": "proxy"
+            "tag": "local-dns",
+            "type": "local"
           },
           {
-            "tag": "local-dns",
+            "tag": "remote-dns",
             "type": "udp",
-            "server": "223.5.5.5"
+            "server": "8.8.8.8",
+            "detour": "proxy"
           }
         ],
         "strategy": "prefer_ipv4"
@@ -57,18 +55,10 @@ class SingboxConfigGenerator {
         "default_domain_resolver": "local-dns",
         "rules": [
           {
-            "action": "sniff"
-          },
-          {
-            "protocol": "dns",
-            "action": "hijack-dns"
-          },
-          {
             "inbound": ["mixed-in"],
             "outbound": "proxy"
           }
         ],
-        "auto_detect_interface": true,
         "final": "proxy"
       }
     };

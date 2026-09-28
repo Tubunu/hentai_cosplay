@@ -165,21 +165,20 @@ void main() {
 
       // Modern DNS servers format
       final dnsServers = map['dns']['servers'] as List;
-      expect(dnsServers.any((s) => s['type'] == 'https' && s['tag'] == 'remote-dns'), isTrue);
-      expect(dnsServers.any((s) => s['type'] == 'udp' && s['tag'] == 'local-dns'), isTrue);
+      expect(dnsServers.any((s) => s['type'] == 'local' && s['tag'] == 'local-dns'), isTrue);
+      expect(dnsServers.any((s) => s['type'] == 'udp' && s['tag'] == 'remote-dns'), isTrue);
 
       // Inbounds
       final inbounds = map['inbounds'] as List;
       expect(inbounds.first['type'], equals('mixed'));
       expect(inbounds.first['listen_port'], equals(20808));
-      expect(inbounds.first.containsKey('sniff'), isFalse); // Migrated to route rule
 
       // Route
       final route = map['route'] as Map<String, dynamic>;
       expect(route['default_domain_resolver'], equals('local-dns'));
+      expect(route.containsKey('auto_detect_interface'), isFalse);
       final rules = route['rules'] as List;
-      expect(rules.any((r) => r['action'] == 'sniff'), isTrue);
-      expect(rules.any((r) => r['action'] == 'hijack-dns'), isTrue);
+      expect(rules.any((r) => (r['inbound'] as List?)?.contains('mixed-in') == true && r['outbound'] == 'proxy'), isTrue);
 
       // Outbounds
       final outbounds = map['outbounds'] as List;
