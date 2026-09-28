@@ -46,3 +46,7 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Native libraries & AARs
+*.aar
+/android/app/libs/

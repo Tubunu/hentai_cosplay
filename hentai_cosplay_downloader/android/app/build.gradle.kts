@@ -41,5 +41,11 @@ flutter {
 }
 
 dependencies {
+    val localAar = file("libs/libbox-android.aar")
+    if (localAar.exists()) {
+        implementation(files(localAar))
+    } else {
+        implementation("net.clever-vpn:libbox-android:2.1.4")
+    }
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

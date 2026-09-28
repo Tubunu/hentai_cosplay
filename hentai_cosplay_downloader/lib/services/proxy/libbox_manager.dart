@@ -187,6 +187,8 @@ class LibboxManager extends ChangeNotifier {
         return;
       } on MissingPluginException {
         throw UnsupportedError('原生平台尚未集成 Libbox 引擎二进制，请先切换为【外部端口】模式。');
+      } on PlatformException catch (e) {
+        throw Exception(e.message ?? e.details?.toString() ?? '启动内置核心失败');
       }
     } else if (Platform.isWindows) {
       final exeCandidates = [
