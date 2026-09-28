@@ -84,7 +84,7 @@ class MainActivity : FlutterActivity() {
             workingPath = workingDir.absolutePath
             tempPath = cacheDir.absolutePath
             fixAndroidStack = true
-            debug = true
+            debug = false
         }
         try {
             Libbox.setup(setupOptions)
@@ -115,15 +115,23 @@ class MainActivity : FlutterActivity() {
             override fun autoDetectInterfaceControl(fd: Int) {}
             override fun clearDNSCache() {}
             override fun closeDefaultInterfaceMonitor(listener: InterfaceUpdateListener?) {}
-            override fun findConnectionOwner(ipProtocol: Int, sourceAddress: String?, sourcePort: Int, destinationAddress: String?, destinationPort: Int): ConnectionOwner? = null
+            override fun findConnectionOwner(ipProtocol: Int, sourceAddress: String?, sourcePort: Int, destinationAddress: String?, destinationPort: Int): ConnectionOwner? = ConnectionOwner()
             override fun getInterfaces(): NetworkInterfaceIterator = object : NetworkInterfaceIterator {
                 override fun hasNext(): Boolean = false
                 override fun next(): NetworkInterface = NetworkInterface()
             }
             override fun includeAllNetworks(): Boolean = false
-            override fun localDNSTransport(): LocalDNSTransport? = null
+            override fun localDNSTransport(): LocalDNSTransport? = object : LocalDNSTransport {
+                override fun exchange(ctx: ExchangeContext?, message: ByteArray?) {
+                    ctx?.errorCode(1)
+                }
+                override fun lookup(ctx: ExchangeContext?, network: String?, domain: String?) {
+                    ctx?.errorCode(1)
+                }
+                override fun raw(): Boolean = false
+            }
             override fun openTun(options: TunOptions?): Int = -1
-            override fun readWIFIState(): WIFIState? = null
+            override fun readWIFIState(): WIFIState? = WIFIState("", "")
             override fun sendNotification(notification: Notification?) {}
             override fun startDefaultInterfaceMonitor(listener: InterfaceUpdateListener?) {}
             override fun systemCertificates(): StringIterator {
@@ -150,7 +158,7 @@ class MainActivity : FlutterActivity() {
             }
             override fun underNetworkExtension(): Boolean = false
             override fun usePlatformAutoDetectInterfaceControl(): Boolean = false
-            override fun useProcFS(): Boolean = false
+            override fun useProcFS(): Boolean = true
         }
 
         val server = CommandServer(handler, platformInterface)

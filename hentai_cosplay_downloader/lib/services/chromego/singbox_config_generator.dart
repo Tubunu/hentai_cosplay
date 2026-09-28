@@ -14,20 +14,21 @@ class SingboxConfigGenerator {
 
     return {
       "log": {
-        "level": "info",
+        "level": "warn",
         "timestamp": true,
       },
       "dns": {
         "servers": [
           {
-            "tag": "local-dns",
-            "type": "local"
-          },
-          {
             "tag": "remote-dns",
             "type": "udp",
             "server": "8.8.8.8",
             "detour": "proxy"
+          },
+          {
+            "tag": "local-dns",
+            "type": "udp",
+            "server": "223.5.5.5"
           }
         ],
         "strategy": "prefer_ipv4"

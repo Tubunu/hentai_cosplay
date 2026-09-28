@@ -165,7 +165,7 @@ void main() {
 
       // Modern DNS servers format
       final dnsServers = map['dns']['servers'] as List;
-      expect(dnsServers.any((s) => s['type'] == 'local' && s['tag'] == 'local-dns'), isTrue);
+      expect(dnsServers.any((s) => s['type'] == 'udp' && s['tag'] == 'local-dns'), isTrue);
       expect(dnsServers.any((s) => s['type'] == 'udp' && s['tag'] == 'remote-dns'), isTrue);
 
       // Inbounds
