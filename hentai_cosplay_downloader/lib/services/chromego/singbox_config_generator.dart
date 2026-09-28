@@ -29,8 +29,7 @@ class SingboxConfigGenerator {
           {
             "tag": "local-dns",
             "type": "udp",
-            "server": "223.5.5.5",
-            "detour": "direct"
+            "server": "223.5.5.5"
           }
         ],
         "strategy": "prefer_ipv4"
