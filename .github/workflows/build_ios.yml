@@ -54,24 +54,12 @@ jobs:
             if [ -d "$fw/Versions/A" ]; then
               tmp=$(mktemp -d /tmp/libbox-fw-XXXXXX)
               cp "$fw/Versions/A/Libbox" "$tmp/Libbox" || true
-              [ -f "$fw/Versions/A/Resources/Info.plist" ] && cp "$fw/Versions/A/Resources/Info.plist" "$tmp/Info.plist"
               [ -d "$fw/Versions/A/Headers" ] && cp -R "$fw/Versions/A/Headers" "$tmp/Headers"
               [ -d "$fw/Versions/A/Modules" ] && cp -R "$fw/Versions/A/Modules" "$tmp/Modules"
               rm -rf "$fw"
               mv "$tmp" "$fw"
             fi
-            plist="$fw/Info.plist"
-            if [ ! -s "$plist" ]; then
-              /usr/libexec/PlistBuddy -c "Add :CFBundleDevelopmentRegion string en" "$plist" 2>/dev/null || true
-              /usr/libexec/PlistBuddy -c "Add :CFBundleExecutable string Libbox" "$plist" 2>/dev/null || true
-              /usr/libexec/PlistBuddy -c "Add :CFBundleIdentifier string io.nekohasekai.libbox" "$plist" 2>/dev/null || true
-              /usr/libexec/PlistBuddy -c "Add :CFBundleInfoDictionaryVersion string 6.0" "$plist" 2>/dev/null || true
-              /usr/libexec/PlistBuddy -c "Add :CFBundleName string Libbox" "$plist" 2>/dev/null || true
-              /usr/libexec/PlistBuddy -c "Add :CFBundlePackageType string FMWK" "$plist" 2>/dev/null || true
-              /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string 1.0" "$plist" 2>/dev/null || true
-              /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string 1" "$plist" 2>/dev/null || true
-            fi
-            /usr/libexec/PlistBuddy -c "Set :MinimumOSVersion 15.0" "$plist" 2>/dev/null || /usr/libexec/PlistBuddy -c "Add :MinimumOSVersion string 15.0" "$plist" 2>/dev/null || true
+            cp "$GITHUB_WORKSPACE/hentai_cosplay_downloader/ios/Libbox/Info.plist" "$fw/Info.plist"
           done
 
           echo "=== 5. Move Framework to Flutter iOS Project ==="
@@ -99,6 +87,7 @@ jobs:
           if [ -d "ios/Libbox/Libbox.xcframework/ios-arm64/Libbox.framework" ]; then
             cp -RL "ios/Libbox/Libbox.xcframework/ios-arm64/Libbox.framework" ipa_staging/Payload/Runner.app/Frameworks/
           fi
+          cp "$GITHUB_WORKSPACE/hentai_cosplay_downloader/ios/Libbox/Info.plist" ipa_staging/Payload/Runner.app/Frameworks/Libbox.framework/Info.plist
           find ipa_staging/Payload -name "_CodeSignature" -exec rm -rf {} + 2>/dev/null || true
           find ipa_staging/Payload -name "embedded.mobileprovision" -delete 2>/dev/null || true
           find ipa_staging/Payload -name ".DS_Store" -delete 2>/dev/null || true
