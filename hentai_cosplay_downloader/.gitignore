@@ -47,6 +47,8 @@ app.*.map.json
 # Widget Preview related
 .widget_preview/
 
-# Native libraries & AARs
+# Native libraries & AARs / Frameworks
 *.aar
 /android/app/libs/
+*.xcframework
+/ios/Libbox/Libbox.xcframework/

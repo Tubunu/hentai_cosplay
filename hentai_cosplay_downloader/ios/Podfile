@@ -31,6 +31,11 @@ target 'Runner' do
   use_frameworks!
   use_modular_headers!
 
+  libbox_path = File.join(__dir__, 'Libbox')
+  if File.exist?(File.join(libbox_path, 'Libbox.xcframework'))
+    pod 'Libbox', :path => libbox_path
+  end
+
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
   target 'RunnerTests' do
     inherit! :search_paths
