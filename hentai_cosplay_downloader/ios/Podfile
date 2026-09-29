@@ -31,7 +31,7 @@ target 'Runner' do
   use_frameworks!
   use_modular_headers!
 
-  libbox_path = File.join(__dir__, 'Libbox')
+  libbox_path = File.expand_path('Libbox', __dir__)
   if File.exist?(File.join(libbox_path, 'Libbox.xcframework'))
     pod 'Libbox', :path => libbox_path
   end

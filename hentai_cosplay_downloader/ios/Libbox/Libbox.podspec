@@ -1,4 +1,4 @@
-﻿Pod::Spec.new do |s|
+Pod::Spec.new do |s|
   s.name             = 'Libbox'
   s.version          = '1.0.0'
   s.summary          = 'Sing-box Libbox engine for iOS'
@@ -9,4 +9,9 @@
   s.platform         = :ios, '15.0'
   s.vendored_frameworks = 'Libbox.xcframework'
   s.libraries        = 'resolv'
+  s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES' }
+  s.user_target_xcconfig = {
+    'FRAMEWORK_SEARCH_PATHS' => '"$(PODS_ROOT)/../Libbox" "${SRCROOT}/Libbox/Libbox.xcframework/ios-arm64"',
+    'OTHER_LDFLAGS' => '-framework Libbox -lresolv'
+  }
 end

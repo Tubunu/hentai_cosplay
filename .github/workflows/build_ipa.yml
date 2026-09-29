@@ -111,6 +111,10 @@ jobs:
           rm -rf Payload
           mkdir -p Payload
           cp -RL build/ios/iphoneos/Runner.app Payload/
+          mkdir -p Payload/Runner.app/Frameworks
+          if [ -d "ios/Libbox/Libbox.xcframework/ios-arm64/Libbox.framework" ]; then
+            cp -RL "ios/Libbox/Libbox.xcframework/ios-arm64/Libbox.framework" Payload/Runner.app/Frameworks/
+          fi
           find Payload -name "_CodeSignature" -exec rm -rf {} + 2>/dev/null || true
           find Payload -name "embedded.mobileprovision" -delete 2>/dev/null || true
           find Payload -name ".DS_Store" -delete 2>/dev/null || true

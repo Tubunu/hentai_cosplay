@@ -95,6 +95,10 @@ jobs:
           rm -rf ipa_staging
           mkdir -p ipa_staging/Payload
           cp -RL build/ios/iphoneos/Runner.app ipa_staging/Payload/
+          mkdir -p ipa_staging/Payload/Runner.app/Frameworks
+          if [ -d "ios/Libbox/Libbox.xcframework/ios-arm64/Libbox.framework" ]; then
+            cp -RL "ios/Libbox/Libbox.xcframework/ios-arm64/Libbox.framework" ipa_staging/Payload/Runner.app/Frameworks/
+          fi
           find ipa_staging/Payload -name "_CodeSignature" -exec rm -rf {} + 2>/dev/null || true
           find ipa_staging/Payload -name "embedded.mobileprovision" -delete 2>/dev/null || true
           find ipa_staging/Payload -name ".DS_Store" -delete 2>/dev/null || true

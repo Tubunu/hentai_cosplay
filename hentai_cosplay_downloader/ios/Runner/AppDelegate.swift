@@ -197,10 +197,8 @@ import Libbox
   private var backgroundTask: UIBackgroundTaskIdentifier = .invalid
   private var isDownloadingActive = false
 
-  #if canImport(Libbox)
   private var commandServer: LibboxCommandServer?
   fileprivate var isLibboxRunning = false
-  #endif
 
   override func application(
     _ application: UIApplication,
@@ -250,7 +248,6 @@ import Libbox
       )
       libboxChannel.setMethodCallHandler { [weak self] (call: FlutterMethodCall, result: @escaping FlutterResult) in
         guard let self = self else { return }
-        #if canImport(Libbox)
         switch call.method {
         case "start":
           guard let args = call.arguments as? [String: Any],
@@ -284,27 +281,12 @@ import Libbox
         default:
           result(FlutterMethodNotImplemented)
         }
-        #else
-        switch call.method {
-        case "isRunning":
-          result(false)
-        case "version":
-          result("unsupported")
-        default:
-          result(FlutterError(
-            code: "NOT_INTEGRATED",
-            message: "原生平台尚未集成 Libbox 引擎二进制，请先切换为【外部端口】模式。",
-            details: nil
-          ))
-        }
-        #endif
       }
     }
 
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
-  #if canImport(Libbox)
   private func startLibbox(configJson: String) throws {
     stopLibbox()
 
@@ -356,12 +338,9 @@ import Libbox
     isLibboxRunning = false
     print("Libbox iOS in-process proxy stopped")
   }
-  #endif
 
   override func applicationWillTerminate(_ application: UIApplication) {
-    #if canImport(Libbox)
     stopLibbox()
-    #endif
     super.applicationWillTerminate(application)
   }
 
