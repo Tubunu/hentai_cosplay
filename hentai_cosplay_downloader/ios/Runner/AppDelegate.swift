@@ -188,9 +188,7 @@ class SilentAudioPlayer {
   }
 }
 
-#if canImport(Libbox)
 import Libbox
-#endif
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
@@ -199,6 +197,7 @@ import Libbox
 
   private var commandServer: LibboxCommandServer?
   fileprivate var isLibboxRunning = false
+  private var areChannelsRegistered = false
 
   override func application(
     _ application: UIApplication,
@@ -210,81 +209,107 @@ import Libbox
       UNUserNotificationCenter.current().delegate = self
     }
 
+    // 1. Pre-register via plugin registrar (reliable even when window is not yet attached)
+    if let registrar = self.registrar(forPlugin: "LibboxPlugin") {
+      setupChannels(messenger: registrar.messenger())
+    }
+
+    // 2. Pre-register via rootViewController if already initialized
     if let controller = window?.rootViewController as? FlutterViewController {
       PipDownloadManager.shared.setup(with: controller.view)
+      setupChannels(messenger: controller.binaryMessenger)
+    }
 
-      let channel = FlutterMethodChannel(
-        name: "com.hentaicosplay/background_keeper",
-        binaryMessenger: controller.binaryMessenger
-      )
-      channel.setMethodCallHandler { [weak self] (call: FlutterMethodCall, result: @escaping FlutterResult) in
-        switch call.method {
-        case "enableBackground":
-          let enable = (call.arguments as? Bool) ?? false
-          self?.isDownloadingActive = enable
-          if enable {
-            SilentAudioPlayer.shared.start()
-          } else {
-            SilentAudioPlayer.shared.stop()
-            PipDownloadManager.shared.stopPip()
-          }
-          result(true)
-        case "startPip":
-          PipDownloadManager.shared.startPip(view: controller.view)
-          result(true)
-        case "stopPip":
+    // 3. Super call initializes window and rootViewController
+    let launchResult = super.application(application, didFinishLaunchingWithOptions: launchOptions)
+
+    // 4. Guaranteed post-launch registration when window & rootViewController are mounted
+    if let controller = window?.rootViewController as? FlutterViewController {
+      PipDownloadManager.shared.setup(with: controller.view)
+      setupChannels(messenger: controller.binaryMessenger)
+    }
+
+    return launchResult
+  }
+
+  private func setupChannels(messenger: FlutterBinaryMessenger) {
+    guard !areChannelsRegistered else { return }
+    areChannelsRegistered = true
+
+    let bgChannel = FlutterMethodChannel(
+      name: "com.hentaicosplay/background_keeper",
+      binaryMessenger: messenger
+    )
+    bgChannel.setMethodCallHandler { [weak self] (call: FlutterMethodCall, result: @escaping FlutterResult) in
+      switch call.method {
+      case "enableBackground":
+        let enable = (call.arguments as? Bool) ?? false
+        self?.isDownloadingActive = enable
+        if enable {
+          SilentAudioPlayer.shared.start()
+        } else {
+          SilentAudioPlayer.shared.stop()
           PipDownloadManager.shared.stopPip()
-          result(true)
-        case "isPipSupported":
-          result(PipDownloadManager.shared.isSupported())
-        default:
-          result(FlutterMethodNotImplemented)
         }
-      }
-
-      let libboxChannel = FlutterMethodChannel(
-        name: "com.hentaicosplay/libbox",
-        binaryMessenger: controller.binaryMessenger
-      )
-      libboxChannel.setMethodCallHandler { [weak self] (call: FlutterMethodCall, result: @escaping FlutterResult) in
-        guard let self = self else { return }
-        switch call.method {
-        case "start":
-          guard let args = call.arguments as? [String: Any],
-                let configJson = args["config"] as? String, !configJson.isEmpty else {
-            result(FlutterError(code: "INVALID_CONFIG", message: "Config JSON is empty", details: nil))
-            return
-          }
-          DispatchQueue.global(qos: .userInitiated).async {
-            do {
-              try self.startLibbox(configJson: configJson)
-              DispatchQueue.main.async {
-                result(true)
-              }
-            } catch {
-              DispatchQueue.main.async {
-                result(FlutterError(code: "START_FAILED", message: error.localizedDescription, details: nil))
-              }
-            }
-          }
-        case "stop":
-          DispatchQueue.global(qos: .userInitiated).async {
-            self.stopLibbox()
-            DispatchQueue.main.async {
-              result(true)
-            }
-          }
-        case "isRunning":
-          result(self.isLibboxRunning)
-        case "version":
-          result(LibboxVersion())
-        default:
-          result(FlutterMethodNotImplemented)
+        result(true)
+      case "startPip":
+        if let view = self?.window?.rootViewController?.view {
+          PipDownloadManager.shared.startPip(view: view)
         }
+        result(true)
+      case "stopPip":
+        PipDownloadManager.shared.stopPip()
+        result(true)
+      case "isPipSupported":
+        result(PipDownloadManager.shared.isSupported())
+      default:
+        result(FlutterMethodNotImplemented)
       }
     }
 
-    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+    let libboxChannel = FlutterMethodChannel(
+      name: "com.hentaicosplay/libbox",
+      binaryMessenger: messenger
+    )
+    libboxChannel.setMethodCallHandler { [weak self] (call: FlutterMethodCall, result: @escaping FlutterResult) in
+      guard let self = self else { return }
+      switch call.method {
+      case "start":
+        guard let args = call.arguments as? [String: Any],
+              let configJson = args["config"] as? String, !configJson.isEmpty else {
+          result(FlutterError(code: "INVALID_CONFIG", message: "Config JSON is empty", details: nil))
+          return
+        }
+        DispatchQueue.global(qos: .userInitiated).async {
+          do {
+            try self.startLibbox(configJson: configJson)
+            DispatchQueue.main.async {
+              result(true)
+            }
+          } catch {
+            DispatchQueue.main.async {
+              result(FlutterError(code: "START_FAILED", message: error.localizedDescription, details: nil))
+            }
+          }
+        }
+      case "stop":
+        DispatchQueue.global(qos: .userInitiated).async {
+          self.stopLibbox()
+          DispatchQueue.main.async {
+            result(true)
+          }
+        }
+      case "isRunning":
+        result(self.isLibboxRunning)
+      case "version":
+        result(LibboxVersion())
+      case "isIntegrated":
+        result(true)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
+    print("[Libbox] Native channels successfully registered!")
   }
 
   private func startLibbox(configJson: String) throws {
