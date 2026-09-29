@@ -190,72 +190,6 @@ class SilentAudioPlayer {
 
 #if canImport(Libbox)
 import Libbox
-
-final class AppPlatformInterface: NSObject, LibboxPlatformInterfaceProtocol, LibboxCommandServerHandlerProtocol {
-  weak var appDelegate: AppDelegate?
-
-  init(appDelegate: AppDelegate) {
-    self.appDelegate = appDelegate
-  }
-
-  // LibboxCommandServerHandlerProtocol
-  func serviceStop() throws {
-    appDelegate?.isLibboxRunning = false
-  }
-  func serviceReload() throws {}
-  func getSystemProxyStatus() throws -> LibboxSystemProxyStatus {
-    return LibboxSystemProxyStatus()
-  }
-  func setSystemProxyEnabled(_ isEnabled: Bool) throws {}
-  func writeDebugMessage(_ message: String?) {
-    if let msg = message {
-      print("[Libbox Debug] \(msg)")
-    }
-  }
-
-  // LibboxPlatformInterfaceProtocol
-  func autoDetectControl(_ fd: Int32) throws {}
-  func clearDNSCache() {}
-  func closeDefaultInterfaceMonitor(_ listener: LibboxInterfaceUpdateListenerProtocol?) throws {}
-  func findConnectionOwner(
-    _ ipProtocol: Int32,
-    sourceAddress: String?,
-    sourcePort: Int32,
-    destinationAddress: String?,
-    destinationPort: Int32
-  ) throws -> LibboxConnectionOwner {
-    return LibboxConnectionOwner()
-  }
-  func getInterfaces() throws -> LibboxNetworkInterfaceIteratorProtocol {
-    return EmptyNetworkInterfaceIterator()
-  }
-  func includeAllNetworks() -> Bool { false }
-  func localDNSTransport() -> (any LibboxLocalDNSTransportProtocol)? { nil }
-  func openTun(_ options: LibboxTunOptionsProtocol?, ret0_: UnsafeMutablePointer<Int32>?) throws {
-    ret0_?.pointee = -1
-  }
-  func readWIFIState() -> LibboxWIFIState? { nil }
-  func readWIFISSID() -> String? { nil }
-  func send(_ notification: LibboxNotification?) throws {}
-  func startDefaultInterfaceMonitor(_ listener: LibboxInterfaceUpdateListenerProtocol?) throws {}
-  func systemCertificates() -> (any LibboxStringIteratorProtocol)? { nil }
-  func underNetworkExtension() -> Bool { false }
-  func usePlatformAutoDetectControl() -> Bool { false }
-  func useProcFS() -> Bool { false }
-  func writeLog(_ message: String?) {
-    if let msg = message {
-      print("[Libbox Log] \(msg)")
-    }
-  }
-  func startNeighborMonitor(_ listener: LibboxNeighborUpdateListenerProtocol?) throws {}
-  func registerMyInterface(_ name: String?) {}
-  func closeNeighborMonitor(_ listener: LibboxNeighborUpdateListenerProtocol?) throws {}
-}
-
-private final class EmptyNetworkInterfaceIterator: NSObject, LibboxNetworkInterfaceIteratorProtocol {
-  func hasNext() -> Bool { false }
-  func next() -> LibboxNetworkInterface? { nil }
-}
 #endif
 
 @main
@@ -266,7 +200,6 @@ private final class EmptyNetworkInterfaceIterator: NSObject, LibboxNetworkInterf
   #if canImport(Libbox)
   private var commandServer: LibboxCommandServer?
   fileprivate var isLibboxRunning = false
-  private var platformInterface: AppPlatformInterface?
   #endif
 
   override func application(
@@ -396,11 +329,8 @@ private final class EmptyNetworkInterfaceIterator: NSObject, LibboxNetworkInterf
       print("LibboxSetup warning: \(setupError)")
     }
 
-    let pInterface = AppPlatformInterface(appDelegate: self)
-    self.platformInterface = pInterface
-
     var cmdError: NSError?
-    guard let server = LibboxNewCommandServer(pInterface, pInterface, &cmdError) else {
+    guard let server = LibboxNewInProcessCommandServer(&cmdError) else {
       throw cmdError ?? NSError(domain: "Libbox", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create LibboxCommandServer"])
     }
 
