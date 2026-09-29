@@ -99,16 +99,13 @@ jobs:
           rm -rf Payload
           mkdir -p Payload
           cp -RL build/ios/iphoneos/Runner.app Payload/
-          mkdir -p Payload/Runner.app/Frameworks
-          if [ -d "ios/Libbox/Libbox.xcframework/ios-arm64/Libbox.framework" ]; then
-            cp -RL "ios/Libbox/Libbox.xcframework/ios-arm64/Libbox.framework" Payload/Runner.app/Frameworks/
-          fi
-          cp "$GITHUB_WORKSPACE/hentai_cosplay_downloader/ios/Libbox/Info.plist" Payload/Runner.app/Frameworks/Libbox.framework/Info.plist
+          # Libbox 为静态库已内嵌链接至 Runner 主可执行文件中，切勿放入 Frameworks（放入会导致 Sideloadly 签名时报 macho sign/edit failed -11）
+          rm -rf Payload/Runner.app/Frameworks/Libbox.framework 2>/dev/null || true
           find Payload -name "_CodeSignature" -exec rm -rf {} + 2>/dev/null || true
           find Payload -name "embedded.mobileprovision" -delete 2>/dev/null || true
           find Payload -name ".DS_Store" -delete 2>/dev/null || true
           chmod -R 755 Payload/Runner.app
-          zip -r -q HentaiCosplay-iOS-Release.ipa Payload
+          zip -r -y -q HentaiCosplay-iOS-Release.ipa Payload
           echo "=== 打包完成，文件详情 ==="
           ls -lh HentaiCosplay-iOS-Release.ipa
 

@@ -83,17 +83,14 @@ jobs:
           rm -rf ipa_staging
           mkdir -p ipa_staging/Payload
           cp -RL build/ios/iphoneos/Runner.app ipa_staging/Payload/
-          mkdir -p ipa_staging/Payload/Runner.app/Frameworks
-          if [ -d "ios/Libbox/Libbox.xcframework/ios-arm64/Libbox.framework" ]; then
-            cp -RL "ios/Libbox/Libbox.xcframework/ios-arm64/Libbox.framework" ipa_staging/Payload/Runner.app/Frameworks/
-          fi
-          cp "$GITHUB_WORKSPACE/hentai_cosplay_downloader/ios/Libbox/Info.plist" ipa_staging/Payload/Runner.app/Frameworks/Libbox.framework/Info.plist
+          # Libbox is a static framework linked directly into Runner binary; embedding it into Frameworks causes Sideloadly macho sign error (-11)
+          rm -rf ipa_staging/Payload/Runner.app/Frameworks/Libbox.framework 2>/dev/null || true
           find ipa_staging/Payload -name "_CodeSignature" -exec rm -rf {} + 2>/dev/null || true
           find ipa_staging/Payload -name "embedded.mobileprovision" -delete 2>/dev/null || true
           find ipa_staging/Payload -name ".DS_Store" -delete 2>/dev/null || true
           chmod -R 755 ipa_staging/Payload/Runner.app
           cd ipa_staging
-          zip -r -q hentai_cosplay_downloader.ipa Payload
+          zip -r -y -q hentai_cosplay_downloader.ipa Payload
           mv hentai_cosplay_downloader.ipa "$GITHUB_WORKSPACE/"
           ls -lh "$GITHUB_WORKSPACE/hentai_cosplay_downloader.ipa"
 
