@@ -20,7 +20,7 @@ permissions:
 jobs:
   build-ipa:
     name: Build Unsigned iOS IPA
-    runs-on: macos-14 # Apple Silicon M2 runner
+    runs-on: macos-15 # Apple Silicon runner
     timeout-minutes: 45
 
     steps:
@@ -126,7 +126,7 @@ jobs:
           body: |
             ## 📱 iOS 安装包构建产物
             - **文件**: `HentaiCosplay-iOS-Release.ipa`
-            - **构建方式**: GitHub Actions macOS-14 云编译
+            - **构建方式**: GitHub Actions macOS-15 云编译
             - **适用设备**: iOS 15.0+ 设备
             - **安装建议**: 可通过 **TrollStore（巨魔商店）**、**AltStore**、**Sideloadly**、**爱思助手** 或自签名证书直接导入安装！
           draft: false
