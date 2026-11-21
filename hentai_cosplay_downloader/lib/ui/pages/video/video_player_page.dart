@@ -192,12 +192,14 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       oldController.removeListener(_onControllerUpdate);
       try {
         await oldController.pause();
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('Player pause error during disposal: $e');
+      }
       oldController.dispose();
     }
 
+    VideoPlayerController? newController;
     try {
-      VideoPlayerController? newController;
       if (_currentFilePath != null && _currentFilePath!.isNotEmpty) {
         final file = File(_currentFilePath!);
         if (!await file.exists()) {
@@ -219,12 +221,16 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
             try {
               final uri = Uri.parse(_currentWebPlayerUrl!);
               referer = '${uri.scheme}://${uri.host}/';
-            } catch (_) {}
+            } catch (e) {
+              debugPrint('URI parse error: $e');
+            }
           } else if (_currentRemoteUrl != null && _currentRemoteUrl!.isNotEmpty) {
             try {
               final uri = Uri.parse(_currentRemoteUrl!);
               referer = '${uri.scheme}://${uri.host}/';
-            } catch (_) {}
+            } catch (e) {
+              debugPrint('URI parse error: $e');
+            }
           }
           headers = {
             'User-Agent':
@@ -255,7 +261,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       if (!mounted || _isDisposed || currentGen != _initGen) {
         try {
           await newController.pause();
-        } catch (_) {}
+        } catch (e) {
+          debugPrint('Player pause error during disposal: $e');
+        }
         newController.dispose();
         return;
       }
@@ -294,6 +302,11 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       _startHideTimer();
     } catch (e) {
       _pendingController = null;
+      try {
+        newController?.dispose();
+      } catch (disposeErr) {
+        debugPrint('Error disposing failed controller: $disposeErr');
+      }
       WakelockPlus.disable().catchError((_) {});
       if (!mounted || _isDisposed || currentGen != _initGen) return;
       setState(() {
@@ -662,7 +675,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       controller.removeListener(_onControllerUpdate);
       try {
         await controller.pause();
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('Player pause error during disposal: $e');
+      }
       controller.dispose();
     }
 

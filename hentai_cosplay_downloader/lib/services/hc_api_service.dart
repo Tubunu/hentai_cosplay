@@ -7,6 +7,7 @@ import 'package:dio/io.dart';
 import 'package:html/parser.dart' as html_parser;
 import 'package:html/dom.dart' as dom;
 import '../models/album_item.dart';
+import 'network_client.dart';
 
 class HCApiResponse {
   final List<AlbumItem> items;
@@ -72,8 +73,8 @@ class HCApiService {
     final adapter = IOHttpClientAdapter();
     adapter.createHttpClient = () {
       final client = HttpClient();
-      // 仅在配置了代理时绕过 SSL 验证
-      if (_configuredProxy != null && _configuredProxy!.isNotEmpty) {
+      // Only bypass SSL when user has explicitly allowed insecure certificates AND a proxy is configured
+      if (NetworkClient.allowInsecureCertificates && _configuredProxy != null && _configuredProxy!.isNotEmpty) {
         client.badCertificateCallback = (cert, host, port) => true;
       }
 
@@ -555,8 +556,9 @@ class HCApiService {
   /// Test connectivity and latency
   static Future<int?> testConnectivity({String? proxy}) async {
     final stopwatch = Stopwatch()..start();
+    Dio? dio;
     try {
-      final dio = Dio(
+      dio = Dio(
         BaseOptions(
           connectTimeout: const Duration(seconds: 6),
           receiveTimeout: const Duration(seconds: 6),
@@ -570,7 +572,7 @@ class HCApiService {
       final adapter = IOHttpClientAdapter();
       adapter.createHttpClient = () {
         final client = HttpClient();
-        if (proxy != null && proxy.isNotEmpty) {
+        if (NetworkClient.allowInsecureCertificates && proxy != null && proxy.isNotEmpty) {
           client.badCertificateCallback = (cert, host, port) => true;
         }
         if (proxy != null && proxy.isNotEmpty) {
@@ -593,7 +595,10 @@ class HCApiService {
       if (res.statusCode != null && res.statusCode! < 400) {
         return stopwatch.elapsedMilliseconds;
       }
-    } catch (_) {}
+    } catch (_) {
+    } finally {
+      dio?.close(force: true);
+    }
     return null;
   }
 }

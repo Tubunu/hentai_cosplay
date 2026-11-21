@@ -72,6 +72,10 @@ class PipDownloadManager: NSObject, AVPictureInPictureControllerDelegate {
     if !isSetup, let view = view {
       setup(with: view)
     }
+    if let view = view, let container = containerView, container.superview != view {
+      container.removeFromSuperview()
+      view.addSubview(container)
+    }
     guard let pipController = pipController, AVPictureInPictureController.isPictureInPictureSupported() else { return }
     player?.play()
 
@@ -85,7 +89,7 @@ class PipDownloadManager: NSObject, AVPictureInPictureControllerDelegate {
       for delay in [0.1, 0.3, 0.6, 1.0] {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
           guard let self = self, let pip = self.pipController else { return }
-          if pip.isPictureInPicturePossible && !pip.isPictureInPictureActive {
+          if self.shouldStartWhenPossible && pip.isPictureInPicturePossible && !pip.isPictureInPictureActive {
             self.shouldStartWhenPossible = false
             pip.startPictureInPicture()
           }
@@ -198,6 +202,26 @@ import Libbox
   private var commandServer: LibboxCommandServer?
   fileprivate var isLibboxRunning = false
   private var areChannelsRegistered = false
+  private let libboxQueue = DispatchQueue(label: "com.hentaicosplay.libboxQueue", qos: .userInitiated)
+
+  var activeFlutterViewController: FlutterViewController? {
+    if let controller = window?.rootViewController as? FlutterViewController {
+      return controller
+    }
+    for scene in UIApplication.shared.connectedScenes {
+      if let windowScene = scene as? UIWindowScene {
+        for window in windowScene.windows where window.isKeyWindow {
+          if let controller = window.rootViewController as? FlutterViewController {
+            return controller
+          }
+        }
+        if let controller = windowScene.windows.first?.rootViewController as? FlutterViewController {
+          return controller
+        }
+      }
+    }
+    return nil
+  }
 
   override func application(
     _ application: UIApplication,
@@ -214,8 +238,8 @@ import Libbox
       setupChannels(messenger: registrar.messenger())
     }
 
-    // 2. Pre-register via rootViewController if already initialized
-    if let controller = window?.rootViewController as? FlutterViewController {
+    // 2. Pre-register via active view controller if already initialized
+    if let controller = activeFlutterViewController {
       PipDownloadManager.shared.setup(with: controller.view)
       setupChannels(messenger: controller.binaryMessenger)
     }
@@ -223,8 +247,8 @@ import Libbox
     // 3. Super call initializes window and rootViewController
     let launchResult = super.application(application, didFinishLaunchingWithOptions: launchOptions)
 
-    // 4. Guaranteed post-launch registration when window & rootViewController are mounted
-    if let controller = window?.rootViewController as? FlutterViewController {
+    // 4. Post-launch registration when view controller is mounted
+    if let controller = activeFlutterViewController {
       PipDownloadManager.shared.setup(with: controller.view)
       setupChannels(messenger: controller.binaryMessenger)
     }
@@ -247,15 +271,17 @@ import Libbox
         self?.isDownloadingActive = enable
         if enable {
           SilentAudioPlayer.shared.start()
+          if let view = self?.activeFlutterViewController?.view {
+            PipDownloadManager.shared.startPip(view: view)
+          }
         } else {
           SilentAudioPlayer.shared.stop()
           PipDownloadManager.shared.stopPip()
         }
         result(true)
       case "startPip":
-        if let view = self?.window?.rootViewController?.view {
-          PipDownloadManager.shared.startPip(view: view)
-        }
+        let view = self?.activeFlutterViewController?.view
+        PipDownloadManager.shared.startPip(view: view)
         result(true)
       case "stopPip":
         PipDownloadManager.shared.stopPip()
@@ -280,7 +306,7 @@ import Libbox
           result(FlutterError(code: "INVALID_CONFIG", message: "Config JSON is empty", details: nil))
           return
         }
-        DispatchQueue.global(qos: .userInitiated).async {
+        self.libboxQueue.async {
           do {
             try self.startLibbox(configJson: configJson)
             DispatchQueue.main.async {
@@ -293,14 +319,19 @@ import Libbox
           }
         }
       case "stop":
-        DispatchQueue.global(qos: .userInitiated).async {
+        self.libboxQueue.async {
           self.stopLibbox()
           DispatchQueue.main.async {
             result(true)
           }
         }
       case "isRunning":
-        result(self.isLibboxRunning)
+        self.libboxQueue.async {
+          let running = self.isLibboxRunning
+          DispatchQueue.main.async {
+            result(running)
+          }
+        }
       case "version":
         result(LibboxVersion())
       case "isIntegrated":
@@ -365,21 +396,31 @@ import Libbox
   }
 
   override func applicationWillTerminate(_ application: UIApplication) {
-    stopLibbox()
+    libboxQueue.sync {
+      stopLibbox()
+    }
     super.applicationWillTerminate(application)
   }
 
-  override func applicationDidEnterBackground(_ application: UIApplication) {
+  func handleAppDidEnterBackground() {
     if isDownloadingActive {
       SilentAudioPlayer.shared.start()
-      PipDownloadManager.shared.startPip(view: window?.rootViewController?.view)
+      PipDownloadManager.shared.startPip(view: activeFlutterViewController?.view)
     }
 
-    startBackgroundTask(application)
+    startBackgroundTask(UIApplication.shared)
+  }
+
+  func handleAppWillEnterForeground() {
+    endBackgroundTask(UIApplication.shared)
+  }
+
+  override func applicationDidEnterBackground(_ application: UIApplication) {
+    handleAppDidEnterBackground()
   }
 
   override func applicationWillEnterForeground(_ application: UIApplication) {
-    endBackgroundTask(application)
+    handleAppWillEnterForeground()
   }
 
   private func startBackgroundTask(_ application: UIApplication) {

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -30,6 +31,8 @@ class JableDownloadProvider extends ChangeNotifier {
 
   DateTime _lastProgressNotifyTime = DateTime.fromMillisecondsSinceEpoch(0);
   Timer? _progressThrottleTimer;
+  final Completer<void> _initCompleter = Completer<void>();
+  Future<void> get initialized => _initCompleter.future;
 
   final List<void Function()> _tasksChangedListeners = [];
 
@@ -185,38 +188,60 @@ class JableDownloadProvider extends ChangeNotifier {
   Future<void> loadSavedData() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
-      // 1. Load tasks
+
+      // 1. Load tasks — decode in background isolate to avoid UI jank
       final rawTasks = prefs.getString(_kJableTasksKey);
       if (rawTasks != null && rawTasks.isNotEmpty) {
-        final list = (jsonDecode(rawTasks) as List<dynamic>?) ?? [];
-        _tasks.clear();
+        final list = await Isolate.run(() => (jsonDecode(rawTasks) as List<dynamic>?) ?? []);
+        final loadedTasks = <JableDownloadTask>[];
         for (final item in list) {
-          final task = JableDownloadTask.fromMap(item as Map<String, dynamic>);
-          if (task.status == JableDownloadStatus.downloading || task.status == JableDownloadStatus.merging) {
-            task.status = JableDownloadStatus.paused;
+          if (item is Map) {
+            final task = JableDownloadTask.fromMap(Map<String, dynamic>.from(item));
+            if (task.status == JableDownloadStatus.downloading || task.status == JableDownloadStatus.merging) {
+              task.status = JableDownloadStatus.paused;
+            }
+            loadedTasks.add(task);
           }
-          _tasks.add(task);
+        }
+        // Preserve any task enqueued before this async load finished
+        final existingTaskIds = _tasks.map((t) => t.id).toSet();
+        for (final task in loadedTasks) {
+          if (!existingTaskIds.contains(task.id)) {
+            _tasks.add(task);
+          }
         }
       }
 
-      // 2. Load history
+      // 2. Load history — decode in background isolate to avoid UI jank
       final rawHistory = prefs.getString(_kJableHistoryKey);
       if (rawHistory != null && rawHistory.isNotEmpty) {
-        final list = (jsonDecode(rawHistory) as List<dynamic>?) ?? [];
-        _historyRecords.clear();
+        final list = await Isolate.run(() => (jsonDecode(rawHistory) as List<dynamic>?) ?? []);
+        final loadedHistory = <JableHistoryRecord>[];
         for (final item in list) {
-          _historyRecords.add(JableHistoryRecord.fromMap(item as Map<String, dynamic>));
+          if (item is Map) {
+            loadedHistory.add(JableHistoryRecord.fromMap(Map<String, dynamic>.from(item)));
+          }
+        }
+        final existingHistoryUrls = _historyRecords.map((r) => r.url).toSet();
+        for (final record in loadedHistory) {
+          if (!existingHistoryUrls.contains(record.url)) {
+            _historyRecords.add(record);
+          }
         }
       }
 
       notifyListeners();
     } catch (e) {
       debugPrint('Error loading saved Jable data: $e');
+    } finally {
+      if (!_initCompleter.isCompleted) {
+        _initCompleter.complete();
+      }
     }
   }
 
   Future<void> _persistTasks() async {
+    await _initCompleter.future;
     try {
       final prefs = await SharedPreferences.getInstance();
       final list = _tasks.map((t) => t.toMap()).toList();
@@ -227,6 +252,7 @@ class JableDownloadProvider extends ChangeNotifier {
   }
 
   Future<void> _persistHistory() async {
+    await _initCompleter.future;
     try {
       final prefs = await SharedPreferences.getInstance();
       final list = _historyRecords.map((r) => r.toMap()).toList();

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hentai_cosplay_downloader/models/chromego/proxy_node.dart';
 import 'package:hentai_cosplay_downloader/services/chromego/chromego_parsers.dart';
@@ -51,6 +52,41 @@ proxies:
       expect(nodes[1].protocol, 'vless');
       expect(nodes[1].server, '5.6.7.8');
       expect(nodes[1].port, 443);
+    });
+
+    test('NodeParsers.parseClashYaml with nested YAML structures can be jsonEncoded safely', () {
+      const complexClashYaml = '''
+proxies:
+  - name: "Reality Node"
+    type: vless
+    server: 9.10.11.12
+    port: 443
+    uuid: 12345678-1234-1234-1234-123456789abc
+    reality-opts:
+      public-key: my-pbk
+      short-id: my-sid
+    xhttp-opts:
+      path: /
+      mode: auto
+    alpn:
+      - h2
+      - http/1.1
+''';
+
+      final nodes = NodeParsers.parseClashYaml(complexClashYaml, sourceTag: 'Complex');
+      expect(nodes.length, 1);
+      final node = nodes.first;
+
+      // Must not throw JsonUnsupportedObjectError
+      final jsonStr = jsonEncode(node.toJson());
+      expect(jsonStr, isNotEmpty);
+      expect(jsonStr.contains('my-pbk'), isTrue);
+
+      final restored = ProxyNode.fromJson(jsonDecode(jsonStr) as Map<String, dynamic>);
+      expect(restored.name, 'Reality Node');
+      expect(restored.protocol, 'vless');
+      expect(restored.server, '9.10.11.12');
+      expect(restored.tlsSettings['pbk'], 'my-pbk');
     });
 
     test('NodeParsers.parseHysteria2Json parses valid JSON', () {

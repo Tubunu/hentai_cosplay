@@ -382,6 +382,8 @@ class DownloadProvider extends ChangeNotifier {
         _updateNotification();
       } else if (!isDownloading) {
         _stopSpeedTimer();
+        _currentSpeedBps = 0.0;
+        notifyListeners();
       }
     });
   }
@@ -1024,6 +1026,10 @@ class DownloadProvider extends ChangeNotifier {
         task.status = TaskStatus.failed;
       }
     } finally {
+      // Explicitly dispose the engine to release HTTP connections and isolate resources
+      try {
+        _activeEngines[task.id]?.dispose();
+      } catch (_) {}
       _activeEngines.remove(task.id);
       _runningTasks.remove(task);
       _invalidateFilteredCache();

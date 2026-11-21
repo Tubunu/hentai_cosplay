@@ -48,6 +48,7 @@ import 'vjav_browse_provider.dart';
 import 'xhamster_browse_provider.dart';
 import 'xnxx_browse_provider.dart';
 import 'xvideos_browse_provider.dart';
+import 'ygjgl_browse_provider.dart';
 
 /// Modular Provider Registration Architecture
 /// Separates core operational providers from third-party media site browsing providers.
@@ -109,6 +110,7 @@ class AppProviders {
         ChangeNotifierProvider(create: (_) => MemojavBrowseProvider()),
         ChangeNotifierProvider(create: (_) => HohojBrowseProvider()),
         ChangeNotifierProvider(create: (_) => JableBrowseProvider()),
+        ChangeNotifierProvider(create: (_) => YgjglBrowseProvider()),
       ];
 
   /// Full list of all registered providers for MultiProvider root.

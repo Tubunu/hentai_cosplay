@@ -158,59 +158,80 @@ class LocalVideoProvider extends ChangeNotifier {
     final videoDir = Directory(videoDirPath);
     if (!videoDir.existsSync()) return (found, 0);
 
-    final entities = videoDir.listSync(recursive: true, followLinks: false);
     const videoExtensions = ['.mp4', '.mkv', '.webm', '.mov', '.avi', '.flv', '.ts'];
 
-    for (final entity in entities) {
-      if (entity is File) {
-        final ext = p.extension(entity.path).toLowerCase();
-        if (videoExtensions.contains(ext)) {
-          final stat = entity.statSync();
-          totalSize += stat.size;
+    // Use a stack-based iterative traversal (O(1) pop) to avoid memory overhead
+    final queue = <Directory>[videoDir];
+    while (queue.isNotEmpty) {
+      final currentDir = queue.removeLast();
+      List<FileSystemEntity> entries;
+      try {
+        entries = currentDir.listSync(followLinks: false);
+      } catch (_) {
+        continue;
+      }
 
-          final baseNameNoExt = p.basenameWithoutExtension(entity.path);
-          final parentDir = entity.parent.path;
-
-          // Check if companion metadata exists
-          final metaFile = File(p.join(parentDir, '$baseNameNoExt.json'));
-          Map<String, dynamic>? meta;
-          if (metaFile.existsSync()) {
+      for (final entity in entries) {
+        if (entity is Directory) {
+          final dirName = p.basename(entity.path);
+          if (!dirName.startsWith('.') && !dirName.startsWith(r'$')) {
+            queue.add(entity);
+          }
+        } else if (entity is File) {
+          final ext = p.extension(entity.path).toLowerCase();
+          if (videoExtensions.contains(ext)) {
+            final FileStat stat;
             try {
-              final metaContent = metaFile.readAsStringSync();
-              meta = jsonDecode(metaContent) as Map<String, dynamic>?;
-            } catch (_) {}
+              stat = entity.statSync();
+            } catch (_) {
+              continue;
+            }
+            totalSize += stat.size;
+
+            final baseNameNoExt = p.basenameWithoutExtension(entity.path);
+            final parentDir = entity.parent.path;
+
+            // Check if companion metadata exists
+            final metaFile = File(p.join(parentDir, '$baseNameNoExt.json'));
+            Map<String, dynamic>? meta;
+            if (metaFile.existsSync()) {
+              try {
+                final metaContent = metaFile.readAsStringSync();
+                meta = jsonDecode(metaContent) as Map<String, dynamic>?;
+              } catch (_) {}
+            }
+
+            // Check companion cover
+            String? coverPath;
+            final coverJpg = File(p.join(parentDir, '$baseNameNoExt.jpg'));
+            final coverPng = File(p.join(parentDir, '$baseNameNoExt.png'));
+            if (coverJpg.existsSync()) {
+              coverPath = coverJpg.path;
+            } else if (coverPng.existsSync()) {
+              coverPath = coverPng.path;
+            }
+
+            final title = meta?['title'] as String? ?? (meta?['name'] as String?) ?? baseNameNoExt;
+            final author = meta?['author'] as String? ?? (meta?['siteName'] as String?) ?? p.basename(parentDir);
+            final duration = meta?['duration'] as String? ?? '';
+            final sourceUrl = meta?['sourceUrl'] as String? ?? '';
+            final tags = (meta?['tags'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
+
+            found.add(
+              LocalVideoItem(
+                id: entity.path,
+                title: title,
+                author: author.isEmpty || author == 'video' ? '未知作者' : author,
+                filePath: entity.path,
+                coverPath: coverPath,
+                fileSizeBytes: stat.size,
+                createdAt: stat.modified,
+                duration: duration,
+                sourceUrl: sourceUrl,
+                tags: tags,
+              ),
+            );
           }
-
-          // Check companion cover
-          String? coverPath;
-          final coverJpg = File(p.join(parentDir, '$baseNameNoExt.jpg'));
-          final coverPng = File(p.join(parentDir, '$baseNameNoExt.png'));
-          if (coverJpg.existsSync()) {
-            coverPath = coverJpg.path;
-          } else if (coverPng.existsSync()) {
-            coverPath = coverPng.path;
-          }
-
-          final title = meta?['title'] as String? ?? (meta?['name'] as String?) ?? baseNameNoExt;
-          final author = meta?['author'] as String? ?? (meta?['siteName'] as String?) ?? p.basename(parentDir);
-          final duration = meta?['duration'] as String? ?? '';
-          final sourceUrl = meta?['sourceUrl'] as String? ?? '';
-          final tags = (meta?['tags'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
-
-          found.add(
-            LocalVideoItem(
-              id: entity.path,
-              title: title,
-              author: author.isEmpty || author == 'video' ? '未知作者' : author,
-              filePath: entity.path,
-              coverPath: coverPath,
-              fileSizeBytes: stat.size,
-              createdAt: stat.modified,
-              duration: duration,
-              sourceUrl: sourceUrl,
-              tags: tags,
-            ),
-          );
         }
       }
     }

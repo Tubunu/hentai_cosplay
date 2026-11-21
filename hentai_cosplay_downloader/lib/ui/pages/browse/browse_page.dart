@@ -70,6 +70,7 @@ class _BrowsePageState extends State<BrowsePage> {
     final downloadProv = context.read<DownloadProvider>();
     downloadProv.addBatchAlbumTasks(selected);
 
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('已将 ${selected.length} 个选中图集加入下载队列'),
@@ -137,7 +138,6 @@ class _BrowsePageState extends State<BrowsePage> {
 
   @override
   Widget build(BuildContext context) {
-    final browseProv = context.watch<BrowseProvider>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -152,625 +152,815 @@ class _BrowsePageState extends State<BrowsePage> {
                 edgeOffset: 58.0,
                 displacement: 40.0,
                 onRefresh: () async {
+                  final browseProv = context.read<BrowseProvider>();
                   await browseProv.loadPage(browseProv.currentPage);
                   HapticFeedback.lightImpact();
                 },
                 child: CustomScrollView(
-            controller: _scrollController,
-            cacheExtent: 600.0,
-            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-            slivers: [
-              // Hero Large Title & Action Header
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 52, 20, 8),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'HENTAI COSPLAY',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1.2,
-                              color: IosTheme.primaryPink.withValues(alpha: 0.9),
-                            ),
-                          ),
-                          const Text(
-                            '在线图片',
-                            style: TextStyle(
-                              fontSize: 30,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -0.8,
-                            ),
-                          ),
-                          if (browseProv.totalPages > 1)
-                            Text(
-                              '共收录 ${browseProv.totalPages} 页相册',
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                color: isDark ? Colors.white54 : Colors.black45,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                        ],
-                      ),
-                      const Spacer(),
+                  controller: _scrollController,
+                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                  cacheExtent: 600.0,
+                  physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                  slivers: [
+                    const _BrowseHeader(),
+                    _BrowseToolbar(
+                      searchController: _searchController,
+                      scrollToTop: _scrollToTop,
+                    ),
+                    _BrowseTagFilter(scrollToTop: _scrollToTop),
+                    _BrowseSearchBar(
+                      searchController: _searchController,
+                      onSearchSubmitted: _onSearchSubmitted,
+                      scrollToTop: _scrollToTop,
+                    ),
+                    _BrowseSelectionBar(onDownloadSelected: _downloadSelected),
+                    const _BrowseErrorBanner(),
+                    const _BrowseContentGrid(),
+                    _BrowsePagination(
+                      scrollToTop: _scrollToTop,
+                      showJumpPageDialog: _showJumpPageDialog,
+                    ),
+                    const ChromeSliverBottomSpacing(),
+                  ],
+                ),
+              ),
+            ),
+            ScrollToTopButton(
+              scrollController: _scrollController,
+              color: IosTheme.primaryPink,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
-                      // Random discovery button
-                      const RandomActionButton.album(
-                        albumSource: MediaSourceType.hc,
-                        isCapsule: true,
+class _BrowseHeader extends StatelessWidget {
+  const _BrowseHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final totalPages = context.select((BrowseProvider p) => p.totalPages);
+    final currentPage = context.select((BrowseProvider p) => p.currentPage);
+    final isSelectionMode = context.select((BrowseProvider p) => p.isSelectionMode);
+
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 52, 20, 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'HENTAI COSPLAY',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.2,
+                    color: IosTheme.primaryPink.withValues(alpha: 0.9),
+                  ),
+                ),
+                const Text(
+                  '在线图片',
+                  style: TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.8,
+                  ),
+                ),
+                if (totalPages > 1)
+                  Text(
+                    '共收录 $totalPages 页相册',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: isDark ? Colors.white54 : Colors.black45,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+              ],
+            ),
+            const Spacer(),
+
+            // Random discovery button
+            const RandomActionButton.album(
+              albumSource: MediaSourceType.hc,
+              isCapsule: true,
+              color: IosTheme.primaryPink,
+            ),
+            const SizedBox(width: 8),
+
+            // Batch Page Range Download Button (区间批量)
+            BouncingButton(
+              onTap: () => BatchDownloadDialog.show(
+                context,
+                initialStart: currentPage,
+                initialEnd: (currentPage + 4).clamp(1, totalPages > 0 ? totalPages : 1),
+              ),
+              child: FrostedGlass(
+                borderRadius: 16,
+                blur: 15,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                backgroundColor: isDark ? const Color(0x9924242A) : const Color(0xDDFFFFFF),
+                child: const Row(
+                  children: [
+                    Icon(CupertinoIcons.layers_alt_fill, color: IosTheme.primaryPink, size: 16),
+                    SizedBox(width: 6),
+                    Text(
+                      '区间批量',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
                         color: IosTheme.primaryPink,
                       ),
-                      const SizedBox(width: 8),
-
-                      // Batch Page Range Download Button (区间批量)
-                      BouncingButton(
-                        onTap: () => BatchDownloadDialog.show(
-                          context,
-                          initialStart: browseProv.currentPage,
-                          initialEnd: (browseProv.currentPage + 4).clamp(1, browseProv.totalPages > 0 ? browseProv.totalPages : 1),
-                        ),
-                        child: FrostedGlass(
-                          borderRadius: 16,
-                          blur: 15,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          backgroundColor: isDark ? const Color(0x9924242A) : const Color(0xDDFFFFFF),
-                          child: const Row(
-                            children: [
-                              Icon(CupertinoIcons.layers_alt_fill, color: IosTheme.primaryPink, size: 16),
-                              SizedBox(width: 6),
-                              Text(
-                                '区间批量',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 12,
-                                  color: IosTheme.primaryPink,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-
-                      // Selection Mode Toggle Button (批量选择)
-                      BouncingButton(
-                        onTap: () => browseProv.toggleSelectionMode(),
-                        child: FrostedGlass(
-                          borderRadius: 16,
-                          blur: 15,
-                          padding: const EdgeInsets.all(8),
-                          backgroundColor: browseProv.isSelectionMode
-                              ? IosTheme.primaryPink
-                              : (isDark ? const Color(0x9924242A) : const Color(0xDDFFFFFF)),
-                          child: Icon(
-                            browseProv.isSelectionMode
-                                ? CupertinoIcons.checkmark_circle_fill
-                                : CupertinoIcons.checkmark_circle,
-                            color: browseProv.isSelectionMode ? Colors.white : IosTheme.primaryPink,
-                            size: 18,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
+            ),
+            const SizedBox(width: 8),
 
-              // Category Dropdown and Hot Tags / Hot Keywords Toolbar
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 2, 20, 6),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    physics: const BouncingScrollPhysics(),
+            // Selection Mode Toggle Button (批量选择)
+            BouncingButton(
+              onTap: () => context.read<BrowseProvider>().toggleSelectionMode(),
+              child: FrostedGlass(
+                borderRadius: 16,
+                blur: 15,
+                padding: const EdgeInsets.all(8),
+                backgroundColor: isSelectionMode
+                    ? IosTheme.primaryPink
+                    : (isDark ? const Color(0x9924242A) : const Color(0xDDFFFFFF)),
+                child: Icon(
+                  isSelectionMode
+                      ? CupertinoIcons.checkmark_circle_fill
+                      : CupertinoIcons.checkmark_circle,
+                  color: isSelectionMode ? Colors.white : IosTheme.primaryPink,
+                  size: 18,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BrowseToolbar extends StatelessWidget {
+  final TextEditingController searchController;
+  final VoidCallback scrollToTop;
+
+  const _BrowseToolbar({
+    required this.searchController,
+    required this.scrollToTop,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final category = context.select((BrowseProvider p) => p.category);
+    final isTagActive = context.select((BrowseProvider p) => p.isTagActive);
+    final isSearchActive = context.select((BrowseProvider p) => p.isSearchActive);
+
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 2, 20, 6),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Row(
+            children: [
+              // Category Dropdown (分类排行)
+              PopupMenuButton<BrowseCategory>(
+                initialValue: category,
+                tooltip: '选择分类与排行',
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                color: isDark ? const Color(0xFF2C2C2E) : Colors.white,
+                onSelected: (cat) {
+                  searchController.clear();
+                  context.read<BrowseProvider>().setCategory(cat);
+                  scrollToTop();
+                },
+                itemBuilder: (context) => BrowseCategory.values.map((cat) {
+                  final isSelected = category == cat && !isTagActive && !isSearchActive;
+                  return PopupMenuItem<BrowseCategory>(
+                    value: cat,
                     child: Row(
                       children: [
-                        // Category Dropdown (分类排行)
-                        PopupMenuButton<BrowseCategory>(
-                          initialValue: browseProv.category,
-                          tooltip: '选择分类与排行',
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                          color: isDark ? const Color(0xFF2C2C2E) : Colors.white,
-                          onSelected: (cat) {
-                            _searchController.clear();
-                            browseProv.setCategory(cat);
-                            _scrollToTop();
-                          },
-                          itemBuilder: (context) => BrowseCategory.values.map((cat) {
-                            final isSelected = browseProv.category == cat && !browseProv.isTagActive && !browseProv.isSearchActive;
-                            return PopupMenuItem<BrowseCategory>(
-                              value: cat,
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    cat == BrowseCategory.latest
-                                        ? CupertinoIcons.sparkles
-                                        : cat == BrowseCategory.ranking
-                                            ? CupertinoIcons.flame_fill
-                                            : cat == BrowseCategory.rankingDownload
-                                                ? CupertinoIcons.arrow_down_circle_fill
-                                                : cat == BrowseCategory.rankingBookmark
-                                                    ? CupertinoIcons.bookmark_fill
-                                                    : CupertinoIcons.hand_thumbsup_fill,
-                                    size: 16,
-                                    color: isSelected ? IosTheme.primaryPink : (isDark ? Colors.white70 : Colors.black87),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Text(
-                                    cat.label,
-                                    style: TextStyle(
-                                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                                      color: isSelected ? IosTheme.primaryPink : (isDark ? Colors.white : Colors.black87),
-                                    ),
-                                  ),
-                                  if (isSelected) ...[
-                                    const Spacer(),
-                                    const Icon(CupertinoIcons.checkmark, size: 14, color: IosTheme.primaryPink),
-                                  ],
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                          child: FrostedGlass(
-                            borderRadius: 14,
-                            blur: 15,
-                            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-                            backgroundColor: browseProv.isTagActive || browseProv.isSearchActive
-                                ? (isDark ? const Color(0x6624242A) : const Color(0xBBFFFFFF))
-                                : IosTheme.primaryPink.withValues(alpha: 0.15),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  CupertinoIcons.slider_horizontal_3,
-                                  size: 13,
-                                  color: browseProv.isTagActive || browseProv.isSearchActive
-                                      ? (isDark ? Colors.white70 : Colors.black87)
-                                      : IosTheme.primaryPink,
-                                ),
-                                const SizedBox(width: 5),
-                                Text(
-                                  browseProv.isTagActive
-                                      ? '分类: ${browseProv.category.label}'
-                                      : browseProv.category.label,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w800,
-                                    color: browseProv.isTagActive || browseProv.isSearchActive
-                                        ? (isDark ? Colors.white : Colors.black87)
-                                        : IosTheme.primaryPink,
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                Icon(
-                                  CupertinoIcons.chevron_down,
-                                  size: 11,
-                                  color: browseProv.isTagActive || browseProv.isSearchActive
-                                      ? Colors.grey
-                                      : IosTheme.primaryPink,
-                                ),
-                              ],
-                            ),
+                        Icon(
+                          cat == BrowseCategory.latest
+                              ? CupertinoIcons.sparkles
+                              : cat == BrowseCategory.ranking
+                                  ? CupertinoIcons.flame_fill
+                                  : cat == BrowseCategory.rankingDownload
+                                      ? CupertinoIcons.arrow_down_circle_fill
+                                      : cat == BrowseCategory.rankingBookmark
+                                          ? CupertinoIcons.bookmark_fill
+                                          : CupertinoIcons.hand_thumbsup_fill,
+                          size: 16,
+                          color: isSelected ? IosTheme.primaryPink : (isDark ? Colors.white70 : Colors.black87),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          cat.label,
+                          style: TextStyle(
+                            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                            color: isSelected ? IosTheme.primaryPink : (isDark ? Colors.white : Colors.black87),
                           ),
                         ),
-                        const SizedBox(width: 8),
-
-                        // Hot Tags Button (热门标签)
-                        BouncingButton(
-                          onTap: () {
-                            RankingTagsSheet.show(
-                              context,
-                              isTag: true,
-                              onSelect: (tag) {
-                                _searchController.clear();
-                                browseProv.setTag(tag.name);
-                                _scrollToTop();
-                              },
-                            );
-                          },
-                          child: FrostedGlass(
-                            borderRadius: 14,
-                            blur: 15,
-                            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-                            backgroundColor: isDark ? const Color(0x9924242A) : const Color(0xDDFFFFFF),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(CupertinoIcons.tag_fill, size: 13, color: IosTheme.primaryPink),
-                                SizedBox(width: 5),
-                                Text(
-                                  '热门标签',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: IosTheme.primaryPink,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-
-                        // Hot Search Keywords Button (热门搜索词)
-                        BouncingButton(
-                          onTap: () {
-                            RankingTagsSheet.show(
-                              context,
-                              isTag: false,
-                              onSelect: (kw) {
-                                _searchController.text = kw.name;
-                                browseProv.setSearchKeyword(kw.name);
-                                _scrollToTop();
-                              },
-                            );
-                          },
-                          child: FrostedGlass(
-                            borderRadius: 14,
-                            blur: 15,
-                            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-                            backgroundColor: isDark ? const Color(0x9924242A) : const Color(0xDDFFFFFF),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(CupertinoIcons.flame_fill, size: 13, color: Colors.orange),
-                                SizedBox(width: 5),
-                                Text(
-                                  '热门搜索词',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.orange,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
-              // Active Tag Filter Chip (if filtering by tag)
-              if (browseProv.isTagActive)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 2, 20, 4),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: IosTheme.primaryPink.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: IosTheme.primaryPink.withValues(alpha: 0.3)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(CupertinoIcons.tag_fill, size: 12, color: IosTheme.primaryPink),
-                              const SizedBox(width: 5),
-                              Text(
-                                '标签: ${browseProv.currentTag}',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
-                                  color: IosTheme.primaryPink,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              BouncingButton(
-                                onTap: () {
-                                  browseProv.clearTag();
-                                  _scrollToTop();
-                                },
-                                child: const Icon(CupertinoIcons.xmark_circle_fill, size: 14, color: IosTheme.primaryPink),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-              // Search Bar
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: CupertinoSearchTextField(
-                          controller: _searchController,
-                          placeholder: '搜索 Coser 名字、角色或关键词...',
-                          style: TextStyle(color: isDark ? Colors.white : Colors.black),
-                          onSubmitted: _onSearchSubmitted,
-                          onSuffixTap: () {
-                            _searchController.clear();
-                            browseProv.clearSearch();
-                            _scrollToTop();
-                          },
-                        ),
-                      ),
-                      if (_searchController.text.isNotEmpty || browseProv.searchKeyword.isNotEmpty) ...[
-                        const SizedBox(width: 8),
-                        BouncingButton(
-                          onTap: () {
-                            _onSearchSubmitted(_searchController.text);
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: IosTheme.primaryPink,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Text(
-                              '搜索',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-
-              // Selection Mode Action Bar (if active)
-              if (browseProv.isSelectionMode)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                    child: FrostedGlass(
-                      borderRadius: 16,
-                      blur: 15,
-                      backgroundColor: IosTheme.primaryPink.withValues(alpha: 0.12),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      child: Row(
-                        children: [
-                          Text(
-                            '已选择 ${browseProv.selectedCount} 个图集',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                              color: IosTheme.primaryPink,
-                            ),
-                          ),
+                        if (isSelected) ...[
                           const Spacer(),
-                          TextButton(
-                            onPressed: browseProv.selectAllCurrentPage,
-                            child: const Text('全选本页', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                          ),
-                          const SizedBox(width: 4),
-                          ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: IosTheme.primaryPink,
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            ),
-                            icon: const Icon(CupertinoIcons.arrow_down_to_line, size: 14),
-                            label: const Text('下载选中', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                            onPressed: browseProv.selectedCount > 0
-                                ? () => _downloadSelected(browseProv)
-                                : null,
-                          ),
+                          const Icon(CupertinoIcons.checkmark, size: 14, color: IosTheme.primaryPink),
                         ],
-                      ),
-                    ),
-                  ),
-                ),
-
-              // Content Grid or Loading / Error
-              if (browseProv.isLoading && browseProv.items.isEmpty)
-                const SliverFillRemaining(
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CupertinoActivityIndicator(radius: 16),
-                        SizedBox(height: 14),
-                        Text('正在加载新到图像列表...', style: TextStyle(color: Colors.grey, fontSize: 13)),
                       ],
                     ),
-                  ),
-                )
-              else if (browseProv.errorMessage != null && browseProv.items.isEmpty)
-                SliverFillRemaining(
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(CupertinoIcons.wifi_slash, size: 48, color: Colors.orange),
-                          const SizedBox(height: 12),
-                          Text(
-                            browseProv.errorMessage!,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(color: Colors.grey, fontSize: 13),
-                          ),
-                          const SizedBox(height: 16),
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: IosTheme.primaryPink,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                            ),
-                            onPressed: () => browseProv.loadPage(browseProv.currentPage),
-                            child: const Text('重新加载'),
-                          ),
-                        ],
+                  );
+                }).toList(),
+                child: FrostedGlass(
+                  borderRadius: 14,
+                  blur: 15,
+                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                  backgroundColor: isTagActive || isSearchActive
+                      ? (isDark ? const Color(0x6624242A) : const Color(0xBBFFFFFF))
+                      : IosTheme.primaryPink.withValues(alpha: 0.15),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        CupertinoIcons.slider_horizontal_3,
+                        size: 13,
+                        color: isTagActive || isSearchActive
+                            ? (isDark ? Colors.white70 : Colors.black87)
+                            : IosTheme.primaryPink,
                       ),
-                    ),
-                  ),
-                )
-              else if (browseProv.items.isEmpty)
-                const SliverFillRemaining(
-                  child: Center(
-                    child: Text('没有找到相关图集', style: TextStyle(color: Colors.grey)),
-                  ),
-                )
-              else
-                SliverOpacity(
-                  opacity: browseProv.isLoading ? 0.5 : 1.0,
-                  sliver: SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                    sliver: SliverGrid(
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      childAspectRatio: 0.72,
-                      crossAxisSpacing: 10,
-                      mainAxisSpacing: 12,
-                    ),
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final item = browseProv.items[index];
-
-                        return AlbumCard(
-                          item: item,
-                          onTap: () {
-                            if (browseProv.isSelectionMode) {
-                              browseProv.toggleAlbumSelection(item);
-                            } else {
-                              try {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => AlbumDetailPage(initialItem: item),
-                                  ),
-                                );
-                              } catch (e) {
-                                debugPrint('[BrowsePage] Navigation error: $e');
-                              }
-                            }
-                          },
-                        );
-                      },
-                      childCount: browseProv.items.length,
-                      addAutomaticKeepAlives: true,
-                      addRepaintBoundaries: true,
-                    ),
+                      const SizedBox(width: 5),
+                      Text(
+                        isTagActive
+                            ? '分类: ${category.label}'
+                            : category.label,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: isTagActive || isSearchActive
+                              ? (isDark ? Colors.white : Colors.black87)
+                              : IosTheme.primaryPink,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        CupertinoIcons.chevron_down,
+                        size: 11,
+                        color: isTagActive || isSearchActive
+                            ? Colors.grey
+                            : IosTheme.primaryPink,
+                      ),
+                    ],
                   ),
                 ),
               ),
+              const SizedBox(width: 8),
 
-              // Prominent Pagination Bar (Bottom)
-              if (!browseProv.isLoading && browseProv.items.isNotEmpty)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Previous Page Button
-                        BouncingButton(
-                          onTap: browseProv.currentPage > 1
-                              ? () {
-                                  browseProv.previousPage();
-                                  _scrollToTop();
-                                }
-                              : null,
-                          child: FrostedGlass(
-                            borderRadius: 16,
-                            blur: 20,
-                            padding: const EdgeInsets.all(12),
-                            backgroundColor: browseProv.currentPage > 1
-                                ? (isDark ? const Color(0x9928282E) : const Color(0xDDFFFFFF))
-                                : Colors.transparent,
-                            child: Icon(
-                              CupertinoIcons.chevron_left,
-                              size: 18,
-                              color: browseProv.currentPage > 1
-                                  ? IosTheme.primaryPink
-                                  : Colors.grey.withValues(alpha: 0.3),
-                            ),
-                          ),
+              // Hot Tags Button (热门标签)
+              BouncingButton(
+                onTap: () {
+                  RankingTagsSheet.show(
+                    context,
+                    isTag: true,
+                    onSelect: (tag) {
+                      searchController.clear();
+                      context.read<BrowseProvider>().setTag(tag.name);
+                      scrollToTop();
+                    },
+                  );
+                },
+                child: FrostedGlass(
+                  borderRadius: 14,
+                  blur: 15,
+                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                  backgroundColor: isDark ? const Color(0x9924242A) : const Color(0xDDFFFFFF),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(CupertinoIcons.tag_fill, size: 13, color: IosTheme.primaryPink),
+                      SizedBox(width: 5),
+                      Text(
+                        '热门标签',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: IosTheme.primaryPink,
                         ),
-
-                        const SizedBox(width: 14),
-
-                        // Page Indicator with Click to Jump
-                        BouncingButton(
-                          onTap: () => _showJumpPageDialog(browseProv),
-                          child: FrostedGlass(
-                            borderRadius: 18,
-                            blur: 20,
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                            backgroundColor: isDark ? const Color(0x9928282E) : const Color(0xDDFFFFFF),
-                            child: Row(
-                              children: [
-                                Text(
-                                  '第 ${browseProv.currentPage} / ${browseProv.totalPages} 页',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 13.5,
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                const Icon(CupertinoIcons.chevron_down, size: 12),
-                              ],
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(width: 14),
-
-                        // Next Page Button
-                        BouncingButton(
-                          onTap: browseProv.currentPage < browseProv.totalPages
-                              ? () {
-                                  browseProv.nextPage();
-                                  _scrollToTop();
-                                }
-                              : null,
-                          child: FrostedGlass(
-                            borderRadius: 16,
-                            blur: 20,
-                            padding: const EdgeInsets.all(12),
-                            backgroundColor: browseProv.currentPage < browseProv.totalPages
-                                ? (isDark ? const Color(0x9928282E) : const Color(0xDDFFFFFF))
-                                : Colors.transparent,
-                            child: Icon(
-                              CupertinoIcons.chevron_right,
-                              size: 18,
-                              color: browseProv.currentPage < browseProv.totalPages
-                                  ? IosTheme.primaryPink
-                                  : Colors.grey.withValues(alpha: 0.3),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
+              ),
+              const SizedBox(width: 8),
 
-              // Dynamic bottom spacer to prevent obstruction by bottom navigation & mini download bar
-              const ChromeSliverBottomSpacing(),
+              // Hot Search Keywords Button (热门搜索词)
+              BouncingButton(
+                onTap: () {
+                  RankingTagsSheet.show(
+                    context,
+                    isTag: false,
+                    onSelect: (kw) {
+                      searchController.text = kw.name;
+                      context.read<BrowseProvider>().setSearchKeyword(kw.name);
+                      scrollToTop();
+                    },
+                  );
+                },
+                child: FrostedGlass(
+                  borderRadius: 14,
+                  blur: 15,
+                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                  backgroundColor: isDark ? const Color(0x9924242A) : const Color(0xDDFFFFFF),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(CupertinoIcons.flame_fill, size: 13, color: Colors.orange),
+                      SizedBox(width: 5),
+                      Text(
+                        '热门搜索词',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.orange,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         ),
       ),
-        ScrollToTopButton(
-          scrollController: _scrollController,
-          color: IosTheme.primaryPink,
-        ),
-      ],
-    ),
-  ),
-);
+    );
   }
 }
+
+class _BrowseTagFilter extends StatelessWidget {
+  final VoidCallback scrollToTop;
+
+  const _BrowseTagFilter({required this.scrollToTop});
+
+  @override
+  Widget build(BuildContext context) {
+    final isTagActive = context.select((BrowseProvider p) => p.isTagActive);
+    final currentTag = context.select((BrowseProvider p) => p.currentTag);
+
+    if (!isTagActive) return const SliverToBoxAdapter();
+
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 2, 20, 4),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: IosTheme.primaryPink.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: IosTheme.primaryPink.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(CupertinoIcons.tag_fill, size: 12, color: IosTheme.primaryPink),
+                  const SizedBox(width: 5),
+                  Text(
+                    '标签: $currentTag',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: IosTheme.primaryPink,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  BouncingButton(
+                    onTap: () {
+                      context.read<BrowseProvider>().clearTag();
+                      scrollToTop();
+                    },
+                    child: const Icon(CupertinoIcons.xmark_circle_fill, size: 14, color: IosTheme.primaryPink),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BrowseSearchBar extends StatelessWidget {
+  final TextEditingController searchController;
+  final ValueChanged<String> onSearchSubmitted;
+  final VoidCallback scrollToTop;
+
+  const _BrowseSearchBar({
+    required this.searchController,
+    required this.onSearchSubmitted,
+    required this.scrollToTop,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final searchKeyword = context.select((BrowseProvider p) => p.searchKeyword);
+
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+        child: Row(
+          children: [
+            Expanded(
+              child: CupertinoSearchTextField(
+                controller: searchController,
+                placeholder: '搜索 Coser 名字、角色或关键词...',
+                style: TextStyle(color: isDark ? Colors.white : Colors.black),
+                onSubmitted: onSearchSubmitted,
+                onSuffixTap: () {
+                  searchController.clear();
+                  context.read<BrowseProvider>().clearSearch();
+                  scrollToTop();
+                },
+              ),
+            ),
+            ListenableBuilder(
+              listenable: searchController,
+              builder: (context, _) {
+                if (searchController.text.isNotEmpty || searchKeyword.isNotEmpty) {
+                  return Padding(
+                    padding: const EdgeInsets.only(left: 8.0),
+                    child: BouncingButton(
+                      onTap: () {
+                        onSearchSubmitted(searchController.text);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: IosTheme.primaryPink,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Text(
+                          '搜索',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BrowseSelectionBar extends StatelessWidget {
+  final void Function(BrowseProvider) onDownloadSelected;
+
+  const _BrowseSelectionBar({required this.onDownloadSelected});
+
+  @override
+  Widget build(BuildContext context) {
+    final isSelectionMode = context.select((BrowseProvider p) => p.isSelectionMode);
+    final selectedCount = context.select((BrowseProvider p) => p.selectedCount);
+
+    if (!isSelectionMode) return const SliverToBoxAdapter();
+
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+        child: FrostedGlass(
+          borderRadius: 16,
+          blur: 15,
+          backgroundColor: IosTheme.primaryPink.withValues(alpha: 0.12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          child: Row(
+            children: [
+              Text(
+                '已选择 $selectedCount 个图集',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  color: IosTheme.primaryPink,
+                ),
+              ),
+              const Spacer(),
+              TextButton(
+                onPressed: () => context.read<BrowseProvider>().selectAllCurrentPage(),
+                child: const Text('全选本页', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+              ),
+              const SizedBox(width: 4),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: IosTheme.primaryPink,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(CupertinoIcons.arrow_down_to_line, size: 14),
+                label: const Text('下载选中', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                onPressed: selectedCount > 0
+                    ? () => onDownloadSelected(context.read<BrowseProvider>())
+                    : null,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BrowseErrorBanner extends StatelessWidget {
+  const _BrowseErrorBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final errorMessage = context.select((BrowseProvider p) => p.errorMessage);
+    final hasItems = context.select((BrowseProvider p) => p.items.isNotEmpty);
+
+    if (errorMessage == null || !hasItems) {
+      return const SliverToBoxAdapter();
+    }
+
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.redAccent.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            children: [
+              const Icon(CupertinoIcons.exclamationmark_triangle_fill, size: 16, color: Colors.redAccent),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  errorMessage,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12, color: Colors.redAccent, fontWeight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(width: 8),
+              BouncingButton(
+                onTap: () {
+                  final prov = context.read<BrowseProvider>();
+                  prov.loadPage(prov.currentPage);
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text('重试', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BrowseContentGrid extends StatelessWidget {
+  const _BrowseContentGrid();
+
+  @override
+  Widget build(BuildContext context) {
+    final isLoading = context.select((BrowseProvider p) => p.isLoading);
+    final errorMessage = context.select((BrowseProvider p) => p.errorMessage);
+    final items = context.select((BrowseProvider p) => p.items);
+    final isSelectionMode = context.select((BrowseProvider p) => p.isSelectionMode);
+
+    if (isLoading && items.isEmpty) {
+      return const SliverFillRemaining(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CupertinoActivityIndicator(radius: 16),
+              SizedBox(height: 14),
+              Text('正在加载新到图像列表...', style: TextStyle(color: Colors.grey, fontSize: 13)),
+            ],
+          ),
+        ),
+      );
+    } else if (errorMessage != null && items.isEmpty) {
+      return SliverFillRemaining(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(CupertinoIcons.wifi_slash, size: 48, color: Colors.orange),
+                const SizedBox(height: 12),
+                Text(
+                  errorMessage,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.grey, fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: IosTheme.primaryPink,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  ),
+                  onPressed: () {
+                    final prov = context.read<BrowseProvider>();
+                    prov.loadPage(prov.currentPage);
+                  },
+                  child: const Text('重新加载'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    } else if (items.isEmpty) {
+      return const SliverFillRemaining(
+        child: Center(
+          child: Text('没有找到相关图集', style: TextStyle(color: Colors.grey)),
+        ),
+      );
+    } else {
+      return SliverOpacity(
+        opacity: isLoading ? 0.5 : 1.0,
+        sliver: SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          sliver: SliverGrid(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              childAspectRatio: 0.72,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 12,
+            ),
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                final item = items[index];
+
+                return AlbumCard(
+                  item: item,
+                  onTap: () {
+                    if (isSelectionMode) {
+                      context.read<BrowseProvider>().toggleAlbumSelection(item);
+                    } else {
+                      try {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => AlbumDetailPage(initialItem: item),
+                          ),
+                        );
+                      } catch (e) {
+                        debugPrint('[BrowsePage] Navigation error: $e');
+                      }
+                    }
+                  },
+                );
+              },
+              childCount: items.length,
+              addAutomaticKeepAlives: true,
+              addRepaintBoundaries: true,
+            ),
+          ),
+        ),
+      );
+    }
+  }
+}
+
+class _BrowsePagination extends StatelessWidget {
+  final VoidCallback scrollToTop;
+  final void Function(BrowseProvider) showJumpPageDialog;
+
+  const _BrowsePagination({
+    required this.scrollToTop,
+    required this.showJumpPageDialog,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isLoading = context.select((BrowseProvider p) => p.isLoading);
+    final items = context.select((BrowseProvider p) => p.items);
+    final currentPage = context.select((BrowseProvider p) => p.currentPage);
+    final totalPages = context.select((BrowseProvider p) => p.totalPages);
+
+    if (isLoading || items.isEmpty) {
+      return const SliverToBoxAdapter();
+    }
+
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Previous Page Button
+            BouncingButton(
+              onTap: currentPage > 1
+                  ? () {
+                      context.read<BrowseProvider>().previousPage();
+                      scrollToTop();
+                    }
+                  : null,
+              child: FrostedGlass(
+                borderRadius: 16,
+                blur: 20,
+                padding: const EdgeInsets.all(12),
+                backgroundColor: currentPage > 1
+                    ? (isDark ? const Color(0x9928282E) : const Color(0xDDFFFFFF))
+                    : Colors.transparent,
+                child: Icon(
+                  CupertinoIcons.chevron_left,
+                  size: 18,
+                  color: currentPage > 1
+                      ? IosTheme.primaryPink
+                      : Colors.grey.withValues(alpha: 0.3),
+                ),
+              ),
+            ),
+
+            const SizedBox(width: 14),
+
+            // Page Indicator with Click to Jump
+            BouncingButton(
+              onTap: () => showJumpPageDialog(context.read<BrowseProvider>()),
+              child: FrostedGlass(
+                borderRadius: 18,
+                blur: 20,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                backgroundColor: isDark ? const Color(0x9928282E) : const Color(0xDDFFFFFF),
+                child: Row(
+                  children: [
+                    Text(
+                      '第 $currentPage / $totalPages 页',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13.5,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Icon(CupertinoIcons.chevron_down, size: 12),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(width: 14),
+
+            // Next Page Button
+            BouncingButton(
+              onTap: currentPage < totalPages
+                  ? () {
+                      context.read<BrowseProvider>().nextPage();
+                      scrollToTop();
+                    }
+                  : null,
+              child: FrostedGlass(
+                borderRadius: 16,
+                blur: 20,
+                padding: const EdgeInsets.all(12),
+                backgroundColor: currentPage < totalPages
+                    ? (isDark ? const Color(0x9928282E) : const Color(0xDDFFFFFF))
+                    : Colors.transparent,
+                child: Icon(
+                  CupertinoIcons.chevron_right,
+                  size: 18,
+                  color: currentPage < totalPages
+                      ? IosTheme.primaryPink
+                      : Colors.grey.withValues(alpha: 0.3),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+

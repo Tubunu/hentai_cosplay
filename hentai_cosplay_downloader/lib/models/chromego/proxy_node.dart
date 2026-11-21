@@ -341,17 +341,26 @@ class ProxyNode {
     return node;
   }
 
+  static dynamic _makeJsonSafe(dynamic obj) {
+    if (obj is Map) {
+      return obj.map((k, v) => MapEntry(k.toString(), _makeJsonSafe(v)));
+    } else if (obj is Iterable) {
+      return obj.map(_makeJsonSafe).toList();
+    }
+    return obj;
+  }
+
   Map<String, dynamic> toJson() => {
         'name': name,
         'protocol': protocol,
         'server': server,
         'port': port,
         'source_tag': sourceTag,
-        'auth': auth,
-        'tls_settings': tlsSettings,
-        'transport': transport,
-        'extra': extra,
-        'raw_config': rawConfig,
+        'auth': _makeJsonSafe(auth) as Map<String, dynamic>,
+        'tls_settings': _makeJsonSafe(tlsSettings) as Map<String, dynamic>,
+        'transport': _makeJsonSafe(transport) as Map<String, dynamic>,
+        'extra': _makeJsonSafe(extra) as Map<String, dynamic>,
+        'raw_config': _makeJsonSafe(rawConfig) as Map<String, dynamic>,
         'ping_ms': pingMs,
       };
 

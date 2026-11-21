@@ -87,6 +87,7 @@ class _HentaiCosplayAppState extends State<HentaiCosplayApp> with WidgetsBinding
       PaintingBinding.instance.imageCache.clearLiveImages();
       debugPrint('[Memory] Cleared in-memory image cache on entering background');
 
+      if (!mounted) return;
       try {
         final settings = context.read<SettingsProvider>();
         context.read<DisguiseProvider>().onLifecycleStateChanged(

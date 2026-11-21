@@ -173,22 +173,26 @@ jobs:
       - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.14-release
-          name: "Hentai Cosplay Downloader v1.0.14 Release (iOS IPA & Android APK)"
+          tag_name: v1.0.15-release
+          name: "Hentai Cosplay Downloader v1.0.15 Release (iOS IPA & Android APK)"
           body: |
             ### 📱 安装包下载
             - **🍎 iOS (iPhone / iPad)**: 下载 `hentai_cosplay_downloader.ipa`，使用 **爱思助手** / **Sideloadly** / **TrollStore (巨魔)** / **AltStore** / **牛蛙助手** / **GBox** / **ESign** 签名安装。
             - **🤖 Android (安卓 64位推荐)**: 下载 `hentai_cosplay_downloader-arm64-v8a.apk`，在安卓手机上直接安装即可。
 
-            ### 🚀 最新功能与更新 (v1.0.14)
+            ### 🚀 最新功能与更新 (v1.0.15)
+            - **【新增「一个够了」聚合专区】**：
+              - 位于【在线视频】与【下载任务】之间，独家接入全站海量精品资源；
+              - 细分为三大板块：**点播 (VOD)**、**写真 (Image)**、**电台 (Radio)**；
+              - 支持关键词搜索、地区分类（国产/日本/免费区）、年份月份筛选、标签与系列专栏；
+              - 支持最新/最热/点赞/下载排行榜及日榜/周榜/月榜/总榜；
+              - 点播直连原画 MP4 流播放与下载，详情页大图预览及整套写真/电台批量范围下载。
+            - **【封面与网络加载深度优化】**：
+              - 对齐官方网页边缘加速端点，修复部分网络环境下点播封面无法加载问题；
+              - 优化图片内存纹理缓存占用，避免画廊滑动画质突变或卡顿。
             - **【全内置 Libbox 代理引擎与智能分流网关】**：
               - 内置嵌入式 Sing-box / Libbox 高性能代理引擎，支持 VLESS、VMess、Trojan、Shadowsocks、Hysteria 2、TUIC 现代主流协议；
-              - 智能分流网关与独立网站代理开关：支持为各个海外漫画/视频站点（Pornhub、Jable、Iwara 等）单独控制是否走代理，国内直连站点自动旁路；
-              - 彻底修复 Android 平台 Linux 内核 Socket 绑定权限限制与 DNS 路由解析，全面杜绝启动闪退与空指针异常。
-            - **【ChromeGo 节点提取器】**：
-              - 聚合抓取海量免费节点并支持并发测速、去重、一码全入二维码导入与局域网 Wi-Fi 订阅共享。
-            - **【稳定性与性能提升】**：
-              - 优化核心网络包与依赖环境，增强多线程下载稳定性。
+              - 智能分流网关与独立网站代理开关，支持为各个站点单独控制是否走代理，国内直连站点自动旁路。
           files: |
             hentai_cosplay_downloader.ipa
             hentai_cosplay_downloader-arm64-v8a.apk*

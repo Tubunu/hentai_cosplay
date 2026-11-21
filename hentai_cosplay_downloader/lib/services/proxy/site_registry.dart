@@ -331,6 +331,14 @@ class SiteRegistry {
       defaultProxy: false,
       description: '免翻墙镜像图集专区',
     ),
+    SiteMetadata(
+      key: 'ygjgl',
+      name: '一个够了',
+      icon: '🔥',
+      domainPatterns: ['ygjgl.one', 'gdliren123.com', 'mfpt8g.com'],
+      defaultProxy: false,
+      description: '一个够了 · 视频点播、写真图集与电台',
+    ),
   ];
 
   static final Map<String, SiteMetadata> _siteMap = {

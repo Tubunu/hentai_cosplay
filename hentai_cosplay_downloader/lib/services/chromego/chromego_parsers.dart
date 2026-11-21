@@ -4,6 +4,18 @@ import '../../models/chromego/proxy_node.dart';
 
 /// Parsers for ChromeGo configuration formats.
 class NodeParsers {
+  /// Recursively converts YamlMap and YamlList into standard JSON-encodable Map and List.
+  static dynamic deepConvertYaml(dynamic yaml) {
+    if (yaml is Map || yaml is YamlMap) {
+      return (yaml as Map).map(
+        (key, value) => MapEntry(key.toString(), deepConvertYaml(value)),
+      );
+    } else if (yaml is Iterable) {
+      return yaml.map(deepConvertYaml).toList();
+    }
+    return yaml;
+  }
+
   /// Parses Clash.Meta YAML content.
   static List<ProxyNode> parseClashYaml(String content, {String sourceTag = 'Clash.Meta'}) {
     final nodes = <ProxyNode>[];
@@ -81,6 +93,8 @@ class NodeParsers {
           auth['password'] = p['password'] ?? '';
         }
 
+        final safeRawConfig = deepConvertYaml(p);
+
         nodes.add(ProxyNode(
           name: name,
           protocol: pType == 'http' ? 'naiveproxy' : pType,
@@ -91,7 +105,9 @@ class NodeParsers {
           tlsSettings: tlsSettings,
           transport: transport,
           extra: extra,
-          rawConfig: Map<String, dynamic>.from(p),
+          rawConfig: safeRawConfig is Map<String, dynamic>
+              ? safeRawConfig
+              : Map<String, dynamic>.from(safeRawConfig as Map),
         ));
       }
     } catch (e) {
@@ -453,6 +469,8 @@ class NodeParsers {
       final sni = (outbound['server-name'] ?? server).toString();
       final shortSrv = server.length > 15 ? server.substring(0, 15) : server;
 
+      final safeRawConfig = deepConvertYaml(outbound);
+
       nodes.add(ProxyNode(
         name: '$sourceTag-$shortSrv',
         protocol: 'shadowquic',
@@ -461,7 +479,9 @@ class NodeParsers {
         sourceTag: sourceTag,
         auth: {'user': user, 'password': password},
         tlsSettings: {'sni': sni},
-        rawConfig: Map<String, dynamic>.from(outbound),
+        rawConfig: safeRawConfig is Map<String, dynamic>
+            ? safeRawConfig
+            : Map<String, dynamic>.from(safeRawConfig as Map),
       ));
     } catch (_) {}
     return nodes;

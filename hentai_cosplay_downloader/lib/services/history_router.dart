@@ -40,6 +40,11 @@ import '../ui/pages/av123/av123_detail_page.dart';
 import '../ui/pages/javmost/javmost_detail_page.dart';
 import '../ui/pages/memojav/memojav_detail_page.dart';
 import '../ui/pages/hohoj/hohoj_detail_page.dart';
+import '../models/ygjgl/ygjgl_post_item.dart';
+import '../models/ygjgl/ygjgl_vod_item.dart';
+import '../ui/pages/ygjgl/details/ygjgl_audio_detail_page.dart';
+import '../ui/pages/ygjgl/details/ygjgl_post_detail_page.dart';
+import '../ui/pages/ygjgl/details/ygjgl_vod_detail_page.dart';
 
 class HistoryRouter {
   static final Map<String, Widget Function(AlbumItem)> _albumRoutes = {
@@ -55,6 +60,30 @@ class HistoryRouter {
     'cosvault': (item) => CosvaultDetailPage(item: item),
     'galleryepic': (item) => GalleryepicDetailPage(item: item),
     'nsfwpub': (item) => NsfwpubDetailPage(item: item),
+    'ygjgl': (item) => YgjglPostDetailPage(
+          item: YgjglPostItem(
+            id: item.slug,
+            kind: 'image',
+            title: item.title,
+            cover: item.coverUrl ?? '',
+            published: item.date,
+            seriesTitle: item.author,
+            tags: item.tags,
+            images: item.imageUrls,
+          ),
+        ),
+    'ygjgl_image': (item) => YgjglPostDetailPage(
+          item: YgjglPostItem(
+            id: item.slug,
+            kind: 'image',
+            title: item.title,
+            cover: item.coverUrl ?? '',
+            published: item.date,
+            seriesTitle: item.author,
+            tags: item.tags,
+            images: item.imageUrls,
+          ),
+        ),
   };
 
   static final Map<String, Widget Function(VideoItem)> _videoRoutes = {
@@ -82,6 +111,41 @@ class HistoryRouter {
     'javmost': (item) => JavmostDetailPage(item: item),
     'memojav': (item) => MemojavDetailPage(item: item),
     'hohoj': (item) => HohojDetailPage(item: item),
+    'ygjgl': (item) => YgjglVodDetailPage(
+          item: YgjglVodItem(
+            id: item.slug,
+            title: item.title,
+            coverUrl: item.coverUrl ?? '',
+            published: item.date,
+            actor: item.author,
+            duration: item.duration,
+            tags: item.tags,
+            mp4Url: item.videoUrl,
+          ),
+        ),
+    'ygjgl_vod': (item) => YgjglVodDetailPage(
+          item: YgjglVodItem(
+            id: item.slug,
+            title: item.title,
+            coverUrl: item.coverUrl ?? '',
+            published: item.date,
+            actor: item.author,
+            duration: item.duration,
+            tags: item.tags,
+            mp4Url: item.videoUrl,
+          ),
+        ),
+    'ygjgl_audio': (item) => YgjglAudioDetailPage(
+          item: YgjglPostItem(
+            id: item.slug,
+            kind: 'audio',
+            title: item.title,
+            cover: item.coverUrl ?? '',
+            published: item.date,
+            tags: item.tags,
+            audioUrl: item.videoUrl ?? '',
+          ),
+        ),
   };
 
   static void openRecord(BuildContext context, BrowsingHistoryRecord record) {

@@ -18,6 +18,8 @@ class FavoriteProvider extends ChangeNotifier {
   String? _siteFilter; // null = all sites
   String _searchQuery = '';
   bool _disposed = false;
+  bool _isSaving = false;
+  bool _needsResave = false;
 
   FavoriteProvider() {
     _loadFavorites();
@@ -149,12 +151,23 @@ class FavoriteProvider extends ChangeNotifier {
   }
 
   Future<void> _saveFavorites() async {
+    if (_isSaving) {
+      _needsResave = true;
+      return;
+    }
+    _isSaving = true;
     try {
       final prefs = await SharedPreferences.getInstance();
       final listStr = _favorites.map((f) => jsonEncode(f.toJson())).toList();
       await prefs.setStringList(_kStorageKey, listStr);
     } catch (e) {
       debugPrint('Error saving favorites: $e');
+    } finally {
+      _isSaving = false;
+      if (_needsResave) {
+        _needsResave = false;
+        _saveFavorites(); // Re-trigger to persist the latest state (intentionally not awaited)
+      }
     }
   }
 

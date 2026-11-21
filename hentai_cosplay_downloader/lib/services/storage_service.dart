@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -146,8 +147,14 @@ class StorageService {
   static Future<List<LocalAlbumFolder>> scanLocalAlbums(String baseDirPath) async {
     try {
       return await Isolate.run(() => _scanLocalAlbumsSync(baseDirPath));
-    } catch (_) {
-      return _scanLocalAlbumsSync(baseDirPath);
+    } catch (e) {
+      debugPrint('scanLocalAlbums isolate error: $e, falling back to sync');
+      try {
+        return _scanLocalAlbumsSync(baseDirPath);
+      } catch (err) {
+        debugPrint('scanLocalAlbums sync fallback error: $err');
+        return [];
+      }
     }
   }
 

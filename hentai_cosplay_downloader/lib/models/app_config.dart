@@ -231,7 +231,7 @@ class AppConfig {
               ?.map((e) => e.toString())
               .toList() ??
           List.from(kDefaultFavoriteResourceSites),
-      lastActiveTabIndex: (json['lastActiveTabIndex'] as num?)?.toInt().clamp(0, 4) ?? 0,
+      lastActiveTabIndex: (json['lastActiveTabIndex'] as num?)?.toInt().clamp(0, 5) ?? 0,
       lastImageSiteKey: json['lastImageSiteKey'] as String? ?? 'hc_gallery',
       lastVideoSiteKey: json['lastVideoSiteKey'] as String? ?? 'jable',
       disguiseMode: json['disguiseMode'] as bool? ?? false,

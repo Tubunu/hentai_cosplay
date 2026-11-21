@@ -40,6 +40,7 @@ import 'nsfwpub/nsfwpub_api_service.dart';
 import 'thothub/thothub_api_service.dart';
 import 'njav/njav_api_service.dart';
 import 'vjav/vjav_api_service.dart';
+import 'ygjgl/ygjgl_api_service.dart';
 import 'proxy/proxy_router.dart';
 
 typedef DownloadLogCallback = void Function(String message, String level);
@@ -258,6 +259,8 @@ class DownloadEngine {
         final file = File(p.join(folderPath, kAlbumMetadataFilename));
         tmpFile = File('${file.path}.tmp');
         await tmpFile.writeAsString(jsonStr, flush: true);
+        // On Windows, rename fails if the target already exists — delete first
+        if (await file.exists()) await file.delete();
         await tmpFile.rename(file.path);
         tmpFile = null;
 
@@ -265,6 +268,8 @@ class DownloadEngine {
           final mztFile = File(p.join(folderPath, kMztMetadataFilename));
           mztTmpFile = File('${mztFile.path}.tmp');
           await mztTmpFile.writeAsString(jsonStr, flush: true);
+          // On Windows, rename fails if the target already exists — delete first
+          if (await mztFile.exists()) await mztFile.delete();
           await mztTmpFile.rename(mztFile.path);
           mztTmpFile = null;
         }
@@ -679,6 +684,20 @@ class DownloadEngine {
             date: item.date,
             author: item.author,
             tags: item.tags,
+            rawData: item.rawData,
+          ),
+        );
+      } else if (item.detailUrl.contains('ygjgl.one') || item.sourceType == MediaSourceType.ygjgl) {
+        vDetail = await YgjglApiService.resolveVideoDetail(
+          VideoItem(
+            title: item.title,
+            slug: item.slug,
+            detailUrl: item.detailUrl,
+            coverUrl: item.coverUrl,
+            date: item.date,
+            author: item.author,
+            tags: item.tags,
+            videoUrl: task.videoUrl,
             rawData: item.rawData,
           ),
         );
@@ -1220,6 +1239,8 @@ class DownloadEngine {
         detailedItem = await GalleryepicApiService.fetchAlbumDetail(item);
       } else if (item.sourceType == MediaSourceType.nsfwpub) {
         detailedItem = await NsfwpubApiService.fetchAlbumDetail(item);
+      } else if (item.sourceType == MediaSourceType.ygjgl) {
+        detailedItem = await YgjglApiService.fetchAlbumDetail(item);
       } else if (item.sourceType == MediaSourceType.hc) {
         detailedItem = await HCApiService.fetchAlbumDetail(item);
       } else {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/app_config.dart';
 import '../models/resource_site_item.dart';
@@ -361,6 +362,11 @@ class SettingsProvider extends ChangeNotifier {
         (_config.proxyMode == AppProxyMode.custom
             ? _config.customProxy
             : ProxyRouter.getActiveProxyAddress());
-    return await HCApiService.testConnectivity(proxy: proxy.isNotEmpty ? proxy : null);
+    try {
+      return await HCApiService.testConnectivity(proxy: proxy.isNotEmpty ? proxy : null)
+          .timeout(const Duration(seconds: 15));
+    } on TimeoutException {
+      return null;
+    }
   }
 }

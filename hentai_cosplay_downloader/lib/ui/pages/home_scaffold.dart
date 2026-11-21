@@ -20,6 +20,7 @@ import 'resources/local_resources_page.dart';
 import 'resources/online_resources_page.dart';
 import 'settings/settings_page.dart';
 import 'tasks/download_tasks_page.dart';
+import 'ygjgl/ygjgl_main_page.dart';
 
 class HomeScaffold extends StatefulWidget {
   const HomeScaffold({super.key});
@@ -40,15 +41,16 @@ class _HomeScaffoldState extends State<HomeScaffold> {
   List<Widget> get _pages => [
     const OnlineImagesPage(),                                             // 0: 在线图片
     const OnlineVideosPage(),                                             // 1: 在线视频 (含 Jable 及全部视频源)
-    const DownloadTasksPage(),                                            // 2: 下载任务 (内置历史与三分类)
-    const LocalResourcesPage(),                                           // 3: 本地资源 (图片、视频、Jable)
-    const SettingsPage(),                                                 // 4: 系统设置
+    const YgjglMainPage(),                                                // 2: 一个够了 (专属板块: 点播、写真、电台)
+    const DownloadTasksPage(),                                            // 3: 下载任务 (内置历史与三分类)
+    const LocalResourcesPage(),                                           // 4: 本地资源 (图片、视频、Jable)
+    const SettingsPage(),                                                 // 5: 系统设置
   ];
 
   @override
   void initState() {
     super.initState();
-    _currentIndex = ConfigService.loadConfig().lastActiveTabIndex.clamp(0, 4);
+    _currentIndex = ConfigService.loadConfig().lastActiveTabIndex.clamp(0, 5);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _downloadProv = context.read<DownloadProvider>();
@@ -177,12 +179,12 @@ class _HomeScaffoldState extends State<HomeScaffold> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   // 1. Floating Mini Download Player Bar (hidden when already on Downloads page)
-                  if (_currentIndex != 2)
+                  if (_currentIndex != 3)
                     MiniDownloadBar(
-                      onTap: () => _switchIndex(2), // Switch to Download Tasks
+                      onTap: () => _switchIndex(3), // Switch to Download Tasks
                     ),
 
-                  // 2. Next-Gen Liquid Glass Bottom Navigation Bar Capsule (5 Items)
+                  // 2. Next-Gen Liquid Glass Bottom Navigation Bar Capsule (6 Items)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                     child: LiquidGlass(
@@ -210,6 +212,13 @@ class _HomeScaffoldState extends State<HomeScaffold> {
                           ),
                           _buildNavItem(
                             index: 2,
+                            icon: CupertinoIcons.flame,
+                            activeIcon: CupertinoIcons.flame_fill,
+                            label: '一个够了',
+                            isDark: isDark,
+                          ),
+                          _buildNavItem(
+                            index: 3,
                             icon: CupertinoIcons.arrow_down_circle,
                             activeIcon: CupertinoIcons.arrow_down_circle_fill,
                             label: '下载任务',
@@ -217,14 +226,14 @@ class _HomeScaffoldState extends State<HomeScaffold> {
                             isDark: isDark,
                           ),
                           _buildNavItem(
-                            index: 3,
+                            index: 4,
                             icon: CupertinoIcons.folder,
                             activeIcon: CupertinoIcons.folder_fill,
                             label: '本地资源',
                             isDark: isDark,
                           ),
                           _buildNavItem(
-                            index: 4,
+                            index: 5,
                             icon: CupertinoIcons.gear_alt,
                             activeIcon: CupertinoIcons.gear_alt_fill,
                             label: '系统设置',

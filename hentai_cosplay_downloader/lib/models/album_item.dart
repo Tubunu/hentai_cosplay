@@ -13,7 +13,8 @@ enum MediaSourceType {
   nucosplay('NuCosplay', 'NCP'),
   cosvault('CosVault', 'CV'),
   galleryepic('GalleryEpic', 'GE'),
-  nsfwpub('NSFWPub', 'NFP');
+  nsfwpub('NSFWPub', 'NFP'),
+  ygjgl('一个够了', 'YGJ');
 
   final String label;
   final String badge;

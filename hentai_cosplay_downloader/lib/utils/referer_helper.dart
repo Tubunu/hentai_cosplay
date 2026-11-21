@@ -30,6 +30,8 @@ class RefererHelper {
           return 'https://galleryepic.xyz/';
         case MediaSourceType.nsfwpub:
           return 'https://nsfwpub.com/';
+        case MediaSourceType.ygjgl:
+          return 'https://ygjgl.one/';
       }
     }
 

@@ -51,14 +51,17 @@ import 'app_logger.dart';
 
 class AppHttpOverrides extends HttpOverrides {
   final String? proxyString;
+  final bool allowInsecure;
 
-  AppHttpOverrides([this.proxyString]);
+  AppHttpOverrides({this.proxyString, this.allowInsecure = false});
 
   @override
   HttpClient createHttpClient(SecurityContext? context) {
     final client = super.createHttpClient(context);
-    // Allow insecure certificates globally (e.g. Let's Encrypt ECDSA certs on older Android and CDN proxying)
-    client.badCertificateCallback = (cert, host, port) => true;
+    // Only bypass SSL certificate validation when the user has explicitly enabled it in settings
+    if (allowInsecure) {
+      client.badCertificateCallback = (cert, host, port) => true;
+    }
 
     // Use intelligent dynamic router or explicit proxy override
     client.findProxy = (uri) {
@@ -94,7 +97,9 @@ class ConfigService {
     ProxyRouter.updateConfig(config);
 
     // Apply global dynamic PAC resolver for all native Dart HttpClient instances
-    HttpOverrides.global = AppHttpOverrides();
+    HttpOverrides.global = AppHttpOverrides(
+      allowInsecure: config.allowInsecureCertificates,
+    );
 
     final globalOrDirectProxy = config.proxyRoutingStrategy == ProxyRoutingStrategy.global
         ? ProxyRouter.getActiveProxyAddress()
