@@ -175,7 +175,13 @@ class MainActivity : FlutterActivity() {
         val overrideOptions = OverrideOptions().apply {
             autoRedirect = false
         }
-        server.startOrReloadService(configJson, overrideOptions)
+        try {
+            server.startOrReloadService(configJson, overrideOptions)
+        } catch (e: Throwable) {
+            try { server.closeService() } catch (_: Throwable) {}
+            try { server.close() } catch (_: Throwable) {}
+            throw e
+        }
         commandServer = server
         isCoreRunning = true
         Log.i("MainActivity", "Libbox in-process proxy started successfully")

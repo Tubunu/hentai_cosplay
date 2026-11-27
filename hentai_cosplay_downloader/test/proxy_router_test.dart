@@ -163,10 +163,12 @@ void main() {
       final jsonStr = SingboxConfigGenerator.generateConfigJson(node, listenPort: 20808);
       final map = jsonDecode(jsonStr) as Map<String, dynamic>;
 
-      // Modern DNS servers format
+      // Modern DNS servers format: local-dns must NOT detour to empty direct outbound
       final dnsServers = map['dns']['servers'] as List;
-      expect(dnsServers.any((s) => s['type'] == 'udp' && s['tag'] == 'local-dns' && s['detour'] == 'direct'), isTrue);
-      expect(dnsServers.any((s) => s['type'] == 'udp' && s['tag'] == 'remote-dns'), isTrue);
+      final localDns = dnsServers.firstWhere((s) => s['tag'] == 'local-dns') as Map<String, dynamic>;
+      expect(localDns['type'], equals('udp'));
+      expect(localDns.containsKey('detour'), isFalse);
+      expect(dnsServers.any((s) => s['type'] == 'udp' && s['tag'] == 'remote-dns' && s['detour'] == 'proxy'), isTrue);
 
       // Inbounds
       final inbounds = map['inbounds'] as List;
@@ -191,8 +193,35 @@ void main() {
       expect(proxyOutbound['tls']['reality']['public_key'], equals('my-public-key'));
       expect(proxyOutbound['tls']['alpn'], equals(['h2', 'http/1.1']));
 
-      // Ensure no deprecated dns outbound exists
-      expect(outbounds.any((o) => o['type'] == 'dns'), isFalse);
+      // Ensure no deprecated/removed dns or block outbounds exist
+      expect(outbounds.any((o) => o['type'] == 'dns' || o['type'] == 'block'), isFalse);
+    });
+
+    test('strips IPv6 brackets and omits empty SNI/fingerprint/Reality fields', () {
+      final hy2Node = ProxyNode(
+        name: 'Hy2-(IP-4)-2001-bc8-32d7-1',
+        protocol: 'hysteria2',
+        server: '[2001:bc8:32d7:17b::3]',
+        port: 22000,
+        auth: {'password': 'pw'},
+        tlsSettings: {'sni': '', 'insecure': false},
+      );
+
+      final hy2Outbound = SingboxConfigGenerator.nodeToSingboxOutbound(hy2Node);
+      expect(hy2Outbound['server'], equals('2001:bc8:32d7:17b::3'));
+      expect((hy2Outbound['tls'] as Map).containsKey('server_name'), isFalse);
+
+      final plainVless = ProxyNode(
+        name: 'Plain-VLESS',
+        protocol: 'vless',
+        server: '1.2.3.4',
+        port: 443,
+        auth: {'uuid': '12345678-1234-1234-1234-123456789abc'},
+        tlsSettings: {'sni': '', 'fp': '', 'pbk': ''},
+      );
+
+      final vlessOutbound = SingboxConfigGenerator.nodeToSingboxOutbound(plainVless);
+      expect(vlessOutbound.containsKey('tls'), isFalse);
     });
 
     test('generates valid hysteria2 outbound with obfs and rate limits', () {

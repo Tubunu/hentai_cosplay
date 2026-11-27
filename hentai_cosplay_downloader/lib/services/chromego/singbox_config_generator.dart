@@ -28,8 +28,7 @@ class SingboxConfigGenerator {
           {
             "tag": "local-dns",
             "type": "udp",
-            "server": "223.5.5.5",
-            "detour": "direct"
+            "server": "223.5.5.5"
           }
         ],
         "strategy": "prefer_ipv4"
@@ -47,10 +46,6 @@ class SingboxConfigGenerator {
         {
           "type": "direct",
           "tag": "direct"
-        },
-        {
-          "type": "block",
-          "tag": "block"
         }
       ],
       "route": {
@@ -76,11 +71,102 @@ class SingboxConfigGenerator {
     return const JsonEncoder.withIndent('  ').convert(map);
   }
 
+  static String? _nonEmpty(dynamic value) {
+    if (value == null) return null;
+    final str = value.toString().trim();
+    return str.isEmpty ? null : str;
+  }
+
+  static bool _isTruthy(dynamic value) {
+    if (value == true || value == 1 || value == '1') return true;
+    return value?.toString().trim().toLowerCase() == 'true';
+  }
+
+  static Map<String, dynamic> _buildTls(
+    ProxyNode node, {
+    List<String>? defaultAlpn,
+    bool includeAdvanced = false,
+  }) {
+    final tls = <String, dynamic>{
+      "enabled": true,
+      "insecure": _isTruthy(node.tlsSettings['insecure']),
+    };
+    final sni = _nonEmpty(node.tlsSettings['sni']);
+    if (sni != null) {
+      tls["server_name"] = sni;
+    }
+    if (defaultAlpn != null && defaultAlpn.isNotEmpty) {
+      tls["alpn"] = defaultAlpn;
+    } else if (node.tlsSettings['alpn'] != null) {
+      final rawAlpn = node.tlsSettings['alpn'];
+      List<String> alpnList = const [];
+      if (rawAlpn is List) {
+        alpnList = rawAlpn.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList();
+      } else if (rawAlpn is String && rawAlpn.isNotEmpty) {
+        alpnList = rawAlpn.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+      }
+      if (alpnList.isNotEmpty) {
+        tls["alpn"] = alpnList;
+      }
+    }
+    if (includeAdvanced) {
+      final fp = _nonEmpty(node.tlsSettings['fp']);
+      if (fp != null) {
+        tls["utls"] = {
+          "enabled": true,
+          "fingerprint": fp,
+        };
+      }
+      final pbk = _nonEmpty(node.tlsSettings['pbk']);
+      if (pbk != null) {
+        tls["reality"] = {
+          "enabled": true,
+          "public_key": pbk,
+          "short_id": _nonEmpty(node.tlsSettings['sid']) ?? '',
+        };
+      }
+    }
+    return tls;
+  }
+
+  static Map<String, dynamic>? _buildTransport(
+    ProxyNode node, {
+    bool includeHttpUpgrade = false,
+  }) {
+    final net = (node.transport['network'] ?? node.transport['type'] ?? 'tcp')
+        .toString()
+        .toLowerCase();
+    final host = _nonEmpty(node.transport['host']);
+    if (net == 'ws') {
+      return {
+        "type": "ws",
+        "path": (node.transport['path'] ?? '/').toString(),
+        if (host != null) "headers": {"Host": host},
+      };
+    }
+    if (net == 'grpc') {
+      return {
+        "type": "grpc",
+        "service_name":
+            (node.transport['service_name'] ?? node.transport['path'] ?? '').toString(),
+      };
+    }
+    if (includeHttpUpgrade && (net == 'xhttp' || net == 'splithttp')) {
+      return {
+        "type": "httpupgrade",
+        "path": (node.transport['path'] ?? '/').toString(),
+        if (host != null) "host": host,
+      };
+    }
+    return null;
+  }
+
   /// 将 [ProxyNode] 转换为 Sing-box 出站配置 Map
   static Map<String, dynamic> nodeToSingboxOutbound(ProxyNode node) {
     final proto = node.protocol.toLowerCase();
     final srv = node.server.trim().replaceAll('[', '').replaceAll(']', '');
     final port = node.port;
+    final sni = _nonEmpty(node.tlsSettings['sni']);
 
     switch (proto) {
       case 'vless':
@@ -92,70 +178,25 @@ class SingboxConfigGenerator {
           "uuid": (node.auth['uuid'] ?? node.auth['id'] ?? '').toString(),
           "domain_resolver": "local-dns",
         };
-        final flow = node.extra['flow']?.toString();
-        if (flow != null && flow.isNotEmpty) {
+        final flow = _nonEmpty(node.extra['flow']);
+        if (flow != null) {
           outbound['flow'] = flow;
         }
 
-        // TLS & Reality
-        final isTls = node.tlsSettings['tls'] == true ||
+        final pbk = _nonEmpty(node.tlsSettings['pbk']);
+        final isTls = _isTruthy(node.tlsSettings['tls']) ||
             node.tlsSettings['security'] == 'tls' ||
             node.tlsSettings['security'] == 'reality' ||
-            node.tlsSettings['sni'] != null;
+            sni != null ||
+            pbk != null;
 
         if (isTls) {
-          final tls = <String, dynamic>{
-            "enabled": true,
-            "insecure": node.tlsSettings['insecure'] == true || node.tlsSettings['insecure'] == '1',
-          };
-          if (node.tlsSettings['sni'] != null && node.tlsSettings['sni'].toString().isNotEmpty) {
-            tls["server_name"] = node.tlsSettings['sni'].toString();
-          }
-          if (node.tlsSettings['alpn'] != null) {
-            final rawAlpn = node.tlsSettings['alpn'];
-            if (rawAlpn is List) {
-              tls["alpn"] = rawAlpn.map((e) => e.toString()).toList();
-            } else if (rawAlpn is String && rawAlpn.isNotEmpty) {
-              tls["alpn"] = rawAlpn.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-            }
-          }
-          if (node.tlsSettings['fp'] != null) {
-            tls["utls"] = {
-              "enabled": true,
-              "fingerprint": node.tlsSettings['fp'].toString(),
-            };
-          }
-          if (node.tlsSettings['security'] == 'reality' || node.tlsSettings['pbk'] != null) {
-            tls["reality"] = {
-              "enabled": true,
-              "public_key": (node.tlsSettings['pbk'] ?? '').toString(),
-              "short_id": (node.tlsSettings['sid'] ?? '').toString(),
-            };
-          }
-          outbound['tls'] = tls;
+          outbound['tls'] = _buildTls(node, includeAdvanced: true);
         }
 
-        // Transport
-        final net = (node.transport['network'] ?? node.transport['type'] ?? 'tcp').toString().toLowerCase();
-        if (net == 'ws') {
-          outbound['transport'] = {
-            "type": "ws",
-            "path": (node.transport['path'] ?? '/').toString(),
-            "headers": {
-              if (node.transport['host'] != null) "Host": node.transport['host'].toString(),
-            }
-          };
-        } else if (net == 'grpc') {
-          outbound['transport'] = {
-            "type": "grpc",
-            "service_name": (node.transport['service_name'] ?? node.transport['path'] ?? '').toString(),
-          };
-        } else if (net == 'xhttp' || net == 'splithttp') {
-          outbound['transport'] = {
-            "type": "httpupgrade",
-            "path": (node.transport['path'] ?? '/').toString(),
-            "host": (node.transport['host'] ?? '').toString(),
-          };
+        final transport = _buildTransport(node, includeHttpUpgrade: true);
+        if (transport != null) {
+          outbound['transport'] = transport;
         }
         return outbound;
 
@@ -166,38 +207,21 @@ class SingboxConfigGenerator {
           "server": srv,
           "server_port": port,
           "uuid": (node.auth['uuid'] ?? node.auth['id'] ?? '').toString(),
-          "security": (node.auth['security'] ?? 'auto').toString(),
+          "security": _nonEmpty(node.auth['security']) ?? 'auto',
           "alter_id": (node.auth['alterId'] is int)
               ? node.auth['alterId']
               : int.tryParse(node.auth['alterId']?.toString() ?? '0') ?? 0,
           "domain_resolver": "local-dns",
         };
-        final isTls = node.tlsSettings['tls'] == true || node.tlsSettings['security'] == 'tls';
+        final isTls = _isTruthy(node.tlsSettings['tls']) ||
+            node.tlsSettings['security'] == 'tls' ||
+            sni != null;
         if (isTls) {
-          outbound['tls'] = {
-            "enabled": true,
-            "insecure": node.tlsSettings['insecure'] == true,
-            if (node.tlsSettings['sni'] != null) "server_name": node.tlsSettings['sni'].toString(),
-          };
+          outbound['tls'] = _buildTls(node);
         }
-        final net = (node.transport['network'] ?? node.transport['type'] ?? 'tcp').toString().toLowerCase();
-        if (net == 'ws') {
-          outbound['transport'] = {
-            "type": "ws",
-            "path": (node.transport['path'] ?? '/').toString(),
-            if (node.transport['host'] != null) "headers": {"Host": node.transport['host'].toString()},
-          };
-        } else if (net == 'grpc') {
-          outbound['transport'] = {
-            "type": "grpc",
-            "service_name": (node.transport['service_name'] ?? node.transport['path'] ?? '').toString(),
-          };
-        } else if (net == 'xhttp' || net == 'splithttp') {
-          outbound['transport'] = {
-            "type": "httpupgrade",
-            "path": (node.transport['path'] ?? '/').toString(),
-            "host": (node.transport['host'] ?? '').toString(),
-          };
+        final transport = _buildTransport(node, includeHttpUpgrade: true);
+        if (transport != null) {
+          outbound['transport'] = transport;
         }
         return outbound;
 
@@ -209,24 +233,11 @@ class SingboxConfigGenerator {
           "server_port": port,
           "password": (node.auth['password'] ?? '').toString(),
           "domain_resolver": "local-dns",
-          "tls": {
-            "enabled": true,
-            "insecure": node.tlsSettings['insecure'] == true,
-            if (node.tlsSettings['sni'] != null) "server_name": node.tlsSettings['sni'].toString(),
-          }
+          "tls": _buildTls(node),
         };
-        final net = (node.transport['network'] ?? node.transport['type'] ?? 'tcp').toString().toLowerCase();
-        if (net == 'ws') {
-          outbound['transport'] = {
-            "type": "ws",
-            "path": (node.transport['path'] ?? '/').toString(),
-            if (node.transport['host'] != null) "headers": {"Host": node.transport['host'].toString()},
-          };
-        } else if (net == 'grpc') {
-          outbound['transport'] = {
-            "type": "grpc",
-            "service_name": (node.transport['service_name'] ?? node.transport['path'] ?? '').toString(),
-          };
+        final transport = _buildTransport(node);
+        if (transport != null) {
+          outbound['transport'] = transport;
         }
         return outbound;
 
@@ -237,7 +248,9 @@ class SingboxConfigGenerator {
           "tag": "proxy",
           "server": srv,
           "server_port": port,
-          "method": (node.auth['cipher'] ?? node.auth['method'] ?? 'aes-256-gcm').toString(),
+          "method": _nonEmpty(node.auth['cipher']) ??
+              _nonEmpty(node.auth['method']) ??
+              'aes-256-gcm',
           "password": (node.auth['password'] ?? '').toString(),
           "domain_resolver": "local-dns",
         };
@@ -251,11 +264,7 @@ class SingboxConfigGenerator {
           "server_port": port,
           "password": (node.auth['password'] ?? node.auth['auth'] ?? '').toString(),
           "domain_resolver": "local-dns",
-          "tls": {
-            "enabled": true,
-            "insecure": node.tlsSettings['insecure'] == true || node.tlsSettings['insecure'] == '1',
-            if (node.tlsSettings['sni'] != null) "server_name": node.tlsSettings['sni'].toString(),
-          }
+          "tls": _buildTls(node),
         };
         if (node.extra['up'] != null) {
           outbound['up_mbps'] =
@@ -265,9 +274,9 @@ class SingboxConfigGenerator {
           outbound['down_mbps'] =
               int.tryParse(node.extra['down'].toString().replaceAll(RegExp(r'\D'), '')) ?? 100;
         }
-        final obfs = node.extra['obfs']?.toString();
-        final obfsPassword = (node.extra['obfs-password'] ?? node.extra['obfs_password'])?.toString();
-        if (obfs != null && obfs.isNotEmpty && obfsPassword != null && obfsPassword.isNotEmpty) {
+        final obfs = _nonEmpty(node.extra['obfs']);
+        final obfsPassword = _nonEmpty(node.extra['obfs-password'] ?? node.extra['obfs_password']);
+        if (obfs != null && obfsPassword != null) {
           outbound['obfs'] = {
             "type": obfs,
             "password": obfsPassword,
@@ -283,14 +292,9 @@ class SingboxConfigGenerator {
           "server_port": port,
           "uuid": (node.auth['uuid'] ?? '').toString(),
           "password": (node.auth['password'] ?? '').toString(),
-          "congestion_control": (node.extra['congestion_control'] ?? 'bbr').toString(),
+          "congestion_control": _nonEmpty(node.extra['congestion_control']) ?? 'bbr',
           "domain_resolver": "local-dns",
-          "tls": {
-            "enabled": true,
-            "insecure": node.tlsSettings['insecure'] == true,
-            "alpn": ["h3"],
-            if (node.tlsSettings['sni'] != null) "server_name": node.tlsSettings['sni'].toString(),
-          }
+          "tls": _buildTls(node, defaultAlpn: const ["h3"]),
         };
 
       default:

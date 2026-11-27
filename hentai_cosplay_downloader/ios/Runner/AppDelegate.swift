@@ -379,7 +379,13 @@ import Libbox
     }
 
     let overrideOptions = LibboxOverrideOptions()
-    try server.startOrReloadService(configJson, options: overrideOptions)
+    do {
+      try server.startOrReloadService(configJson, options: overrideOptions)
+    } catch {
+      try? server.closeService()
+      try? server.close()
+      throw error
+    }
     self.commandServer = server
     self.isLibboxRunning = true
     print("Libbox iOS in-process proxy started successfully")
